@@ -36,6 +36,7 @@ void yyerror(const char *s) {
     ast::Identifier* ident;
     ast::ArrayIdentifier* array_ident;
     ast::ArrayInitVal* array_initval;
+    std::vector<ast::ArrayInitVal*>* array_initval_list;
     ast::Statement* statement;
     ast::Block* block;
     ast::FunctionDefine* funcdef;
@@ -84,7 +85,8 @@ void yyerror(const char *s) {
 
 %type <root> Root CompUnit
 
-%type <array_initval> InitValArray InitValArrayList
+%type <array_initval> InitValArray
+%type <array_initval_list> InitValArrayList
 
 %start Root
 
@@ -162,26 +164,28 @@ InitValArray: LBRACE RBRACE {
     $$=new ast::ArrayInitVal(false, nullptr);
 }
     | LBRACE InitValArrayList RBRACE {
-        $$=$2;
+        $$=new ast::ArrayInitVal(false, nullptr);
+        $$->initval_list_.swap(*$2);
+        delete $2;
     }
     ;
 
 // InitValArrayList是InitVal(AddExp)和InitValArray的任意组合
 InitValArrayList: InitValArray {
-    $$=new ast::ArrayInitVal(false, nullptr);
-    $$->initval_list_.push_back($1);
+    $$=new std::vector<ast::ArrayInitVal*>;
+    $$->push_back($1);
 }
     | InitValArrayList COMMA InitValArray {
         $$=$1;
-        $$->initval_list_.push_back($3);
+        $$->push_back($3);
     }
     | InitVal {
-        $$=new ast::ArrayInitVal(false, nullptr);
-        $$->initval_list_.push_back(new ast::ArrayInitVal(true, $1));
+        $$=new std::vector<ast::ArrayInitVal*>;
+        $$->push_back(new ast::ArrayInitVal(true, $1));
     }
     | InitValArrayList COMMA InitVal {
         $$=$1;
-        $$->initval_list_.push_back(new ast::ArrayInitVal(true,$3));
+        $$->push_back(new ast::ArrayInitVal(true, $3));
     }
     ;
 
