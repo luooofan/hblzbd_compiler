@@ -23,8 +23,11 @@ class CompUnit;
 // Regard 'Root' as a list of 'CompUnit's.
 class Root {
  public:
+  int line_no_;
   std::vector<CompUnit*> compunit_list_;
+  Root(int line_no);
   virtual ~Root();
+  virtual void GenerateIR();
   virtual void PrintNode(int indentation = 0,
                          std::ostream& outfile = std::clog);
 };
@@ -36,7 +39,10 @@ class Root {
 // LeftValue -> Identifier ArrayIdentifier
 class Expression {
  public:
+  int line_no_;
+  Expression(int line_no);
   virtual ~Expression() = default;
+  virtual void GenerateIR() = 0;
   virtual void PrintNode(int indentation = 0,
                          std::ostream& outfilefile = std::clog) = 0;
 };
@@ -44,8 +50,9 @@ class Expression {
 class Number : public Expression {
  public:
   int value_;
-  Number(int value);
+  Number(int line_no, int value);
   virtual ~Number();
+  virtual void GenerateIR();
   virtual void PrintNode(int indentation = 0,
                          std::ostream& outfile = std::clog);
 };
@@ -53,7 +60,9 @@ class Number : public Expression {
 // LeftValue -> Identifier ArrayIdentifier
 class LeftValue : public Expression {
  public:
+  LeftValue(int line_no);
   virtual ~LeftValue() = default;
+  virtual void GenerateIR() = 0;
   virtual void PrintNode(int indentation = 0,
                          std::ostream& outfilefile = std::clog) = 0;
 };
@@ -61,8 +70,9 @@ class LeftValue : public Expression {
 class Identifier : public LeftValue {
  public:
   std::string& name_;
-  Identifier(std::string& name);
+  Identifier(int line_no, std::string& name);
   virtual ~Identifier();
+  virtual void GenerateIR();
   virtual void PrintNode(int indentation = 0,
                          std::ostream& outfile = std::clog);
 };
@@ -71,8 +81,9 @@ class ArrayIdentifier : public LeftValue {
  public:
   Identifier& name_;
   std::vector<Expression*> shape_list_;
-  ArrayIdentifier(Identifier& name);
+  ArrayIdentifier(int line_no, Identifier& name);
   virtual ~ArrayIdentifier();
+  virtual void GenerateIR();
   virtual void PrintNode(int indentation = 0,
                          std::ostream& outfile = std::clog);
 };
@@ -82,8 +93,9 @@ class ConditionExpression : public Expression {
   int op_;
   Expression& lhs_;
   Expression& rhs_;
-  ConditionExpression(int op, Expression& lhs, Expression& rhs);
+  ConditionExpression(int line_no, int op, Expression& lhs, Expression& rhs);
   virtual ~ConditionExpression();
+  virtual void GenerateIR();
   virtual void PrintNode(int indentation = 0,
                          std::ostream& outfile = std::clog);
 };
@@ -93,8 +105,9 @@ class BinaryExpression : public Expression {
   int op_;
   Expression& lhs_;
   Expression& rhs_;
-  BinaryExpression(int op, Expression& lhs, Expression& rhs);
+  BinaryExpression(int line_no, int op, Expression& lhs, Expression& rhs);
   virtual ~BinaryExpression();
+  virtual void GenerateIR();
   virtual void PrintNode(int indentation = 0,
                          std::ostream& outfile = std::clog);
 };
@@ -103,8 +116,9 @@ class UnaryExpression : public Expression {
  public:
   int op_;
   Expression& rhs_;
-  UnaryExpression(int op, Expression& rhs);
+  UnaryExpression(int line_no, int op, Expression& rhs);
   virtual ~UnaryExpression();
+  virtual void GenerateIR();
   virtual void PrintNode(int indentation = 0,
                          std::ostream& outfile = std::clog);
 };
@@ -115,8 +129,10 @@ class FunctionCall : public Expression {
  public:
   Identifier& name_;
   FunctionActualParameterList& args_;
-  FunctionCall(Identifier& name, FunctionActualParameterList& args);
+  FunctionCall(int line_no, Identifier& name,
+               FunctionActualParameterList& args);
   virtual ~FunctionCall();
+  virtual void GenerateIR();
   virtual void PrintNode(int indentation = 0,
                          std::ostream& outfile = std::clog);
 };
@@ -127,7 +143,10 @@ class FunctionCall : public Expression {
 // Eg: a=5,b,c[5]={1,2,3,4,5},d[2][3]
 class Define {
  public:
+  int line_no_;
+  Define(int line_no);
   virtual ~Define() = default;
+  virtual void GenerateIR() = 0;
   virtual void PrintNode(int indentation = 0,
                          std::ostream& outfile = std::clog) = 0;
 };
@@ -135,8 +154,9 @@ class Define {
 class VariableDefine : public Define {
  public:
   Identifier& name_;
-  VariableDefine(Identifier& name);
+  VariableDefine(int line_no, Identifier& name);
   virtual ~VariableDefine();
+  virtual void GenerateIR();
   virtual void PrintNode(int indentation = 0,
                          std::ostream& outfile = std::clog);
 };
@@ -146,8 +166,10 @@ class VariableDefineWithInit : public Define {
   bool is_const_;
   Identifier& name_;
   Expression& value_;
-  VariableDefineWithInit(Identifier& name, Expression& value, bool is_const);
+  VariableDefineWithInit(int line_no, Identifier& name, Expression& value,
+                         bool is_const);
   virtual ~VariableDefineWithInit();
+  virtual void GenerateIR();
   virtual void PrintNode(int indentation = 0,
                          std::ostream& outfile = std::clog);
 };
@@ -155,8 +177,9 @@ class VariableDefineWithInit : public Define {
 class ArrayDefine : public Define {
  public:
   ArrayIdentifier& name_;
-  ArrayDefine(ArrayIdentifier& name);
+  ArrayDefine(int line_no, ArrayIdentifier& name);
   virtual ~ArrayDefine();
+  virtual void GenerateIR();
   virtual void PrintNode(int indentation = 0,
                          std::ostream& outfile = std::clog);
 };
@@ -168,9 +191,10 @@ class ArrayDefineWithInit : public Define {
   bool is_const_;
   ArrayIdentifier& name_;
   ArrayInitVal& value_;
-  ArrayDefineWithInit(ArrayIdentifier& name, ArrayInitVal& value,
+  ArrayDefineWithInit(int line_no, ArrayIdentifier& name, ArrayInitVal& value,
                       bool is_const);
   virtual ~ArrayDefineWithInit();
+  virtual void GenerateIR();
   virtual void PrintNode(int indentation = 0,
                          std::ostream& outfile = std::clog);
 };
@@ -186,7 +210,10 @@ class ArrayDefineWithInit : public Define {
 //       regard 'Block' as a list of 'Statement's
 class CompUnit {
  public:
+  int line_no_;
+  CompUnit(int line_no);
   virtual ~CompUnit() = default;
+  virtual void GenerateIR() = 0;
   virtual void PrintNode(int indentation = 0,
                          std::ostream& outfile = std::clog) = 0;
 };
@@ -200,16 +227,19 @@ class FunctionDefine : public CompUnit {
   Identifier& name_;
   FunctionFormalParameterList& args_;
   Block& body_;
-  FunctionDefine(int return_type, Identifier& name,
+  FunctionDefine(int line_no, int return_type, Identifier& name,
                  FunctionFormalParameterList& args, Block& body);
   virtual ~FunctionDefine();
+  virtual void GenerateIR();
   virtual void PrintNode(int indentation = 0,
                          std::ostream& outfile = std::clog);
 };
 
 class Statement : public CompUnit {
  public:
+  Statement(int line_no);
   virtual ~Statement() = default;
+  virtual void GenerateIR() = 0;
   virtual void PrintNode(int indentation = 0,
                          std::ostream& outfile = std::clog) = 0;
 };
@@ -218,8 +248,9 @@ class AssignStatement : public Statement {
  public:
   LeftValue& lhs_;
   Expression& rhs_;
-  AssignStatement(LeftValue& lhs, Expression& rhs);
+  AssignStatement(int line_no, LeftValue& lhs, Expression& rhs);
   virtual ~AssignStatement();
+  virtual void GenerateIR();
   virtual void PrintNode(int indentation = 0,
                          std::ostream& outfile = std::clog);
 };
@@ -229,9 +260,10 @@ class IfElseStatement : public Statement {
   ConditionExpression& cond_;
   Statement& thenstmt_;
   Statement* elsestmt_;
-  IfElseStatement(ConditionExpression& cond, Statement& thenstmt,
+  IfElseStatement(int line_no, ConditionExpression& cond, Statement& thenstmt,
                   Statement* elsestmt = nullptr);
   virtual ~IfElseStatement();
+  virtual void GenerateIR();
   virtual void PrintNode(int indentation = 0,
                          std::ostream& outfile = std::clog);
 };
@@ -240,20 +272,25 @@ class WhileStatement : public Statement {
  public:
   ConditionExpression& cond_;
   Statement& bodystmt_;
-  WhileStatement(ConditionExpression& cond, Statement& bodystmt);
+  WhileStatement(int line_no, ConditionExpression& cond, Statement& bodystmt);
   virtual ~WhileStatement();
+  virtual void GenerateIR();
   virtual void PrintNode(int indentation = 0,
                          std::ostream& outfile = std::clog);
 };
 
 class BreakStatement : public Statement {
  public:
+  BreakStatement(int line_no);
+  virtual void GenerateIR();
   virtual void PrintNode(int indentation = 0,
                          std::ostream& outfile = std::clog);
 };
 
 class ContinueStatement : public Statement {
  public:
+  ContinueStatement(int line_no);
+  virtual void GenerateIR();
   virtual void PrintNode(int indentation = 0,
                          std::ostream& outfile = std::clog);
 };
@@ -261,14 +298,17 @@ class ContinueStatement : public Statement {
 class ReturnStatement : public Statement {
  public:
   Expression* value_;
-  ReturnStatement(Expression* value = nullptr);
+  ReturnStatement(int line_no, Expression* value = nullptr);
   virtual ~ReturnStatement();
+  virtual void GenerateIR();
   virtual void PrintNode(int indentation = 0,
                          std::ostream& outfile = std::clog);
 };
 
 class VoidStatement : public Statement {
  public:
+  VoidStatement(int line_no);
+  virtual void GenerateIR();
   virtual void PrintNode(int indentation = 0,
                          std::ostream& outfile = std::clog);
 };
@@ -276,8 +316,9 @@ class VoidStatement : public Statement {
 class EvalStatement : public Statement {
  public:
   Expression& value_;
-  EvalStatement(Expression& value);
+  EvalStatement(int line_no, Expression& value);
   virtual ~EvalStatement();
+  virtual void GenerateIR();
   virtual void PrintNode(int indentation = 0,
                          std::ostream& outfile = std::clog);
 };
@@ -285,7 +326,9 @@ class EvalStatement : public Statement {
 class Block : public Statement {
  public:
   std::vector<Statement*> statement_list_;
+  Block(int line_no);
   virtual ~Block();
+  virtual void GenerateIR();
   virtual void PrintNode(int indentation = 0,
                          std::ostream& outfile = std::clog);
 };
@@ -294,8 +337,9 @@ class DeclareStatement : public Statement {
  public:
   int type_;
   std::vector<Define*> define_list_;
-  DeclareStatement(int type);
+  DeclareStatement(int line_no, int type);
   virtual ~DeclareStatement();
+  virtual void GenerateIR();
   virtual void PrintNode(int indentation = 0,
                          std::ostream& outfile = std::clog);
 };
@@ -307,37 +351,47 @@ class DeclareStatement : public Statement {
 // FunctionActualParameterList
 class ArrayInitVal {
  public:
+  int line_no_;
   bool is_exp_;
   Expression* value_;  // maybe nullptr
   std::vector<ArrayInitVal*> initval_list_;
-  ArrayInitVal(bool is_exp, Expression* value = nullptr);
+  ArrayInitVal(int line_no, bool is_exp, Expression* value = nullptr);
   virtual ~ArrayInitVal();
+  virtual void GenerateIR();
   virtual void PrintNode(int indentation = 0,
                          std::ostream& outfile = std::clog);
 };
 
 class FunctionFormalParameter {
  public:
+  int line_no_;
   int type_;
   LeftValue& name_;
-  FunctionFormalParameter(int type, LeftValue& name);
+  FunctionFormalParameter(int line_no, int type, LeftValue& name);
   virtual ~FunctionFormalParameter();
+  virtual void GenerateIR();
   virtual void PrintNode(int indentation = 0,
                          std::ostream& outfile = std::clog);
 };
 
 class FunctionFormalParameterList {
  public:
+  int line_no_;
   std::vector<FunctionFormalParameter*> arg_list_;
+  FunctionFormalParameterList(int line_no);
   virtual ~FunctionFormalParameterList();
+  virtual void GenerateIR();
   virtual void PrintNode(int indentation = 0,
                          std::ostream& outfile = std::clog);
 };
 
 class FunctionActualParameterList {
  public:
+  int line_no_;
   std::vector<Expression*> arg_list_;
+  FunctionActualParameterList(int line_no);
   virtual ~FunctionActualParameterList();
+  virtual void GenerateIR();
   virtual void PrintNode(int indentation = 0,
                          std::ostream& outfile = std::clog);
 };

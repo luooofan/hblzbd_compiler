@@ -1,7 +1,6 @@
 #include "../include/ast.h"
-
-#include "../include/parser.hpp"
-
+// #include "ir.h"
+#include "parser.hpp"
 ast::Root *ast_root; // the root node of final AST
 extern int yyparse();
 extern int yylex_destroy();
@@ -27,7 +26,14 @@ int main(int argc, char **argv)
   if (nullptr != ast_root)
   {
     ast_root->PrintNode();
+    std::cout << "Generate IR:" << std::endl;
+    ast_root->GenerateIR();
+    // for (auto &ir : gIRList)
+    // {
+    //   ir.PrintIR();
+    // }
   }
+
   yylex_destroy();
   delete ast_root;
 

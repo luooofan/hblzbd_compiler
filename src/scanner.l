@@ -8,7 +8,7 @@ ILEN ([Uu](L|l|LL|ll)?|(L|l|LL|ll)[Uu]?)
 
 #include "../include/ast.h"
 
-#include "../include/parser.hpp"
+#include "parser.hpp"
 
 #define SAVE_TOKEN  yylval.string = new std::string(yytext, yyleng)
 

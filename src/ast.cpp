@@ -1,9 +1,10 @@
 #include "../include/ast.h"
 
-#include "../include/parser.hpp"
+#include "parser.hpp"
 
 #define PRINT_INDENT PrintIndentation(indentation, outfile);
 #define PRINT_NODE PrintNode(indentation + 1, outfile);
+#define LINE_NO " (" << this->line_no_ << ") "
 #define TYPE_STRING(type) \
   ((type) == INT ? "int" : ((type) == VOID ? "void" : "undefined"))
 #define OP_STRING(op) (kOpStr[(op)-258])
@@ -24,6 +25,7 @@ namespace ast
   }
 
   // ==================== Root Class ====================
+  Root::Root(int line_no) : line_no_(line_no) {}
   Root::~Root()
   {
     for (auto &ptr : compunit_list_)
@@ -34,7 +36,7 @@ namespace ast
   void Root::PrintNode(int indentation, std::ostream &outfile)
   {
     PRINT_INDENT;
-    outfile << "Root" << std::endl;
+    outfile << "Root" << LINE_NO << std::endl;
     for (const auto &ele : compunit_list_)
     {
       ele->PRINT_NODE;
@@ -42,27 +44,31 @@ namespace ast
   }
 
   // ==================== Expression Class Hierarchy ====================
+  Expression::Expression(int line_no) : line_no_(line_no) {}
   // Expression::~Expression() {}
 
-  Number::Number(int value) : value_(value) {}
+  Number::Number(int line_no, int value) : Expression(line_no), value_(value) {}
   Number::~Number() {}
   void Number::PrintNode(int indentation, std::ostream &outfile)
   {
     PRINT_INDENT;
-    outfile << "Number: " << value_ << std::endl;
+    outfile << "Number: " << value_ << LINE_NO << std::endl;
   }
 
+  LeftValue::LeftValue(int line_no) : Expression(line_no) {}
   // LeftValue::~LeftValue() {}
 
-  Identifier::Identifier(std::string &name) : name_(name) {}
+  Identifier::Identifier(int line_no, std::string &name)
+      : LeftValue(line_no), name_(name) {}
   Identifier::~Identifier() { delete &name_; }
   void Identifier::PrintNode(int indentation, std::ostream &outfile)
   {
     PRINT_INDENT;
-    outfile << "Identifier: " << name_ << std::endl;
+    outfile << "Identifier: " << name_ << LINE_NO << std::endl;
   }
 
-  ArrayIdentifier::ArrayIdentifier(Identifier &name) : name_(name) {}
+  ArrayIdentifier::ArrayIdentifier(int line_no, Identifier &name)
+      : LeftValue(line_no), name_(name) {}
   ArrayIdentifier::~ArrayIdentifier()
   {
     delete &name_;
@@ -74,20 +80,20 @@ namespace ast
   void ArrayIdentifier::PrintNode(int indentation, std::ostream &outfile)
   {
     PRINT_INDENT;
-    outfile << "ArrayIdentifier" << std::endl;
+    outfile << "ArrayIdentifier" << LINE_NO << std::endl;
     name_.PRINT_NODE;
     ++indentation;
     PRINT_INDENT;
-    outfile << "Shape" << std::endl;
+    outfile << "Shape" << LINE_NO << std::endl;
     for (const auto &ele : shape_list_)
     {
       ele->PRINT_NODE;
     }
   }
 
-  ConditionExpression::ConditionExpression(int op, Expression &lhs,
+  ConditionExpression::ConditionExpression(int line_no, int op, Expression &lhs,
                                            Expression &rhs)
-      : op_(op), lhs_(lhs), rhs_(rhs) {}
+      : Expression(line_no), op_(op), lhs_(lhs), rhs_(rhs) {}
   ConditionExpression::~ConditionExpression()
   {
     delete &(this->lhs_);
@@ -96,13 +102,15 @@ namespace ast
   void ConditionExpression::PrintNode(int indentation, std::ostream &outfile)
   {
     PRINT_INDENT;
-    outfile << "ConditionExpression OP: " << OP_STRING(this->op_) << std::endl;
+    outfile << "ConditionExpression OP: " << OP_STRING(this->op_) << LINE_NO
+            << std::endl;
     this->lhs_.PRINT_NODE;
     this->rhs_.PRINT_NODE;
   }
 
-  BinaryExpression::BinaryExpression(int op, Expression &lhs, Expression &rhs)
-      : op_(op), lhs_(lhs), rhs_(rhs) {}
+  BinaryExpression::BinaryExpression(int line_no, int op, Expression &lhs,
+                                     Expression &rhs)
+      : Expression(line_no), op_(op), lhs_(lhs), rhs_(rhs) {}
   BinaryExpression::~BinaryExpression()
   {
     delete &(this->lhs_);
@@ -111,23 +119,26 @@ namespace ast
   void BinaryExpression::PrintNode(int indentation, std::ostream &outfile)
   {
     PRINT_INDENT;
-    outfile << "BinaryExpression OP: " << OP_STRING(this->op_) << std::endl;
+    outfile << "BinaryExpression OP: " << OP_STRING(this->op_) << LINE_NO
+            << std::endl;
     this->lhs_.PRINT_NODE;
     this->rhs_.PRINT_NODE;
   }
 
-  UnaryExpression::UnaryExpression(int op, Expression &rhs)
-      : op_(op), rhs_(rhs) {}
+  UnaryExpression::UnaryExpression(int line_no, int op, Expression &rhs)
+      : Expression(line_no), op_(op), rhs_(rhs) {}
   UnaryExpression::~UnaryExpression() { delete &(this->rhs_); }
   void UnaryExpression::PrintNode(int indentation, std::ostream &outfile)
   {
     PRINT_INDENT;
-    outfile << "UnaryExpression OP: " << OP_STRING(this->op_) << std::endl;
+    outfile << "UnaryExpression OP: " << OP_STRING(this->op_) << LINE_NO
+            << std::endl;
     this->rhs_.PRINT_NODE;
   }
 
-  FunctionCall::FunctionCall(Identifier &name, FunctionActualParameterList &args)
-      : name_(name), args_(args) {}
+  FunctionCall::FunctionCall(int line_no, Identifier &name,
+                             FunctionActualParameterList &args)
+      : Expression(line_no), name_(name), args_(args) {}
   FunctionCall::~FunctionCall()
   {
     delete &(this->name_);
@@ -136,26 +147,28 @@ namespace ast
   void FunctionCall::PrintNode(int indentation, std::ostream &outfile)
   {
     PRINT_INDENT;
-    outfile << "FunctionCall" << std::endl;
+    outfile << "FunctionCall" << LINE_NO << std::endl;
     this->name_.PRINT_NODE;
     this->args_.PRINT_NODE;
   }
 
   // ==================== Define Class Hierarchy ====================
+  Define::Define(int line_no) : line_no_(line_no) {}
   // Define::~Define() {}
 
-  VariableDefine::VariableDefine(Identifier &name) : name_(name) {}
+  VariableDefine::VariableDefine(int line_no, Identifier &name)
+      : Define(line_no), name_(name) {}
   VariableDefine::~VariableDefine() { delete &name_; }
   void VariableDefine::PrintNode(int indentation, std::ostream &outfile)
   {
     PRINT_INDENT;
-    outfile << "Define" << std::endl;
+    outfile << "Define" << LINE_NO << std::endl;
     name_.PRINT_NODE;
   }
 
-  VariableDefineWithInit::VariableDefineWithInit(Identifier &name,
+  VariableDefineWithInit::VariableDefineWithInit(int line_no, Identifier &name,
                                                  Expression &value, bool is_const)
-      : name_(name), value_(value), is_const_(is_const) {}
+      : Define(line_no), name_(name), value_(value), is_const_(is_const) {}
   VariableDefineWithInit::~VariableDefineWithInit()
   {
     delete &name_;
@@ -164,23 +177,25 @@ namespace ast
   void VariableDefineWithInit::PrintNode(int indentation, std::ostream &outfile)
   {
     PRINT_INDENT;
-    outfile << "DefineWithInit" << (is_const_ ? " const" : "") << std::endl;
+    outfile << "DefineWithInit" << (is_const_ ? " const" : "") << LINE_NO
+            << std::endl;
     name_.PRINT_NODE;
     value_.PRINT_NODE;
   }
 
-  ArrayDefine::ArrayDefine(ArrayIdentifier &name) : name_(name) {}
+  ArrayDefine::ArrayDefine(int line_no, ArrayIdentifier &name)
+      : Define(line_no), name_(name) {}
   ArrayDefine::~ArrayDefine() { delete &name_; }
   void ArrayDefine::PrintNode(int indentation, std::ostream &outfile)
   {
     PRINT_INDENT;
-    outfile << "Define" << std::endl;
+    outfile << "Define" << LINE_NO << std::endl;
     name_.PRINT_NODE;
   }
 
-  ArrayDefineWithInit::ArrayDefineWithInit(ArrayIdentifier &name,
+  ArrayDefineWithInit::ArrayDefineWithInit(int line_no, ArrayIdentifier &name,
                                            ArrayInitVal &value, bool is_const)
-      : name_(name), value_(value), is_const_(is_const) {}
+      : Define(line_no), name_(name), value_(value), is_const_(is_const) {}
   ArrayDefineWithInit::~ArrayDefineWithInit()
   {
     delete &name_;
@@ -189,17 +204,23 @@ namespace ast
   void ArrayDefineWithInit::PrintNode(int indentation, std::ostream &outfile)
   {
     PRINT_INDENT;
-    outfile << "DefineWithInit" << (is_const_ ? " const" : "") << std::endl;
+    outfile << "DefineWithInit" << (is_const_ ? " const" : "") << LINE_NO
+            << std::endl;
     name_.PRINT_NODE;
     value_.PRINT_NODE;
   }
 
   // ==================== CompUnit Class Hierarchy ====================
+  CompUnit::CompUnit(int line_no) : line_no_(line_no) {}
   // CompUnit::~CompUnit() {}
 
-  FunctionDefine::FunctionDefine(int return_type, Identifier &name,
+  FunctionDefine::FunctionDefine(int line_no, int return_type, Identifier &name,
                                  FunctionFormalParameterList &args, Block &body)
-      : return_type_(return_type), name_(name), args_(args), body_(body) {}
+      : CompUnit(line_no),
+        return_type_(return_type),
+        name_(name),
+        args_(args),
+        body_(body) {}
   FunctionDefine::~FunctionDefine()
   {
     delete &(this->name_);
@@ -209,11 +230,12 @@ namespace ast
   void FunctionDefine::PrintNode(int indentation, std::ostream &outfile)
   {
     PRINT_INDENT;
-    outfile << "FunctionDefine" << std::endl;
+    outfile << "FunctionDefine" << LINE_NO << std::endl;
 
     ++indentation;
     PRINT_INDENT;
-    outfile << "ReturnType: " << TYPE_STRING(this->return_type_) << std::endl;
+    outfile << "ReturnType: " << TYPE_STRING(this->return_type_) << LINE_NO
+            << std::endl;
     --indentation;
 
     this->name_.PRINT_NODE;
@@ -221,10 +243,11 @@ namespace ast
     this->body_.PRINT_NODE;
   }
 
+  Statement::Statement(int line_no) : CompUnit(line_no) {}
   // Statement::~Statement() {}
 
-  AssignStatement::AssignStatement(LeftValue &lhs, Expression &rhs)
-      : lhs_(lhs), rhs_(rhs) {}
+  AssignStatement::AssignStatement(int line_no, LeftValue &lhs, Expression &rhs)
+      : Statement(line_no), lhs_(lhs), rhs_(rhs) {}
   AssignStatement::~AssignStatement()
   {
     delete &(this->lhs_);
@@ -233,14 +256,17 @@ namespace ast
   void AssignStatement::PrintNode(int indentation, std::ostream &outfile)
   {
     PRINT_INDENT;
-    outfile << "AssignStatement" << std::endl;
+    outfile << "AssignStatement" << LINE_NO << std::endl;
     this->lhs_.PRINT_NODE;
     this->rhs_.PRINT_NODE;
   }
 
-  IfElseStatement::IfElseStatement(ConditionExpression &cond, Statement &thenstmt,
-                                   Statement *elsestmt)
-      : cond_(cond), thenstmt_(thenstmt), elsestmt_(elsestmt) {}
+  IfElseStatement::IfElseStatement(int line_no, ConditionExpression &cond,
+                                   Statement &thenstmt, Statement *elsestmt)
+      : Statement(line_no),
+        cond_(cond),
+        thenstmt_(thenstmt),
+        elsestmt_(elsestmt) {}
   IfElseStatement::~IfElseStatement()
   {
     delete &(this->cond_);
@@ -253,26 +279,27 @@ namespace ast
   void IfElseStatement::PrintNode(int indentation, std::ostream &outfile)
   {
     PRINT_INDENT;
-    outfile << "IfElseStatement" << std::endl;
+    outfile << "IfElseStatement" << LINE_NO << std::endl;
 
     ++indentation;
     PRINT_INDENT;
-    outfile << "Condition" << std::endl;
+    outfile << "Condition" << LINE_NO << std::endl;
     this->cond_.PRINT_NODE;
     PRINT_INDENT;
-    outfile << "Then" << std::endl;
+    outfile << "Then" << LINE_NO << std::endl;
     this->thenstmt_.PRINT_NODE;
 
     if (nullptr != this->elsestmt_)
     {
       PRINT_INDENT;
-      outfile << "Else" << std::endl;
+      outfile << "Else" << LINE_NO << std::endl;
       this->elsestmt_->PRINT_NODE;
     }
   }
 
-  WhileStatement::WhileStatement(ConditionExpression &cond, Statement &bodystmt)
-      : cond_(cond), bodystmt_(bodystmt) {}
+  WhileStatement::WhileStatement(int line_no, ConditionExpression &cond,
+                                 Statement &bodystmt)
+      : Statement(line_no), cond_(cond), bodystmt_(bodystmt) {}
   WhileStatement::~WhileStatement()
   {
     delete &(this->cond_);
@@ -281,31 +308,34 @@ namespace ast
   void WhileStatement::PrintNode(int indentation, std::ostream &outfile)
   {
     PRINT_INDENT;
-    outfile << "WhileStatement" << std::endl;
+    outfile << "WhileStatement" << LINE_NO << std::endl;
 
     ++indentation;
     PRINT_INDENT;
-    outfile << "Condition" << std::endl;
+    outfile << "Condition" << LINE_NO << std::endl;
     this->cond_.PRINT_NODE;
 
     PRINT_INDENT;
-    outfile << "Body" << std::endl;
+    outfile << "Body" << LINE_NO << std::endl;
     this->bodystmt_.PRINT_NODE;
   }
 
+  BreakStatement::BreakStatement(int line_no) : Statement(line_no) {}
   void BreakStatement::PrintNode(int indentation, std::ostream &outfile)
   {
     PRINT_INDENT;
-    outfile << "Break" << std::endl;
+    outfile << "Break" << LINE_NO << std::endl;
   }
 
+  ContinueStatement::ContinueStatement(int line_no) : Statement(line_no) {}
   void ContinueStatement::PrintNode(int indentation, std::ostream &outfile)
   {
     PRINT_INDENT;
-    outfile << "Continue" << std::endl;
+    outfile << "Continue" << LINE_NO << std::endl;
   }
 
-  ReturnStatement::ReturnStatement(Expression *value) : value_(value) {}
+  ReturnStatement::ReturnStatement(int line_no, Expression *value)
+      : Statement(line_no), value_(value) {}
   ReturnStatement::~ReturnStatement()
   {
     if (nullptr != this->value_)
@@ -316,28 +346,31 @@ namespace ast
   void ReturnStatement::PrintNode(int indentation, std::ostream &outfile)
   {
     PRINT_INDENT;
-    outfile << "ReturnStatement" << std::endl;
+    outfile << "ReturnStatement" << LINE_NO << std::endl;
     if (nullptr != this->value_)
     {
       this->value_->PRINT_NODE;
     }
   }
 
+  VoidStatement::VoidStatement(int line_no) : Statement(line_no) {}
   void VoidStatement::PrintNode(int indentation, std::ostream &outfile)
   {
     PRINT_INDENT;
-    outfile << "Void" << std::endl;
+    outfile << "Void" << LINE_NO << std::endl;
   }
 
-  EvalStatement::EvalStatement(Expression &value) : value_(value) {}
+  EvalStatement::EvalStatement(int line_no, Expression &value)
+      : Statement(line_no), value_(value) {}
   EvalStatement::~EvalStatement() { delete &(this->value_); }
   void EvalStatement::PrintNode(int indentation, std::ostream &outfile)
   {
     PRINT_INDENT;
-    outfile << "EvalStatement" << std::endl;
+    outfile << "EvalStatement" << LINE_NO << std::endl;
     this->value_.PRINT_NODE;
   }
 
+  Block::Block(int line_no) : Statement(line_no) {}
   Block::~Block()
   {
     for (auto &ptr : this->statement_list_)
@@ -348,14 +381,15 @@ namespace ast
   void Block::PrintNode(int indentation, std::ostream &outfile)
   {
     PRINT_INDENT;
-    outfile << "Block" << std::endl;
+    outfile << "Block" << LINE_NO << std::endl;
     for (const auto &ele : this->statement_list_)
     {
       ele->PRINT_NODE;
     }
   }
 
-  DeclareStatement::DeclareStatement(int type) : type_(type) {}
+  DeclareStatement::DeclareStatement(int line_no, int type)
+      : Statement(line_no), type_(type) {}
   DeclareStatement::~DeclareStatement()
   {
     for (auto &ptr : define_list_)
@@ -366,7 +400,8 @@ namespace ast
   void DeclareStatement::PrintNode(int indentation, std::ostream &outfile)
   {
     PRINT_INDENT;
-    outfile << "DeclareStatement Type: " << TYPE_STRING(this->type_) << std::endl;
+    outfile << "DeclareStatement Type: " << TYPE_STRING(this->type_) << LINE_NO
+            << std::endl;
     for (const auto &ele : define_list_)
     {
       ele->PRINT_NODE;
@@ -374,8 +409,8 @@ namespace ast
   }
 
   // ==================== Other Top Level Classes ====================
-  ArrayInitVal::ArrayInitVal(bool is_exp, Expression *value)
-      : is_exp_(is_exp), value_(value) {}
+  ArrayInitVal::ArrayInitVal(int line_no, bool is_exp, Expression *value)
+      : line_no_(line_no), is_exp_(is_exp), value_(value) {}
   ArrayInitVal::~ArrayInitVal()
   {
     if (nullptr != this->value_)
@@ -390,7 +425,7 @@ namespace ast
   void ArrayInitVal::PrintNode(int indentation, std::ostream &outfile)
   {
     PRINT_INDENT;
-    outfile << "ArrayInitVal" << std::endl;
+    outfile << "ArrayInitVal" << LINE_NO << std::endl;
     if (this->is_exp_ && nullptr != this->value_)
     {
       this->value_->PRINT_NODE;
@@ -401,18 +436,20 @@ namespace ast
     }
   }
 
-  FunctionFormalParameter::FunctionFormalParameter(int type, LeftValue &name)
-      : type_(type), name_(name) {}
+  FunctionFormalParameter::FunctionFormalParameter(int line_no, int type,
+                                                   LeftValue &name)
+      : line_no_(line_no), type_(type), name_(name) {}
   FunctionFormalParameter::~FunctionFormalParameter() { delete &(this->name_); }
   void FunctionFormalParameter::PrintNode(int indentation,
                                           std::ostream &outfile)
   {
     PRINT_INDENT;
     outfile << "FunctionFormalParameter Type: " << TYPE_STRING(this->type_)
-            << std::endl;
+            << LINE_NO << std::endl;
     this->name_.PRINT_NODE;
   }
-
+  FunctionFormalParameterList::FunctionFormalParameterList(int line_no)
+      : line_no_(line_no) {}
   FunctionFormalParameterList::~FunctionFormalParameterList()
   {
     for (auto &ptr : this->arg_list_)
@@ -424,7 +461,7 @@ namespace ast
                                               std::ostream &outfile)
   {
     PRINT_INDENT;
-    outfile << "FunctionFormalParameterList" << std::endl;
+    outfile << "FunctionFormalParameterList" << LINE_NO << std::endl;
     if (this->arg_list_.empty())
     {
       ++indentation;
@@ -440,6 +477,8 @@ namespace ast
     }
   }
 
+  FunctionActualParameterList::FunctionActualParameterList(int line_no)
+      : line_no_(line_no) {}
   FunctionActualParameterList::~FunctionActualParameterList()
   {
     for (auto &ptr : this->arg_list_)
@@ -451,7 +490,7 @@ namespace ast
                                               std::ostream &outfile)
   {
     PRINT_INDENT;
-    outfile << "FunctionActualParameterList" << std::endl;
+    outfile << "FunctionActualParameterList" << LINE_NO << std::endl;
     if (this->arg_list_.empty())
     {
       ++indentation;
