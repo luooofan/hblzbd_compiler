@@ -1,0 +1,150 @@
+#ifndef __IR__H_
+#define __IR__H_
+
+#include <stack>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
+class SymbolTableItem {
+ public:
+  bool is_array_;
+  bool is_const_;
+  int offset_;              // 作用域栈偏移
+  std::vector<int> shape_;  // int为空 否则表示数组的各个维度
+  std::vector<int> width_;  // int为空 否则表示数组的各个维度的宽度
+  std::vector<int> initval_;  // 用于记录全局变量的初始值 int为一个值
+                              // 数组则转换为一维数组存储
+  SymbolTableItem(bool is_array, bool is_const, int offset)
+      : is_array_(is_array), is_const_(is_const), offset_(offset) {}
+};
+
+class FuncTableItem {
+ public:
+  int ret_type_;  // VOID INT
+  std::vector<std::vector<int>> shape_list_;
+  FuncTableItem(int ret_type) : ret_type_(ret_type) {}
+};
+
+//每个作用域一个符号表
+class SymbolTable {
+ public:
+  std::unordered_map<std::string, SymbolTableItem> symbol_table_;
+  int scope_id_;         // 作用域id
+  int parent_scope_id_;  // 父作用域id
+  int size_;  // 当前作用域的大小 每次插入新符号表项后都需要维护
+  bool is_func_;
+  SymbolTable(int scope_id, int parent_scope_id)
+      : scope_id_(scope_id), parent_scope_id_(parent_scope_id) {
+    size_ = 0;
+    is_func_ = parent_scope_id_ == 0 ? true : false;
+  }
+};
+
+SymbolTableItem* FindSymbol(int scope_id, std::string name);
+
+using SymbolTables = std::vector<SymbolTable>;
+using FuncTable = std::unordered_map<std::string, FuncTableItem>;
+
+class Opn {
+ public:
+  enum class Type {
+    Var,
+    Imm,
+    Label,
+    Null,
+  };
+  Type type_;
+  int imm_num_;       // 立即数
+  std::string name_;  //
+  int scope_id_;      // 标识所在作用域
+  Opn(Type type, int imm_num)
+      : type_(type), imm_num_(imm_num), name_(std::to_string(imm_num)) {
+    // name_ = std::to_string(imm_num);
+    scope_id_ = -1;
+  }
+  Opn(Type type, std::string name, int scope_id)
+      : type_(type), name_(name), scope_id_(scope_id) {}
+  Opn(Type type, std::string label) : type_(type), name_(label) {
+    scope_id_ = -1;
+  }
+  Opn(Type type) : type_(type), name_("-") { scope_id_ = -1; }
+};
+
+class IR {
+ public:
+  enum class OpKind {
+    ADD,     // (+,)
+    SUB,     // (-,)
+    MINUS,   // (-,)
+    LABEL,   // (label,)
+    CALL,    // (call,)
+    RET,     // (ret,) or (ret,opn1,)
+    GOTO,    // (goto,label)
+    ASSIGN,  // (assign, opn1,-,res)
+    JEQ,     // ==
+    JNE,     // !=
+    JLT,     // <
+    JLE,     // <=
+    JGT,     // >
+    JGE,     // >=
+    VOID,    // useless
+    // ...
+  };
+  OpKind op_;
+  Opn opn1_, opn2_, res_;
+  int offset_;  // only used for []instruction
+  IR(OpKind op, Opn opn1, Opn opn2, Opn res)
+      : op_(op), opn1_(opn1), opn2_(opn2), res_(res) {}
+  IR(OpKind op, Opn opn1, Opn res)
+      : op_(op), opn1_(opn1), opn2_({Opn::Type::Null}), res_(res) {}
+  IR(OpKind op, Opn opn1)
+      : op_(op),
+        opn1_(opn1),
+        opn2_({Opn::Type::Null}),
+        res_({Opn::Type::Null}) {}
+  IR(OpKind op)
+      : op_(op),
+        opn1_({Opn::Type::Null}),
+        opn2_({Opn::Type::Null}),
+        res_({Opn::Type::Null}) {}
+  void PrintIR();
+};
+
+class ContextInfoInGenIR {
+ public:
+  int current_scope_id_;
+  Opn opn_;
+  // Used for type check
+  std::vector<int> shape_;
+  // Used for ArrayInitVal
+  // int nestlevel_;
+  std::stack<int> array_depth_;
+  std::string array_base_;
+  int array_offset_;
+  // Used for Break Continue
+  std::stack<std::string> break_label_;
+  std::stack<std::string> continue_label_;
+  // Used for Condition Expresson
+  std::stack<std::string> true_label_;
+  std::stack<std::string> false_label_;
+  // Used for Return Statement
+  std::string current_func_name_;
+
+  ContextInfoInGenIR() : opn_({Opn::Type::Null}), current_scope_id_(0) {}
+};
+
+extern SymbolTables gSymbolTables;
+extern FuncTable gFuncTable;
+extern std::vector<IR> gIRList;
+extern ContextInfoInGenIR gContextInfo;
+extern const int kIntWidth;
+
+std::string NewTemp();
+std::string NewLabel();
+
+IR::OpKind GetOpKind(int op, bool reverse);
+
+void SemanticError(int line_no, const std::string&& error_msg);
+void RuntimeError(const std::string&& error_msg);
+#endif
