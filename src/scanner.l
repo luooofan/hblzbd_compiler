@@ -69,8 +69,8 @@ while		{ yylval.token = WHILE; return WHILE; }
 
 ([_a-zA-Z]|{UCN})([_a-zA-Z0-9]|{UCN})* { SAVE_TOKEN; return IDENT; }
 
-[ \t\n]+ 	{ /*忽略空白符*/ }
-.   { printf("mystery chacators in %d lines: %s", yylineno, yytext);}
+[ \t\n\r]+ 	{ /*忽略空白符*/ }
+.   { printf("mystery chacators in %d lines: %d\n", yylineno, atoi(yytext));}
 
 %%
 

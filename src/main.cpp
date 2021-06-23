@@ -23,7 +23,7 @@ int main(int argc, char **argv) {
   yyparse();  // if success, ast_root is valid
   if (nullptr != ast_root) {
     ast_root->PrintNode();
-    std::cout << "Generate IR:" << std::endl;
+    std::cout << "\nGenerate IR:" << std::endl;
     ast_root->GenerateIR();
     PrintFuncTable();
     PrintSymbolTables();
