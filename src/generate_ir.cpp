@@ -184,7 +184,7 @@ void ConditionExpression::GenerateIR() {
         std::string next_label = NewLabel();
         gContextInfo.true_label_.push("null");
         gContextInfo.false_label_.push(next_label);
-        this->lhs_.GenerateIR();
+        this->rhs_.GenerateIR();
         gContextInfo.false_label_.pop();
         gContextInfo.true_label_.pop();
 
@@ -477,7 +477,7 @@ void ConditionExpression::GenerateIR() {
         std::string next_label = NewLabel();
         gContextInfo.true_label_.push("null");
         gContextInfo.false_label_.push(next_label);
-        this->lhs_.GenerateIR();
+        this->rhs_.GenerateIR();
         gContextInfo.false_label_.pop();
         gContextInfo.true_label_.pop();
 
