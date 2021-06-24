@@ -130,6 +130,48 @@ void IR::PrintIR() {
     case IR::OpKind::SUB:
       PRINT_IR("sub");
       break;
+    case IR::OpKind::MUL:
+      PRINT_IR("mul");
+      break;
+    case IR::OpKind::DIV:
+      PRINT_IR("div");
+      break;
+    case IR::OpKind::MOD:
+      PRINT_IR("mod");
+      break;
+    case IR::OpKind::AND:
+      PRINT_IR("and");
+      break;
+    case IR::OpKind::OR:
+      PRINT_IR("or");
+      break;
+    case IR::OpKind::POS:
+      PRINT_IR("pos");
+      break;
+    case IR::OpKind::NEG:
+      PRINT_IR("neg");
+      break;
+    case IR::OpKind::GT:
+      PRINT_IR(">");
+      break;
+    case IR::OpKind::GE:
+      PRINT_IR(">=");
+      break;
+    case IR::OpKind::LT:
+      PRINT_IR("<");
+      break;
+    case IR::OpKind::LE:
+      PRINT_IR("<=");
+      break;
+    case IR::OpKind::EQ:
+      PRINT_IR("==");
+      break;
+    case IR::OpKind::NE:
+      PRINT_IR("!=");
+      break;
+    case IR::OpKind::NOT:
+      PRINT_IR("not");
+      break;
     case IR::OpKind::RET:
       PRINT_IR("return");
       break;
