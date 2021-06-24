@@ -1,5 +1,6 @@
 %option noyywrap nodefault yylineno
 %x COMMENT
+%x SINGLELINECOMMENT
 
 UCN (\\u[0-9a-fA-F]{4}|\\U[0-9a-fA-F]{8})
 ILEN ([Uu](L|l|LL|ll)?|(L|l|LL|ll)[Uu]?)
@@ -24,7 +25,10 @@ int cal16(char *s);
 <COMMENT>"*/"  {BEGIN(INITIAL);}
 <COMMENT>([^*]|\n)+|.
 <COMMENT><<EOF>>   {printf("Unterminated comment\n"); return 0;}
-"//".*\n
+"//" {BEGIN(SINGLELINECOMMENT);}
+<SINGLELINECOMMENT>.*
+<SINGLELINECOMMENT>\n {BEGIN(INITIAL);}
+<SINGLELINECOMMENT><<EOF>> {BEGIN(INITIAL);}
 
 
 int 		{ yylval.token = INT; return INT; }
