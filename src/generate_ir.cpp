@@ -24,98 +24,99 @@ void Root::GenerateIR() {
     // std::cout << "OK" << std::endl;
   }
 }
-  void Number::GenerateIR()
-  {
-    //生成一个opn 维护shape 不生成目标代码
-    Opn opn = Opn(Opn::Type::Imm, value_);
-    gContextInfo.opn_ = opn;
-    gContextInfo.shape_.clear();
+void Number::GenerateIR() {
+  //生成一个opn 维护shape 不生成目标代码
+  Opn opn = Opn(Opn::Type::Imm, value_);
+  gContextInfo.opn_ = opn;
+  gContextInfo.shape_.clear();
+}
+
+void Identifier::GenerateIR() {
+  SymbolTableItem *s;
+  //如果是函数名就不需要查变量表
+  if (!gContextInfo.is_func_) {
+    s = FindSymbol(gContextInfo.current_scope_id_, name_);
+    if (!s) {
+      SemanticError(line_no_, name_ + ": undefined variable");
+    }
   }
 
-  void Identifier::GenerateIR()
-  {
-    SymbolTableItem *s;
-    //如果是函数名就不需要查变量表
-    if(!gContextInfo.is_func_)
-    {
-      s = FindSymbol(gContextInfo.current_scope_id_, name_);
-      if(!s)
-      {
-        SemanticError(line_no_, name_ + ": undefined variable");
-      }
-    }
-  
-    gContextInfo.shape_ = s -> shape_;
-    Opn opn = Opn(Opn::Type::Var, name_, gContextInfo.current_scope_id_);
-    gContextInfo.opn_ = opn;
+  gContextInfo.shape_ = s->shape_;
+  Opn opn = Opn(Opn::Type::Var, name_, gContextInfo.current_scope_id_);
+  gContextInfo.opn_ = opn;
+}
+
+void ArrayIdentifier::GenerateIR() {
+  SymbolTableItem *s;
+  s = FindSymbol(gContextInfo.current_scope_id_, name_.name_);
+  if (!s) {
+    SemanticError(line_no_, name_.name_ + ": undefined variable");
+  }
+  if (shape_list_.size() > s->shape_.size()) {
+    SemanticError(line_no_,
+                  name_.name_ + ": the dimension of array is not correct");
   }
 
-  void ArrayIdentifier::GenerateIR()
-  {
-    SymbolTableItem *s;
-    s = FindSymbol(gContextInfo.current_scope_id_, name_.name_);
-    if(!s)
-    {
-      SemanticError(line_no_, name_.name_ + ": undefined variable");
+  gContextInfo.shape_ =
+      std::vector<int>(s->shape_.begin() + shape_list_.size(), s->shape_.end());
+
+  int index, t;
+
+  for (int i = 0; i < shape_list_.size(); ++i) {
+    shape_list_[i]->GenerateIR();
+    if (!gContextInfo.shape_.empty()) {
     }
-    if(shape_list_.size() != s -> shape_.size())
-    {
-      SemanticError(line_no_, name_.name_ + ": the dimension of array is not correct");
+
+    t = gContextInfo.opn_.imm_num_;
+    if (i == shape_list_.size() - 1) {
+      index += t * 4;
+    } else {
+      index += t * s->width_[i + 1];
     }
-    
-    gContextInfo.shape_ = s -> shape_;
-    Opn opn = Opn(Opn::Type::Var, name_.name_, gContextInfo.current_scope_id_);
-    gContextInfo.opn_ = opn;
   }
+  // a[b+1]
+  gContextInfo.array_offset_ = index;
+  Opn opn = Opn(Opn::Type::Var, name_.name_, gContextInfo.current_scope_id_);
+  gContextInfo.opn_ = opn;
+}
 
-  // int main(){if(1<=1){2;}}
+// int main(){if(1<=1){2;}}
 
-  // if ("null" == true_label && "null" != false_label) {
-  // } else if ("null" != true_label && "null" == false_label) {
-  // } else if ("null" != true_label && "null" != false_label) {
-  // } else {
-  //   // ERROR
-  // }
+// if ("null" == true_label && "null" != false_label) {
+// } else if ("null" != true_label && "null" == false_label) {
+// } else if ("null" != true_label && "null" != false_label) {
+// } else {
+//   // ERROR
+// }
 
-  // if ("null" != false_label) {
-  // } else if ("null" != true_label) {
-  // } else {
-  //   // ERROR
-  // }
-  void ConditionExpression::GenerateIR()
-  {
-    bool lhs_is_cond = false;
-    bool rhs_is_cond = false;
-    try
-    {
-      dynamic_cast<ConditionExpression &>(this->lhs_);
-      lhs_is_cond = true;
-    }
-    catch (std::bad_cast &e)
-    {
-    }
-    try
-    {
-      dynamic_cast<ConditionExpression &>(this->rhs_);
-      rhs_is_cond = true;
-    }
-    catch (std::bad_cast &e)
-    {
-    }
-    std::string &true_label = gContextInfo.true_label_.top();
-    std::string &false_label = gContextInfo.false_label_.top();
-    Opn true_label_opn = LABEL_OPN(true_label);
-    Opn false_label_opn = LABEL_OPN(false_label);
+// if ("null" != false_label) {
+// } else if ("null" != true_label) {
+// } else {
+//   // ERROR
+// }
+void ConditionExpression::GenerateIR() {
+  bool lhs_is_cond = false;
+  bool rhs_is_cond = false;
+  try {
+    dynamic_cast<ConditionExpression &>(this->lhs_);
+    lhs_is_cond = true;
+  } catch (std::bad_cast &e) {
+  }
+  try {
+    dynamic_cast<ConditionExpression &>(this->rhs_);
+    rhs_is_cond = true;
+  } catch (std::bad_cast &e) {
+  }
+  std::string &true_label = gContextInfo.true_label_.top();
+  std::string &false_label = gContextInfo.false_label_.top();
+  Opn true_label_opn = LABEL_OPN(true_label);
+  Opn false_label_opn = LABEL_OPN(false_label);
 
-    if (lhs_is_cond && rhs_is_cond)
-    {
-      // lhs_和rhs_都是CondExp
-      switch (this->op_)
-      {
-      case AND:
-      {
-        if ("null" != false_label)
-        {
+  if (lhs_is_cond && rhs_is_cond) {
+    // lhs_和rhs_都是CondExp
+    switch (this->op_) {
+      case AND: {
+        if ("null" != false_label) {
           // truelabel:null falselabel:src
           gContextInfo.true_label_.push("null");
           this->lhs_.GenerateIR();
@@ -123,9 +124,7 @@ void Root::GenerateIR() {
 
           // truelabel:src falselabel:src
           this->rhs_.GenerateIR();
-        }
-        else if ("null" != true_label)
-        {
+        } else if ("null" != true_label) {
           // truelabel:null falselabel:new
           std::string new_false_label = NewLabel();
           gContextInfo.true_label_.push("null");
@@ -139,9 +138,7 @@ void Root::GenerateIR() {
 
           // genir(label,newfalselabel,-,-)
           gIRList.push_back({IR::OpKind::LABEL, LABEL_OPN(new_false_label)});
-        }
-        else
-        {
+        } else {
           // ERROR
           RuntimeError(
               "both true_label and false_label are 'null' in "
@@ -149,10 +146,8 @@ void Root::GenerateIR() {
         }
         break;
       }
-      case OR:
-      {
-        if ("null" == true_label && "null" != false_label)
-        {
+      case OR: {
+        if ("null" == true_label && "null" != false_label) {
           // truelabel:new falselabel:null
           std::string new_true_label = NewLabel();
           gContextInfo.true_label_.push(new_true_label);
@@ -166,17 +161,13 @@ void Root::GenerateIR() {
 
           // genir(label,newtruelabel,-,-)
           gIRList.push_back({IR::OpKind::LABEL, LABEL_OPN(new_true_label)});
-        }
-        else if ("null" != true_label && "null" == false_label)
-        {
+        } else if ("null" != true_label && "null" == false_label) {
           // truelabel:src falselabel:null
           this->lhs_.GenerateIR();
 
           // truelabel:src falselabel:src
           this->rhs_.GenerateIR();
-        }
-        else if ("null" != true_label && "null" != false_label)
-        {
+        } else if ("null" != true_label && "null" != false_label) {
           // truelabel:src falselabel:null
           gContextInfo.false_label_.push("null");
           this->lhs_.GenerateIR();
@@ -184,9 +175,7 @@ void Root::GenerateIR() {
 
           // truelabel:src falselabel:src
           this->rhs_.GenerateIR();
-        }
-        else
-        {
+        } else {
           // ERROR
           RuntimeError(
               "both true_label and false_label are 'null' in "
@@ -194,8 +183,7 @@ void Root::GenerateIR() {
         }
         break;
       }
-      default:
-      {
+      default: {
         std::string lhs_temp_var = NewTemp();
         // insert symboltable 之前一定没有
         int scope_id = gContextInfo.current_scope_id_;
@@ -243,25 +231,19 @@ void Root::GenerateIR() {
         // genir(label,nextlabel,-,-)
         gIRList.push_back({IR::OpKind::LABEL, LABEL_OPN(next_label)});
 
-        if ("null" != false_label)
-        {
+        if ("null" != false_label) {
           // genir(jreverseop,lhstempvar,rhstempvar,falselabel)
           gIRList.push_back(
               {GetOpKind(this->op_, true), lhs_opn, rhs_opn, false_label_opn});
-          if ("null" != true_label)
-          {
+          if ("null" != true_label) {
             // genir(goto,truelabel)
             gIRList.push_back({IR::OpKind::GOTO, true_label_opn});
           }
-        }
-        else if ("null" != true_label)
-        {
+        } else if ("null" != true_label) {
           // genir(jop,lhstempvar,rhstempvar,truelabel)
           gIRList.push_back(
               {GetOpKind(this->op_, false), lhs_opn, rhs_opn, true_label_opn});
-        }
-        else
-        {
+        } else {
           // ERROR
           RuntimeError(
               "both true_label and false_label are 'null' in "
@@ -269,24 +251,18 @@ void Root::GenerateIR() {
         }
         break;
       }
-      }
     }
-    else if (lhs_is_cond && !rhs_is_cond)
-    {
-      switch (this->op_)
-      {
-      case AND:
-      {
-        if ("null" != false_label)
-        {
+  } else if (lhs_is_cond && !rhs_is_cond) {
+    switch (this->op_) {
+      case AND: {
+        if ("null" != false_label) {
           // truelabel:null falselabel:src
           gContextInfo.true_label_.push("null");
           this->lhs_.GenerateIR();
           gContextInfo.true_label_.pop();
 
           this->rhs_.GenerateIR();
-          if (!gContextInfo.shape_.empty())
-          {
+          if (!gContextInfo.shape_.empty()) {
             // NOTE 语义错误 类型错误 条件表达式右边非int类型
             SemanticError(this->line_no_, gContextInfo.opn_.name_ +
                                               ": condexp rhs exp type not int");
@@ -296,14 +272,11 @@ void Root::GenerateIR() {
           gIRList.push_back(
               {IR::OpKind::JEQ, gContextInfo.opn_, IMM_0_OPN, false_label_opn});
 
-          if ("null" != true_label)
-          {
+          if ("null" != true_label) {
             // genir(goto, truelabel)
             gIRList.push_back({IR::OpKind::GOTO, true_label_opn});
           }
-        }
-        else if ("null" != true_label)
-        {
+        } else if ("null" != true_label) {
           // truelabel:null falselabel:new
           std::string new_false_label = NewLabel();
           gContextInfo.true_label_.push("null");
@@ -313,8 +286,7 @@ void Root::GenerateIR() {
           gContextInfo.true_label_.pop();
 
           this->rhs_.GenerateIR();
-          if (!gContextInfo.shape_.empty())
-          {
+          if (!gContextInfo.shape_.empty()) {
             // NOTE 语义错误 类型错误 条件表达式右边非int类型
             SemanticError(this->line_no_, gContextInfo.opn_.name_ +
                                               ": condexp rhs exp type not int");
@@ -326,9 +298,7 @@ void Root::GenerateIR() {
 
           // genir(label,newfalselabel,-,-)
           gIRList.push_back({IR::OpKind::LABEL, LABEL_OPN(new_false_label)});
-        }
-        else
-        {
+        } else {
           // ERROR
           RuntimeError(
               "both true_label and false_label are 'null' in "
@@ -336,10 +306,8 @@ void Root::GenerateIR() {
         }
         break;
       }
-      case OR:
-      {
-        if ("null" == true_label && "null" != false_label)
-        {
+      case OR: {
+        if ("null" == true_label && "null" != false_label) {
           // truelabel:new falselabel:null
           std::string new_true_label = NewLabel();
           gContextInfo.true_label_.push(new_true_label);
@@ -349,8 +317,7 @@ void Root::GenerateIR() {
           gContextInfo.true_label_.pop();
 
           this->rhs_.GenerateIR();
-          if (!gContextInfo.shape_.empty())
-          {
+          if (!gContextInfo.shape_.empty()) {
             // NOTE 语义错误 类型错误 条件表达式右边非int类型
             SemanticError(this->line_no_, gContextInfo.opn_.name_ +
                                               ": condexp rhs exp type not int");
@@ -362,15 +329,12 @@ void Root::GenerateIR() {
 
           // genir(label,newtruelabel,-,-)
           gIRList.push_back({IR::OpKind::LABEL, LABEL_OPN(new_true_label)});
-        }
-        else if ("null" != true_label && "null" == false_label)
-        {
+        } else if ("null" != true_label && "null" == false_label) {
           // truelabel:src falselabel:null
           this->lhs_.GenerateIR();
 
           this->rhs_.GenerateIR();
-          if (!gContextInfo.shape_.empty())
-          {
+          if (!gContextInfo.shape_.empty()) {
             // NOTE 语义错误 类型错误 条件表达式右边非int类型
             SemanticError(this->line_no_, gContextInfo.opn_.name_ +
                                               ": condexp rhs exp type not int");
@@ -379,17 +343,14 @@ void Root::GenerateIR() {
           // genir(jne,rhs,0,truelabel)
           gIRList.push_back(
               {IR::OpKind::JNE, gContextInfo.opn_, IMM_0_OPN, true_label_opn});
-        }
-        else if ("null" != true_label && "null" != false_label)
-        {
+        } else if ("null" != true_label && "null" != false_label) {
           // truelabel:src falselabel:null
           gContextInfo.false_label_.push("null");
           this->lhs_.GenerateIR();
           gContextInfo.false_label_.pop();
 
           this->rhs_.GenerateIR();
-          if (!gContextInfo.shape_.empty())
-          {
+          if (!gContextInfo.shape_.empty()) {
             // NOTE 语义错误 类型错误 条件表达式右边非int类型
             SemanticError(this->line_no_, gContextInfo.opn_.name_ +
                                               ": condexp rhs exp type not int");
@@ -400,9 +361,7 @@ void Root::GenerateIR() {
               {IR::OpKind::JEQ, gContextInfo.opn_, IMM_0_OPN, false_label_opn});
           // genir(goto,truelabel)
           gIRList.push_back({IR::OpKind::GOTO, true_label_opn});
-        }
-        else
-        {
+        } else {
           // ERROR
           RuntimeError(
               "both true_label and false_label are 'null' in "
@@ -410,8 +369,7 @@ void Root::GenerateIR() {
         }
         break;
       }
-      default:
-      {
+      default: {
         std::string lhs_temp_var = NewTemp();
         // insert symboltable 之前一定没有
         int scope_id = gContextInfo.current_scope_id_;
@@ -438,32 +396,25 @@ void Root::GenerateIR() {
 
         this->rhs_.GenerateIR();
         // type check
-        if (!gContextInfo.shape_.empty())
-        {
+        if (!gContextInfo.shape_.empty()) {
           // NOTE 语义错误 类型错误 条件表达式右边非int类型
           SemanticError(this->line_no_, gContextInfo.opn_.name_ +
                                             ": condexp rhs exp type not int");
         }
 
-        if ("null" != false_label)
-        {
+        if ("null" != false_label) {
           // genir(jreverseop,lhstempvar,rhs,falselabel)
           gIRList.push_back({GetOpKind(this->op_, true), lhs_opn,
                              gContextInfo.opn_, false_label_opn});
-          if ("null" != true_label)
-          {
+          if ("null" != true_label) {
             // genir(goto,truelabel)
             gIRList.push_back({IR::OpKind::GOTO, true_label_opn});
           }
-        }
-        else if ("null" != true_label)
-        {
+        } else if ("null" != true_label) {
           // genir(jop,lhstempvar,rhstempvar,truelabel)
           gIRList.push_back({GetOpKind(this->op_, false), lhs_opn,
                              gContextInfo.opn_, true_label_opn});
-        }
-        else
-        {
+        } else {
           // ERROR
           RuntimeError(
               "both true_label and false_label are 'null' in "
@@ -472,35 +423,27 @@ void Root::GenerateIR() {
 
         break;
       }
-      }
     }
-    else if (!lhs_is_cond && rhs_is_cond)
-    {
-      this->lhs_.GenerateIR();
-      // type check
-      if (!gContextInfo.shape_.empty())
-      {
-        // NOTE 语义错误 类型错误 条件表达式左边非int类型
-        SemanticError(this->line_no_,
-                      gContextInfo.opn_.name_ + ": condexp lhs exp type not int");
-      }
-      Opn lhs_opn = gContextInfo.opn_;
+  } else if (!lhs_is_cond && rhs_is_cond) {
+    this->lhs_.GenerateIR();
+    // type check
+    if (!gContextInfo.shape_.empty()) {
+      // NOTE 语义错误 类型错误 条件表达式左边非int类型
+      SemanticError(this->line_no_,
+                    gContextInfo.opn_.name_ + ": condexp lhs exp type not int");
+    }
+    Opn lhs_opn = gContextInfo.opn_;
 
-      switch (this->op_)
-      {
-      case AND:
-      {
-        if ("null" != false_label)
-        {
+    switch (this->op_) {
+      case AND: {
+        if ("null" != false_label) {
           // genir(jeq,lhs,0,falselabel)
           gIRList.push_back(
               {IR::OpKind::JEQ, lhs_opn, IMM_0_OPN, false_label_opn});
 
           // tl:src fl:src
           this->rhs_.GenerateIR();
-        }
-        else if ("null" != true_label)
-        {
+        } else if ("null" != true_label) {
           // genir(jeq,lhs,0,newfalselabel)
           std::string new_false_label = NewLabel();
           gIRList.push_back({IR::OpKind::JEQ, lhs_opn, IMM_0_OPN,
@@ -511,9 +454,7 @@ void Root::GenerateIR() {
 
           // genir(label,newfalselabel,-,-)
           gIRList.push_back({IR::OpKind::LABEL, LABEL_OPN(new_false_label)});
-        }
-        else
-        {
+        } else {
           // ERROR
           RuntimeError(
               "both true_label and false_label are 'null' in "
@@ -521,12 +462,9 @@ void Root::GenerateIR() {
         }
         break;
       }
-      case OR:
-      {
-        if ("null" != false_label)
-        {
-          if ("null" == true_label)
-          {
+      case OR: {
+        if ("null" != false_label) {
+          if ("null" == true_label) {
             std::string new_true_label = NewLabel();
 
             // genir(jne,lhs,0,newtruelabel)
@@ -538,9 +476,7 @@ void Root::GenerateIR() {
 
             // genir(label,newtruelabel,-,-)
             gIRList.push_back({IR::OpKind::LABEL, LABEL_OPN(new_true_label)});
-          }
-          else
-          {
+          } else {
             // genir(jne,lhs,0,truelabel)
             gIRList.push_back(
                 {IR::OpKind::JNE, lhs_opn, IMM_0_OPN, true_label_opn});
@@ -548,18 +484,14 @@ void Root::GenerateIR() {
             // tl:src fl:src
             this->rhs_.GenerateIR();
           }
-        }
-        else if ("null" != true_label)
-        {
+        } else if ("null" != true_label) {
           // genir(jne,lhs,0,truelabel)
           gIRList.push_back(
               {IR::OpKind::JNE, lhs_opn, IMM_0_OPN, true_label_opn});
 
           // tl:src fl:src&null
           this->rhs_.GenerateIR();
-        }
-        else
-        {
+        } else {
           // ERROR
           RuntimeError(
               "both true_label and false_label are 'null' in "
@@ -567,8 +499,7 @@ void Root::GenerateIR() {
         }
         break;
       }
-      default:
-      {
+      default: {
         std::string rhs_temp_var = NewTemp();
         // insert symboltable 之前一定没有
         int scope_id = gContextInfo.current_scope_id_;
@@ -593,25 +524,19 @@ void Root::GenerateIR() {
         // genir(label,nextlabel,-,-)
         gIRList.push_back({IR::OpKind::LABEL, LABEL_OPN(next_label)});
 
-        if ("null" != false_label)
-        {
+        if ("null" != false_label) {
           // genir(jreverseop,lhs,rhs,falselabel)
           gIRList.push_back(
               {GetOpKind(this->op_, true), lhs_opn, rhs_opn, false_label_opn});
-          if ("null" != true_label)
-          {
+          if ("null" != true_label) {
             // genir(goto,truelabel)
             gIRList.push_back({IR::OpKind::GOTO, true_label_opn});
           }
-        }
-        else if ("null" != true_label)
-        {
+        } else if ("null" != true_label) {
           // genir(jop,lhstempvar,rhstempvar,truelabel)
           gIRList.push_back(
               {GetOpKind(this->op_, false), lhs_opn, rhs_opn, true_label_opn});
-        }
-        else
-        {
+        } else {
           // ERROR
           RuntimeError(
               "both true_label and false_label are 'null' in "
@@ -619,34 +544,27 @@ void Root::GenerateIR() {
         }
         break;
       }
-      }
     }
-    else
-    {
-      // lhs_和rhs_都不是CondExp
-      this->lhs_.GenerateIR();
-      // type check
-      if (!gContextInfo.shape_.empty())
-      {
-        // NOTE 语义错误 类型错误 条件表达式左边非int类型
-        SemanticError(this->line_no_,
-                      gContextInfo.opn_.name_ + ": condexp lhs exp type not int");
-      }
-      Opn lhs_opn = gContextInfo.opn_;
+  } else {
+    // lhs_和rhs_都不是CondExp
+    this->lhs_.GenerateIR();
+    // type check
+    if (!gContextInfo.shape_.empty()) {
+      // NOTE 语义错误 类型错误 条件表达式左边非int类型
+      SemanticError(this->line_no_,
+                    gContextInfo.opn_.name_ + ": condexp lhs exp type not int");
+    }
+    Opn lhs_opn = gContextInfo.opn_;
 
-      switch (this->op_)
-      {
-      case AND:
-      {
-        if ("null" != false_label)
-        {
+    switch (this->op_) {
+      case AND: {
+        if ("null" != false_label) {
           // genir(jeq,lhs,0,falselabel)
           gIRList.push_back(
               {IR::OpKind::JEQ, lhs_opn, IMM_0_OPN, false_label_opn});
 
           this->rhs_.GenerateIR();
-          if (!gContextInfo.shape_.empty())
-          {
+          if (!gContextInfo.shape_.empty()) {
             // NOTE 语义错误 类型错误 条件表达式右边非int类型
             SemanticError(this->line_no_, gContextInfo.opn_.name_ +
                                               ": condexp rhs exp type not int");
@@ -656,22 +574,18 @@ void Root::GenerateIR() {
           gIRList.push_back(
               {IR::OpKind::JEQ, gContextInfo.opn_, IMM_0_OPN, false_label_opn});
 
-          if ("null" != true_label)
-          {
+          if ("null" != true_label) {
             // genir(goto, truelabel)
             gIRList.push_back({IR::OpKind::GOTO, true_label_opn});
           }
-        }
-        else if ("null" != true_label)
-        {
+        } else if ("null" != true_label) {
           // genir(jeq,lhs,0,newfalselabel)
           std::string new_false_label = NewLabel();
           gIRList.push_back({IR::OpKind::JEQ, lhs_opn, IMM_0_OPN,
                              LABEL_OPN(new_false_label)});
 
           this->rhs_.GenerateIR();
-          if (!gContextInfo.shape_.empty())
-          {
+          if (!gContextInfo.shape_.empty()) {
             // NOTE 语义错误 类型错误 条件表达式右边非int类型
             SemanticError(this->line_no_, gContextInfo.opn_.name_ +
                                               ": condexp rhs exp type not int");
@@ -683,9 +597,7 @@ void Root::GenerateIR() {
 
           // genir(label,newfalselabel,-,-)
           gIRList.push_back({IR::OpKind::LABEL, LABEL_OPN(new_false_label)});
-        }
-        else
-        {
+        } else {
           // ERROR
           RuntimeError(
               "both true_label and false_label are 'null' in "
@@ -693,17 +605,12 @@ void Root::GenerateIR() {
         }
         break;
       }
-      case OR:
-      {
-        if ("null" != false_label)
-        {
+      case OR: {
+        if ("null" != false_label) {
           std::string new_true_label = "";
-          if ("null" == true_label)
-          {
+          if ("null" == true_label) {
             new_true_label = NewLabel();
-          }
-          else
-          {
+          } else {
             new_true_label = true_label;
           }
           // genir(jne,lhs,0,newtruelabel)
@@ -711,8 +618,7 @@ void Root::GenerateIR() {
               {IR::OpKind::JNE, lhs_opn, IMM_0_OPN, LABEL_OPN(new_true_label)});
 
           this->rhs_.GenerateIR();
-          if (!gContextInfo.shape_.empty())
-          {
+          if (!gContextInfo.shape_.empty()) {
             // NOTE 语义错误 类型错误 条件表达式右边非int类型
             SemanticError(this->line_no_, gContextInfo.opn_.name_ +
                                               ": condexp rhs exp type not int");
@@ -722,26 +628,20 @@ void Root::GenerateIR() {
           gIRList.push_back(
               {IR::OpKind::JEQ, gContextInfo.opn_, IMM_0_OPN, false_label_opn});
 
-          if ("null" == true_label)
-          {
+          if ("null" == true_label) {
             // genir(label,newtruelabel,-,-)
             gIRList.push_back({IR::OpKind::LABEL, LABEL_OPN(new_true_label)});
-          }
-          else
-          {
+          } else {
             // genir(goto,newtruelabel,-,-)
             gIRList.push_back({IR::OpKind::GOTO, LABEL_OPN(new_true_label)});
           }
-        }
-        else if ("null" != true_label)
-        {
+        } else if ("null" != true_label) {
           // genir(jne,lhs,0,truelabel)
           gIRList.push_back(
               {IR::OpKind::JNE, lhs_opn, IMM_0_OPN, true_label_opn});
 
           this->rhs_.GenerateIR();
-          if (!gContextInfo.shape_.empty())
-          {
+          if (!gContextInfo.shape_.empty()) {
             // NOTE 语义错误 类型错误 条件表达式右边非int类型
             SemanticError(this->line_no_, gContextInfo.opn_.name_ +
                                               ": condexp rhs exp type not int");
@@ -750,9 +650,7 @@ void Root::GenerateIR() {
           // genir(jne,rhs,0,truelabel)
           gIRList.push_back(
               {IR::OpKind::JNE, gContextInfo.opn_, IMM_0_OPN, true_label_opn});
-        }
-        else
-        {
+        } else {
           // ERROR
           RuntimeError(
               "both true_label and false_label are 'null' in "
@@ -761,37 +659,29 @@ void Root::GenerateIR() {
 
         break;
       }
-      default:
-      { // relop eqop
+      default: {  // relop eqop
         this->rhs_.GenerateIR();
-        if (!gContextInfo.shape_.empty())
-        {
+        if (!gContextInfo.shape_.empty()) {
           // NOTE 语义错误 类型错误 条件表达式右边非int类型
           SemanticError(this->line_no_, gContextInfo.opn_.name_ +
                                             ": condexp rhs exp type not int");
         }
 
-        if ("null" != false_label)
-        {
+        if ("null" != false_label) {
           // genir:if False lhs op rhs goto falselabel
           // (jreverseop, lhs, rhs, falselabel)
           gIRList.push_back({GetOpKind(this->op_, true), lhs_opn,
                              gContextInfo.opn_, false_label_opn});
 
-          if ("null" != true_label)
-          {
+          if ("null" != true_label) {
             // genir(goto, truelabel)
             gIRList.push_back({IR::OpKind::GOTO, true_label_opn});
           }
-        }
-        else if ("null" != true_label)
-        {
+        } else if ("null" != true_label) {
           // genir(jop,lhs,rhs,truelabel)
           gIRList.push_back({GetOpKind(this->op_, false), lhs_opn,
                              gContextInfo.opn_, true_label_opn});
-        }
-        else
-        {
+        } else {
           // ERROR
           RuntimeError(
               "both true_label and false_label are 'null' in "
@@ -799,127 +689,122 @@ void Root::GenerateIR() {
         }
         break;
       }
-      }
     }
   }
+}
 
-  void BinaryExpression::GenerateIR()
-  {
-    Opn opn1,opn2;
-    IR::OpKind op;
+void BinaryExpression::GenerateIR() {
+  Opn opn1, opn2;
+  IR::OpKind op;
 
-    lhs_.GenerateIR();
-    opn1 = gContextInfo.opn_; 
-    rhs_.GenerateIR();
-    opn2 = gContextInfo.opn_;
-    Opn temp = Opn(Opn::Type::Var, NewTemp(), gContextInfo.current_scope_id_);
-    gContextInfo.opn_ = temp;
-    
-    switch(op_)
-    {
-      case ADD:
-        op = IR::OpKind::ADD;
-        break;
-      case SUB:
-        op = IR::OpKind::SUB;
-        break;
-      case MUL:
-        op = IR::OpKind::MUL;
-        break;
-      case DIV:
-        op = IR::OpKind::DIV;
-        break;
-      case MOD:
-        op = IR::OpKind::MOD;
-        break;
-      // case GT:
-      //   op = IR::OpKind::GT;
-      //   break;
-      // case LT:
-      //   op = IR::OpKind::LT;
-      //   break;
-      // case LE:
-      //   op = IR::OpKind::LE;
-      //   break;
-      // case GE:
-      //   op = IR::OpKind::GE;
-      //   break;
-      // case EQ:
-      //   op = IR::OpKind::EQ;
-      //   break;
-      // case NE:
-      //   op = IR::OpKind::NE;
-      //   break;
-      default:
-        printf("mystery operator code: %d", op_);
-        break;
-    }
+  lhs_.GenerateIR();
+  opn1 = gContextInfo.opn_;
+  if (!gContextInfo.shape_.empty()) {
+    SemanticError(this->line_no_,
+                  gContextInfo.opn_.name_ + ": lhs exp type not int");
+  }
+  rhs_.GenerateIR();
+  opn2 = gContextInfo.opn_;
+  if (!gContextInfo.shape_.empty()) {
+    SemanticError(this->line_no_,
+                  gContextInfo.opn_.name_ + ": rhs exp type not int");
+  }
+  std::string res_temp_var = NewTemp();
+  gSymbolTables[gContextInfo.current_scope_id_].symbol_table_.insert(
+      {res_temp_var,
+       {false, false, gSymbolTables[gContextInfo.current_scope_id_].size_}});
+  gSymbolTables[gContextInfo.current_scope_id_].size_ += kIntWidth;
+  Opn temp = Opn(Opn::Type::Var, res_temp_var, gContextInfo.current_scope_id_);
+  gContextInfo.opn_ = temp;
 
-    IR ir = IR(op, opn1, opn2, temp);
-    gIRList.push_back(ir);
+  switch (op_) {
+    case ADD:
+      op = IR::OpKind::ADD;
+      break;
+    case SUB:
+      op = IR::OpKind::SUB;
+      break;
+    case MUL:
+      op = IR::OpKind::MUL;
+      break;
+    case DIV:
+      op = IR::OpKind::DIV;
+      break;
+    case MOD:
+      op = IR::OpKind::MOD;
+      break;
+    default:
+      printf("mystery operator code: %d", op_);
+      break;
   }
 
-  void UnaryExpression::GenerateIR()
-  {
-    Opn opn1;
-    IR::OpKind op;
+  IR ir = IR(op, opn1, opn2, temp);
+  gIRList.push_back(ir);
+}
 
-    rhs_.GenerateIR();
+void UnaryExpression::GenerateIR() {
+  Opn opn1;
+  IR::OpKind op;
+
+  rhs_.GenerateIR();
+  opn1 = gContextInfo.opn_;
+  if (!gContextInfo.shape_.empty()) {
+    SemanticError(this->line_no_,
+                  gContextInfo.opn_.name_ + ": rhs exp type not int");
+  }
+  auto scope_id = gContextInfo.current_scope_id_;
+  std::string rhs_temp_var = NewTemp();
+  gSymbolTables[scope_id].symbol_table_.insert(
+      {rhs_temp_var, {false, false, gSymbolTables[scope_id].size_}});
+  gSymbolTables[scope_id].size_ += kIntWidth;
+  Opn temp = Opn(Opn::Type::Var, rhs_temp_var, gContextInfo.current_scope_id_);
+  gContextInfo.opn_ = temp;
+
+  switch (op_) {
+    case ADD:
+      op = IR::OpKind::POS;
+      break;
+    case SUB:
+      op = IR::OpKind::NEG;
+      break;
+    case NOT:
+      op = IR::OpKind::NOT;
+      break;
+    default:
+      printf("mystery operator code: %d", op_);
+      break;
+  }
+
+  IR ir = IR(op, opn1, temp);
+  gIRList.push_back(ir);
+}
+
+void FunctionCall::GenerateIR() {
+  Opn opn1;
+  if (gFuncTable.find(name_.name_) == gFuncTable.end()) {
+    SemanticError(line_no_, "调用的函数不存在");
+    return;
+  }
+  int i = 0;
+  for (auto &arg : args_.arg_list_) {
+    arg->GenerateIR();
+    if (gContextInfo.shape_ == gFuncTable[name_.name_].shape_list_[i++]) {
+      SemanticError(line_no_, "函数调用参数不正确");
+      return;
+    }
     opn1 = gContextInfo.opn_;
-    Opn temp = Opn(Opn::Type::Var, NewTemp(), gContextInfo.current_scope_id_);
-    gContextInfo.opn_ = temp;
-    
-    switch(op_)
-    {
-      case ADD:
-        op = IR::OpKind::POS;
-        break;
-      case SUB:
-        op = IR::OpKind::NEG;
-        break;
-      case NOT:
-        op = IR::OpKind::NOT;
-        break;
-      default:
-        printf("mystery operator code: %d", op_);
-        break;
-    }
 
-    IR ir = IR(op, opn1, temp);
-    gIRList.push_back(ir);
-  }
-  
-  void FunctionCall::GenerateIR()
-  {
-    Opn opn1;
-    int i = 0;
-    for(auto &arg : args_.arg_list_)
-    {
-      if(gFuncTable.find(name_.name_) == gFuncTable.end())
-      {
-        printf("调用的函数不存在！\n");
-        exit(1);
-      }
-      arg -> GenerateIR();
-      if(gContextInfo.shape_ == gFuncTable[name_.name_].shape_list_[i++])
-      {
-        printf("函数调用参数不正确！\n");
-        exit(1);
-      }
-      opn1 = gContextInfo.opn_;
-
-      IR ir = IR(IR::OpKind::PARAM, opn1);
-      gIRList.push_back(ir);
-    }
-
-    gContextInfo.is_func_ = !gContextInfo.is_func_;
-    name_.GenerateIR();
-    opn1 = gContextInfo.opn_;
-    gContextInfo.is_func_ = !gContextInfo.is_func_;
-    IR ir = IR(IR::OpKind::CALL, opn1);
+    IR ir = IR(IR::OpKind::PARAM, opn1);
     gIRList.push_back(ir);
   }
 
+  gContextInfo.is_func_ = !gContextInfo.is_func_;
+  name_.GenerateIR();
+  opn1 = gContextInfo.opn_;
+  gContextInfo.is_func_ = !gContextInfo.is_func_;
+  IR ir = IR(IR::OpKind::CALL, opn1);
+  gIRList.push_back(ir);
+}
 
 void VariableDefine::GenerateIR() {
   // TODO 未完成
@@ -1147,6 +1032,7 @@ void ReturnStatement::GenerateIR() {
                 gContextInfo.current_func_name_);
       }
     }
+    gContextInfo.has_return = true;
   }
 }
 

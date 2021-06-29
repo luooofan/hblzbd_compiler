@@ -79,35 +79,35 @@ class Opn {
 class IR {
  public:
   enum class OpKind {
-    ADD,     // (+,)
-    SUB,     // (-,)
-    MUL,     // (*,)
-    DIV,     // (/,)
-    MOD,     // (%,)
-    AND,     // (&&,)
-    OR,      // (||,)
-    GT,      // (>,)
-    LT,      // (<,)
-    LE,      // (<=,)
-    GE,      // (>=,)
-    EQ,      // (==,)
-    NE,      // (!=,)
-    NOT,     // (!,)
-    POS,     // (+,)正
-    NEG,     // (-,)负
-    LABEL,   // (label,)
-    PARAM,   // (param,)
-    CALL,    // (call,)
-    RET,     // (ret,) or (ret,opn1,)
-    GOTO,    // (goto,label)
-    ASSIGN,  // (assign, opn1,-,res)
-    JEQ,     // ==
-    JNE,     // !=
-    JLT,     // <
-    JLE,     // <=
-    JGT,     // >
-    JGE,     // >=
-    VOID,    // useless
+    ADD,            // (+,)
+    SUB,            // (-,)
+    MUL,            // (*,)
+    DIV,            // (/,)
+    MOD,            // (%,)
+    AND,            // (&&,)
+    OR,             // (||,)
+    GT,             // (>,)
+    LT,             // (<,)
+    LE,             // (<=,)
+    GE,             // (>=,)
+    EQ,             // (==,)
+    NE,             // (!=,)
+    NOT,            // (!,)
+    POS,            // (+,)正
+    NEG,            // (-,)负
+    LABEL,          // (label,)
+    PARAM,          // (param,)
+    CALL,           // (call,)
+    RET,            // (ret,) or (ret,opn1,)
+    GOTO,           // (goto,label)
+    ASSIGN,         // (assign, opn1,-,res)
+    JEQ,            // ==
+    JNE,            // !=
+    JLT,            // <
+    JLE,            // <=
+    JGT,            // >
+    JGE,            // >=
+    VOID,           // useless
     OFFSET_ASSIGN,  // []=
     ASSIGN_OFFSET,  // =[]
 
@@ -145,11 +145,12 @@ class ContextInfoInGenIR {
  public:
   int current_scope_id_;
   Opn opn_;
+  bool has_return;
   // Used for type check
   std::vector<int> shape_;
   // Used for ArrayInitVal
   std::string array_name_;
-  bool is_func_;        //是否是函数的名称
+  bool is_func_;  //是否是函数的名称
   int array_offset_;
   int brace_num_;  // 当前位置(array_offset_)有几个大括号
   std::vector<int> dim_total_num_;  // a[2][3][4] -> 24,12,4,1

@@ -3,124 +3,111 @@
 
 namespace ast {
 // 若计算成功 返回一个立即数形式的Opn
-  void Number::Evaluate()
-  {
-    gContextInfo.opn_ = Opn(Opn::Type::Imm, value_);
+void Number::Evaluate() { gContextInfo.opn_ = Opn(Opn::Type::Imm, value_); }
+
+void Identifier::Evaluate() {
+  SymbolTableItem *s;
+  if (!gContextInfo.is_func_) {
+    s = FindSymbol(gContextInfo.current_scope_id_, name_);
+    if (!s) {
+      SemanticError(line_no_, name_ + ": undefined variable");
+    }
+
+    if (!s->is_const_) {
+      SemanticError(line_no_, name_ + ": not const type");
+    }
   }
-  
-  void Identifier::Evaluate()
-  {
-    SymbolTableItem *s;
-    if(!gContextInfo.is_func_)
-    {
-      s = FindSymbol(gContextInfo.current_scope_id_, name_);
-      if(!s)
-      {
-        SemanticError(line_no_, name_ + ": undefined variable");
-      }
 
-      if(!s -> is_const_)
-      {
-        SemanticError(line_no_, name_ + ": not const type");
-      }
-    }
-
-    gContextInfo.opn_ = Opn(Opn::Type::Imm, s -> initval_[0]);
+  gContextInfo.opn_ = Opn(Opn::Type::Imm, s->initval_[0]);
+}
+void ArrayIdentifier::Evaluate() {
+  SymbolTableItem *s;
+  s = FindSymbol(gContextInfo.current_scope_id_, name_.name_);
+  if (!s) {
+    SemanticError(line_no_, name_.name_ + ": undefined variable");
   }
-  void ArrayIdentifier::Evaluate()
-  {
-    SymbolTableItem *s;
-    s = FindSymbol(gContextInfo.current_scope_id_, name_.name_);
-    if(!s)
-    {
-      SemanticError(line_no_, name_.name_ + ": undefined variable");
-    }
-    if(shape_list_.size() != s -> shape_.size())
-    {
-      SemanticError(line_no_, name_.name_ + ": the dimension of array is not correct");
-    }
-    
-    int index, t; 
-
-    shape_list_[0]->Evaluate();
-    index = gContextInfo.opn_.imm_num_;
-
-    for(int i = 1; i < shape_list_.size(); ++i)
-    {
-      shape_list_[i]->Evaluate();
-      t = gContextInfo.opn_.imm_num_;
-      index = index * s -> shape_[i] + t;
-    }
-
-    gContextInfo.opn_ = Opn(Opn::Type::Imm, s -> initval_[index]);
+  if (shape_list_.size() != s->shape_.size()) {
+    SemanticError(line_no_,
+                  name_.name_ + ": the dimension of array is not correct");
   }
+
+  int index, t;
+
+  for (int i = 0; i < shape_list_.size(); ++i) {
+    shape_list_[i]->Evaluate();
+    t = gContextInfo.opn_.imm_num_;
+    if (i == shape_list_.size() - 1) {
+      index += t * 4;
+    } else {
+      index += t * s->width_[i + 1];
+    }
+  }
+
+  gContextInfo.opn_ = Opn(Opn::Type::Imm, s->initval_[index / 4]);
+}
 void ConditionExpression::Evaluate() {
   RuntimeError("条件表达式不实现Evaluate函数");
 }
-  void BinaryExpression::Evaluate()
-  {
-    int l, r, res;
+void BinaryExpression::Evaluate() {
+  int l, r, res;
 
-    lhs_.Evaluate();
-    l = gContextInfo.opn_.imm_num_;
-    rhs_.Evaluate();
-    r = gContextInfo.opn_.imm_num_;
+  lhs_.Evaluate();
+  l = gContextInfo.opn_.imm_num_;
+  rhs_.Evaluate();
+  r = gContextInfo.opn_.imm_num_;
 
-    switch(op_)
-    {
-      case 258:
-        res = l + r;
-        break;
-      case 259:
-        res = l - r;
-        break;
-      case 261:
-        res = l * r;
-        break;
-      case 262:
-        res = l / r;
-        break;
-      case 263:
-        res = l % r;
-        break;
-      case 270:
-        res = l && r;
-        break;
-      case 271:
-        res = l || r;
-        break;
-      default:
-        printf("mystery operator code: %d", op_);
-        break;
-    }    
-
-    gContextInfo.opn_ = Opn(Opn::Type::Imm, res);
+  switch (op_) {
+    case 258:
+      res = l + r;
+      break;
+    case 259:
+      res = l - r;
+      break;
+    case 261:
+      res = l * r;
+      break;
+    case 262:
+      res = l / r;
+      break;
+    case 263:
+      res = l % r;
+      break;
+    case 270:
+      res = l && r;
+      break;
+    case 271:
+      res = l || r;
+      break;
+    default:
+      printf("mystery operator code: %d", op_);
+      break;
   }
-  void UnaryExpression::Evaluate()
-  {
-    int r, res;
 
-    rhs_.Evaluate();
-    r = gContextInfo.opn_.imm_num_;
+  gContextInfo.opn_ = Opn(Opn::Type::Imm, res);
+}
+void UnaryExpression::Evaluate() {
+  int r, res;
 
-    switch(op_)
-    {
-      case 258:
-        res = r;
-        break;
-      case 259:
-        res = -r;
-        break;
-      case 260:
-        res = !r;
-        break;
-      default:
-        printf("mystery operator code: %d", op_);
-        break;
-    } 
+  rhs_.Evaluate();
+  r = gContextInfo.opn_.imm_num_;
 
-    gContextInfo.opn_ = Opn(Opn::Type::Imm, res);
+  switch (op_) {
+    case 258:
+      res = r;
+      break;
+    case 259:
+      res = -r;
+      break;
+    case 260:
+      res = !r;
+      break;
+    default:
+      printf("mystery operator code: %d", op_);
+      break;
   }
+
+  gContextInfo.opn_ = Opn(Opn::Type::Imm, res);
+}
 void FunctionCall::Evaluate() {  //返回一个空Opn
 }
 
