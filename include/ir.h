@@ -130,6 +130,7 @@ class ContextInfoInGenIR {
   std::stack<std::string> false_label_;
   // Used for Return Statement
   std::string current_func_name_;
+  bool xingcan;  //函数形参也要加在block的作用域里
 
   ContextInfoInGenIR() : opn_({Opn::Type::Null}), current_scope_id_(0) {}
 };
