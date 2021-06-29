@@ -43,6 +43,7 @@ class Expression {
   Expression(int line_no);
   virtual ~Expression() = default;
   virtual void GenerateIR() = 0;
+  virtual void Evaluate() = 0;
   virtual void PrintNode(int indentation = 0,
                          std::ostream& outfilefile = std::clog) = 0;
 };
@@ -53,6 +54,7 @@ class Number : public Expression {
   Number(int line_no, int value);
   virtual ~Number();
   virtual void GenerateIR();
+  virtual void Evaluate();
   virtual void PrintNode(int indentation = 0,
                          std::ostream& outfile = std::clog);
 };
@@ -63,6 +65,7 @@ class LeftValue : public Expression {
   LeftValue(int line_no);
   virtual ~LeftValue() = default;
   virtual void GenerateIR() = 0;
+  virtual void Evaluate() = 0;
   virtual void PrintNode(int indentation = 0,
                          std::ostream& outfilefile = std::clog) = 0;
 };
@@ -73,6 +76,7 @@ class Identifier : public LeftValue {
   Identifier(int line_no, std::string& name);
   virtual ~Identifier();
   virtual void GenerateIR();
+  virtual void Evaluate();
   virtual void PrintNode(int indentation = 0,
                          std::ostream& outfile = std::clog);
 };
@@ -84,6 +88,7 @@ class ArrayIdentifier : public LeftValue {
   ArrayIdentifier(int line_no, Identifier& name);
   virtual ~ArrayIdentifier();
   virtual void GenerateIR();
+  virtual void Evaluate();
   virtual void PrintNode(int indentation = 0,
                          std::ostream& outfile = std::clog);
 };
@@ -96,6 +101,7 @@ class ConditionExpression : public Expression {
   ConditionExpression(int line_no, int op, Expression& lhs, Expression& rhs);
   virtual ~ConditionExpression();
   virtual void GenerateIR();
+  virtual void Evaluate();
   virtual void PrintNode(int indentation = 0,
                          std::ostream& outfile = std::clog);
 };
@@ -108,6 +114,7 @@ class BinaryExpression : public Expression {
   BinaryExpression(int line_no, int op, Expression& lhs, Expression& rhs);
   virtual ~BinaryExpression();
   virtual void GenerateIR();
+  virtual void Evaluate();
   virtual void PrintNode(int indentation = 0,
                          std::ostream& outfile = std::clog);
 };
@@ -119,6 +126,7 @@ class UnaryExpression : public Expression {
   UnaryExpression(int line_no, int op, Expression& rhs);
   virtual ~UnaryExpression();
   virtual void GenerateIR();
+  virtual void Evaluate();
   virtual void PrintNode(int indentation = 0,
                          std::ostream& outfile = std::clog);
 };
@@ -133,6 +141,7 @@ class FunctionCall : public Expression {
                FunctionActualParameterList& args);
   virtual ~FunctionCall();
   virtual void GenerateIR();
+  virtual void Evaluate();
   virtual void PrintNode(int indentation = 0,
                          std::ostream& outfile = std::clog);
 };
@@ -358,6 +367,7 @@ class ArrayInitVal {
   ArrayInitVal(int line_no, bool is_exp, Expression* value = nullptr);
   virtual ~ArrayInitVal();
   virtual void GenerateIR();
+  virtual void Evaluate();
   virtual void PrintNode(int indentation = 0,
                          std::ostream& outfile = std::clog);
 };
