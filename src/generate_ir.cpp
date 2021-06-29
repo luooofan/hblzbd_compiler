@@ -80,6 +80,530 @@ void ArrayIdentifier::GenerateIR() {
   gContextInfo.opn_ = opn;
 }
 
+void BinaryExpression::GenerateIR() {
+  Opn opn1, opn2;
+  IR::OpKind op;
+
+  lhs_.GenerateIR();
+  opn1 = gContextInfo.opn_;
+  if (!gContextInfo.shape_.empty()) {
+    SemanticError(this->line_no_,
+                  gContextInfo.opn_.name_ + ": lhs exp type not int");
+  }
+  rhs_.GenerateIR();
+  opn2 = gContextInfo.opn_;
+  if (!gContextInfo.shape_.empty()) {
+    SemanticError(this->line_no_,
+                  gContextInfo.opn_.name_ + ": rhs exp type not int");
+  }
+  std::string res_temp_var = NewTemp();
+  gSymbolTables[gContextInfo.current_scope_id_].symbol_table_.insert(
+      {res_temp_var,
+       {false, false, gSymbolTables[gContextInfo.current_scope_id_].size_}});
+  gSymbolTables[gContextInfo.current_scope_id_].size_ += kIntWidth;
+  Opn temp = Opn(Opn::Type::Var, res_temp_var, gContextInfo.current_scope_id_);
+  gContextInfo.opn_ = temp;
+
+  switch (op_) {
+    case ADD:
+      op = IR::OpKind::ADD;
+      break;
+    case SUB:
+      op = IR::OpKind::SUB;
+      break;
+    case MUL:
+      op = IR::OpKind::MUL;
+      break;
+    case DIV:
+      op = IR::OpKind::DIV;
+      break;
+    case MOD:
+      op = IR::OpKind::MOD;
+      break;
+    default:
+      printf("mystery operator code: %d", op_);
+      break;
+  }
+
+  IR ir = IR(op, opn1, opn2, temp);
+  gIRList.push_back(ir);
+}
+
+void UnaryExpression::GenerateIR() {
+  Opn opn1;
+  IR::OpKind op;
+
+  rhs_.GenerateIR();
+  opn1 = gContextInfo.opn_;
+  if (!gContextInfo.shape_.empty()) {
+    SemanticError(this->line_no_,
+                  gContextInfo.opn_.name_ + ": rhs exp type not int");
+  }
+  auto scope_id = gContextInfo.current_scope_id_;
+  std::string rhs_temp_var = NewTemp();
+  gSymbolTables[scope_id].symbol_table_.insert(
+      {rhs_temp_var, {false, false, gSymbolTables[scope_id].size_}});
+  gSymbolTables[scope_id].size_ += kIntWidth;
+  Opn temp = Opn(Opn::Type::Var, rhs_temp_var, gContextInfo.current_scope_id_);
+  gContextInfo.opn_ = temp;
+
+  switch (op_) {
+    case ADD:
+      op = IR::OpKind::POS;
+      break;
+    case SUB:
+      op = IR::OpKind::NEG;
+      break;
+    case NOT:
+      op = IR::OpKind::NOT;
+      break;
+    default:
+      printf("mystery operator code: %d", op_);
+      break;
+  }
+
+  IR ir = IR(op, opn1, temp);
+  gIRList.push_back(ir);
+}
+
+void FunctionCall::GenerateIR() {
+  Opn opn1;
+  if (gFuncTable.find(name_.name_) == gFuncTable.end()) {
+    SemanticError(line_no_, "调用的函数不存在");
+    return;
+  }
+  int i = 0;
+  for (auto &arg : args_.arg_list_) {
+    arg->GenerateIR();
+    if (gContextInfo.shape_ == gFuncTable[name_.name_].shape_list_[i++]) {
+      SemanticError(line_no_, "函数调用参数不正确");
+      return;
+    }
+    opn1 = gContextInfo.opn_;
+
+    IR ir = IR(IR::OpKind::PARAM, opn1);
+    gIRList.push_back(ir);
+  }
+
+  gContextInfo.is_func_ = !gContextInfo.is_func_;
+  name_.GenerateIR();
+  opn1 = gContextInfo.opn_;
+  gContextInfo.is_func_ = !gContextInfo.is_func_;
+  IR ir = IR(IR::OpKind::CALL, opn1);
+  gIRList.push_back(ir);
+}
+
+void VariableDefine::GenerateIR() {
+  auto &scope = gSymbolTables[gContextInfo.current_scope_id_];
+  auto &symbol_table = scope.symbol_table_;
+  const auto &var_iter = symbol_table.find(this->name_.name_);
+  if (var_iter == symbol_table.end()) {
+    auto tmp = new SymbolTableItem(false, false, scope.size_);
+    if (gContextInfo.current_scope_id_ == 0) tmp->initval_.push_back(0);
+    symbol_table.insert({this->name_.name_, *tmp});
+    scope.size_ += kIntWidth;
+  } else {
+    SemanticError(this->line_no_, this->name_.name_ + ": variable redefined");
+  }
+}
+void VariableDefineWithInit::GenerateIR() {
+  auto &scope = gSymbolTables[gContextInfo.current_scope_id_];
+  auto &symbol_table = scope.symbol_table_;
+  const auto &var_iter = symbol_table.find(this->name_.name_);
+  if (var_iter == symbol_table.end()) {
+    auto tmp = new SymbolTableItem(false, is_const_, scope.size_);
+    scope.size_ += kIntWidth;
+    if (gContextInfo.current_scope_id_ == 0 || is_const_) {
+      value_.Evaluate();
+      tmp->initval_.push_back(gContextInfo.opn_.imm_num_);
+    } else {
+      value_.GenerateIR();
+    }
+    symbol_table.insert({this->name_.name_, *tmp});
+  } else {
+    SemanticError(this->line_no_, this->name_.name_ + ": variable redefined");
+  }
+}
+void ArrayDefine::GenerateIR() {
+  auto &scope = gSymbolTables[gContextInfo.current_scope_id_];
+  auto &symbol_table = scope.symbol_table_;
+  const auto &var_iter = symbol_table.find(this->name_.name_.name_);
+  if (var_iter == symbol_table.end()) {
+    auto tmp = new SymbolTableItem(true, false, scope.size_);
+    //计算shape和width
+    for (const auto &shape : name_.shape_list_) {
+      shape->Evaluate();
+      tmp->shape_.push_back(
+          gContextInfo.opn_
+              .imm_num_);  // shape的类型必定为常量表达式，所以opn一定是立即数
+    }
+    tmp->width_.resize(tmp->shape_.size());
+    tmp->width_[tmp->width_.size() - 1] = kIntWidth;
+    for (int i = tmp->width_.size() - 2; i >= 0; i--)
+      tmp->width_[i] = tmp->width_[i + 1] * tmp->shape_[i + 1];
+    scope.size_ += tmp->width_[0];
+    // symbol_table[name_.name_.name_]=*tmp;
+    symbol_table.insert({name_.name_.name_, *tmp});
+  } else {
+    SemanticError(this->line_no_,
+                  this->name_.name_.name_ + ": variable redefined");
+  }
+}
+void ArrayDefineWithInit::GenerateIR() {
+  // TODO 未完成
+  auto &name = this->name_.name_.name_;
+  auto &scope = gSymbolTables[gContextInfo.current_scope_id_];
+  auto &symbol_table = scope.symbol_table_;
+  const auto &array_iter = symbol_table.find(name);
+  if (array_iter == symbol_table.end()) {
+    // 调用arrayindent的inserttable函数插入到符号表中 需要传递const信息
+    // 在这里实现
+    SymbolTableItem symbol_item(true, this->is_const_, scope.size_);
+    // 填shape
+    for (const auto &shape : this->name_.shape_list_) {
+      shape->Evaluate();
+      if (gContextInfo.opn_.type_ != Opn::Type::Imm) {
+        // 语义错误 数组维度应为常量表达式
+        return;
+      } else {
+        symbol_item.shape_.push_back(gContextInfo.opn_.imm_num_);
+      }
+    }
+    // 填width和dim total num
+    std::stack<int> temp_width;
+    int width = 4;
+    for (auto reiter = symbol_item.shape_.rbegin();
+         reiter != symbol_item.shape_.rend(); ++reiter) {
+      width *= *reiter;
+      temp_width.push(width);
+    }
+    scope.size_ += temp_width.top();
+    while (!temp_width.empty()) {
+      symbol_item.width_.push_back(temp_width.top());
+      temp_width.pop();
+    }
+    symbol_table.insert({name, symbol_item});
+
+    // 完成赋值操作 或者 填写initval(global or const)
+    // for arrayinitval
+    gContextInfo.dim_total_num_.clear();
+    for (const auto &width : symbol_item.width_) {
+      gContextInfo.dim_total_num_.push_back(width / 4);
+    }
+    gContextInfo.dim_total_num_.push_back(1);
+    gContextInfo.array_name_ = name;
+    gContextInfo.array_offset_ = 0;
+    gContextInfo.brace_num_ = 1;
+    if (this->is_const_ || gContextInfo.current_scope_id_ == 0) {
+      this->value_.Evaluate();
+    } else {
+      this->value_.GenerateIR();
+    }
+  }
+}
+
+void FunctionDefine::GenerateIR() {
+  const auto &func_iter = gFuncTable.find(this->name_.name_);
+  if (func_iter == gFuncTable.end()) {
+    auto tmp = new FuncTableItem(return_type_);
+    gContextInfo.current_func_name_ = this->name_.name_;
+    gIRList.push_back({IR::OpKind::LABEL, LABEL_OPN(this->name_.name_)});
+    int parent_scope_id = -1;
+    gContextInfo.current_scope_id_ = gSymbolTables.size();
+    gSymbolTables.push_back({gContextInfo.current_scope_id_, parent_scope_id});
+    gContextInfo.xingcan = true;
+    for (const auto &arg : args_.arg_list_) {
+      if (Identifier *ident = dynamic_cast<Identifier *>(&arg->name_)) {
+        auto &scope = gSymbolTables[gContextInfo.current_scope_id_];
+        auto &symbol_table = scope.symbol_table_;
+        const auto &var_iter = symbol_table.find(ident->name_);
+        if (var_iter == symbol_table.end()) {
+          symbol_table.insert({ident->name_, {false, false, scope.size_}});
+          scope.size_ += kIntWidth;
+        } else {
+          SemanticError(this->line_no_, ident->name_ + ": variable redefined");
+        }
+        std::vector<int> tmp1;
+        tmp->shape_list_.push_back(tmp1);
+      } else if (ArrayIdentifier *arrident =
+                     dynamic_cast<ArrayIdentifier *>(&arg->name_)) {
+        auto &scope = gSymbolTables[gContextInfo.current_scope_id_];
+        auto &symbol_table = scope.symbol_table_;
+        const auto &var_iter = symbol_table.find(arrident->name_.name_);
+        if (var_iter == symbol_table.end()) {
+          auto tmp1 = new SymbolTableItem(true, false, scope.size_);
+          //计算shape和width
+          tmp1->shape_.push_back(
+              -1);  //第一维因为文法规定必须留空，所以我这里记个-1
+          for (const auto &shape : arrident->shape_list_) {
+            shape->Evaluate();
+            tmp1->shape_.push_back(
+                gContextInfo.opn_
+                    .imm_num_);  // shape的类型必定为常量表达式，所以opn一定是立即数
+          }
+          tmp1->width_.resize(tmp1->shape_.size());
+          if (tmp1->shape_.size()) {
+            tmp1->width_[tmp1->width_.size() - 1] = kIntWidth;
+            for (int i = tmp1->width_.size() - 2; i >= 0; i--)
+              tmp1->width_[i] = tmp1->width_[i + 1] * tmp1->shape_[i + 1];
+          }
+          scope.size_ += tmp1->width_[0];
+          symbol_table.insert({arrident->name_.name_, *tmp1});
+          tmp->shape_list_.push_back(tmp1->shape_);
+        } else {
+          SemanticError(this->line_no_,
+                        arrident->name_.name_ + ": variable redefined");
+        }
+      }
+      // std::cout<<"haha"<<gContextInfo.shape_.size()<<'\n';
+      // tmp->shape_list_.push_back(gContextInfo.shape_);
+    }
+    gFuncTable.insert({name_.name_, *tmp});
+    this->body_.GenerateIR();
+  } else {
+    SemanticError(this->line_no_, this->name_.name_ + ": function redefined");
+  }
+}
+
+void AssignStatement::GenerateIR() {
+  this->rhs_.GenerateIR();
+  if (!gContextInfo.shape_.empty()) {
+    // not int
+    // NOTE 语义错误 类型错误 表达式结果非int类型
+    SemanticError(this->line_no_,
+                  gContextInfo.opn_.name_ + ": rhs exp res type not int");
+  }
+  Opn rhs_opn = gContextInfo.opn_;
+
+  this->lhs_.GenerateIR();
+  Opn &lhs_opn = gContextInfo.opn_;
+  // if (lhs_opn.type_ == Opn::Type::Var) {
+  SymbolTableItem *target_symbol_item =
+      FindSymbol(gContextInfo.current_scope_id_, lhs_opn.name_);
+  if (nullptr == target_symbol_item) {
+    // NOTE 语义错误 变量未定义
+    SemanticError(this->line_no_, "use undefined variable: " + lhs_opn.name_);
+  } else {
+    // type check
+    if (!gContextInfo.shape_.empty()) {
+      // not int
+      // NOTE 语义错误 类型错误 左值非int类型
+      SemanticError(this->line_no_, lhs_opn.name_ + ": leftvalue type not int");
+    }
+    // const check
+    if (target_symbol_item->is_const_) {
+      // NOTE 语义错误 给const量赋值
+      SemanticError(this->line_no_,
+                    lhs_opn.name_ + ": constant can't be assigned");
+    }
+  }
+
+  // genir(assign,opn1,-,res)
+  gIRList.push_back({IR::OpKind::ASSIGN, rhs_opn, lhs_opn});
+}
+
+void IfElseStatement::GenerateIR() {
+  std::string label_next = NewLabel();
+  if (nullptr == this->elsestmt_) {
+    // if then
+    gContextInfo.true_label_.push("null");
+    gContextInfo.false_label_.push(label_next);
+    this->cond_.GenerateIR();
+    gContextInfo.true_label_.pop();
+    gContextInfo.false_label_.pop();
+    this->thenstmt_.GenerateIR();
+  } else {
+    // if then else
+    std::string label_else = NewLabel();
+    gContextInfo.true_label_.push("null");
+    gContextInfo.false_label_.push(label_else);
+    this->cond_.GenerateIR();
+    gContextInfo.true_label_.pop();
+    gContextInfo.false_label_.pop();
+    this->thenstmt_.GenerateIR();
+    // genir(goto,next,-,-)
+    gIRList.push_back({IR::OpKind::GOTO, LABEL_OPN(label_next)});
+    // genir(label,else,-,-)
+    gIRList.push_back({IR::OpKind::LABEL, LABEL_OPN(label_else)});
+    this->elsestmt_->GenerateIR();
+  }
+  gIRList.push_back({IR::OpKind::LABEL, LABEL_OPN(label_next)});
+}
+
+void WhileStatement::GenerateIR() {
+  std::string label_next = NewLabel();
+  std::string label_begin = NewLabel();
+  // genir(label,begin,-,-)
+  gIRList.push_back({IR::OpKind::LABEL, LABEL_OPN(label_begin)});
+  gContextInfo.true_label_.push("null");
+  gContextInfo.false_label_.push(label_next);
+  this->cond_.GenerateIR();
+  gContextInfo.true_label_.pop();
+  gContextInfo.false_label_.pop();
+  this->bodystmt_.GenerateIR();
+  // genir(goto,begin,-,-)
+  gIRList.push_back({IR::OpKind::GOTO, LABEL_OPN(label_begin)});
+  gIRList.push_back({IR::OpKind::LABEL, LABEL_OPN(label_next)});
+}
+
+void BreakStatement::GenerateIR() {
+  // 检查是否在while循环中
+  if (gContextInfo.break_label_.empty()) {  // not in while loop
+    // NOTE: 语义错误 break语句位置错误
+    SemanticError(this->line_no_, "'break' not in while loop");
+  } else {
+    // genir (goto,breaklabel,-,-)
+    gIRList.push_back({IR::OpKind::GOTO,
+                       {Opn::Type::Label, gContextInfo.break_label_.top()}});
+  }
+}
+
+void ContinueStatement::GenerateIR() {
+  // 检查是否在while循环中
+  if (gContextInfo.continue_label_.empty()) {  // not in while loop
+    // NOTE: 语义错误 break语句位置错误
+    SemanticError(this->line_no_, "'continue' not in while loop");
+  } else {
+    // genir (goto,continuelabel,-,-)
+    gIRList.push_back({IR::OpKind::GOTO,
+                       {Opn::Type::Label, gContextInfo.continue_label_.top()}});
+  }
+}
+
+void ReturnStatement::GenerateIR() {
+  // [return]语句必然出现在函数定义中
+  // 返回类型检查
+  auto func_iter = gFuncTable.find(gContextInfo.current_func_name_);
+  if (func_iter == gFuncTable.end()) {
+    // NOTE 语义错误 函数未声明定义
+    SemanticError(this->line_no_, "return statement in undeclared function: " +
+                                      gContextInfo.current_func_name_);
+  } else {
+    int ret_type = (*func_iter).second.ret_type_;
+    if (ret_type == VOID) {
+      // return ;
+      if (nullptr == this->value_) {
+        // genir (ret,-,-,-)
+        gIRList.push_back({IR::OpKind::RET});
+      } else {
+        // NOTE 语义错误 函数返回类型不匹配 应为void
+        SemanticError(
+            this->line_no_,
+            "function ret type should be VOID according to function: " +
+                gContextInfo.current_func_name_);
+      }
+    } else {
+      // return exp(int);
+      this->value_->GenerateIR();
+      if (gContextInfo.shape_.empty()) {
+        // exp type is int
+        // genir (ret,opn,-,-)
+        gIRList.push_back({IR::OpKind::RET, gContextInfo.opn_});
+      } else {
+        // NOTE 语义错误 函数返回类型不匹配 应为int
+        SemanticError(
+            this->line_no_,
+            "function ret type should be INT according to function: " +
+                gContextInfo.current_func_name_);
+      }
+    }
+    gContextInfo.has_return = true;
+  }
+}
+
+void VoidStatement::GenerateIR() {}
+
+void EvalStatement::GenerateIR() { this->value_.GenerateIR(); }
+
+void Block::GenerateIR() {
+  // new scope
+  int parent_scope_id = gContextInfo.current_scope_id_;
+  ;
+  if (gContextInfo.xingcan == false) {
+    gContextInfo.current_scope_id_ = gSymbolTables.size();
+    gSymbolTables.push_back({gContextInfo.current_scope_id_, parent_scope_id});
+  }
+  gContextInfo.xingcan = false;
+  for (const auto &stmt : this->statement_list_) {
+    stmt->GenerateIR();
+  }
+  // src scope
+  gContextInfo.current_scope_id_ = parent_scope_id;
+}
+
+void DeclareStatement::GenerateIR() {
+  // TODO 未完成
+  for (const auto &def : this->define_list_) {
+    def->GenerateIR();
+  }
+}
+
+// const int c[2][3][4] = {1, {2}, 3,4,{5, 6, 7, 8},9, 10,  {11}, {12}, {13, 14,
+// {15}, 16, {17}, {21}}};
+// int c[2][3][4]={1,{2},3,4,{5},9,10,{11},{12},{13, 14, {15},16,{17},{21}}};
+// int c[2][3][4]={{1},{13, 14, {15},16,{17},{21}}};
+
+void ArrayInitVal::GenerateIR() {
+  if (this->is_exp_) {
+    this->value_->GenerateIR();
+    if (!gContextInfo.shape_.empty()) {  // NOTE 语义错误 类型错误 值非int类型
+      SemanticError(this->line_no_,
+                    gContextInfo.opn_.name_ + ": exp type not int");
+    }
+    // genir([]=,expvalue,-,arrayname offset)
+    gIRList.push_back({IR::OpKind::OFFSET_ASSIGN,
+                       gContextInfo.opn_,
+                       {Opn::Type::Var, gContextInfo.array_name_},
+                       gContextInfo.array_offset_ * 4});
+
+    gContextInfo.array_offset_ += 1;
+  } else {
+    // 此时该结点表示一对大括号 {}
+    int &offset = gContextInfo.array_offset_;
+    int &brace_num = gContextInfo.brace_num_;
+
+    // 根据offset和brace_num算出finaloffset
+    int temp_level = 0;
+    const auto &dim_total_num = gContextInfo.dim_total_num_;
+    for (int i = 0; i < dim_total_num.size(); ++i) {
+      if (offset % dim_total_num[i] == 0) {
+        temp_level = i;
+        break;
+      }
+    }
+    temp_level += brace_num;
+
+    if (temp_level > dim_total_num.size()) {  // 语义错误 大括号过多
+      SemanticError(this->line_no_, "多余大括号");
+    } else {
+      int final_offset = offset + dim_total_num[temp_level - 1];
+      if (!this->initval_list_.empty()) {
+        ++brace_num;
+        this->initval_list_[0]->GenerateIR();
+
+        for (int i = 1; i < this->initval_list_.size(); ++i) {
+          brace_num = 1;
+          this->initval_list_[i]->GenerateIR();
+        }
+      }
+      // 补0补到finaloffset
+      while (offset < final_offset) {
+        // genir([]=,0,-,arrayname offset)
+        gIRList.push_back({IR::OpKind::OFFSET_ASSIGN,
+                           IMM_0_OPN,
+                           {Opn::Type::Var, gContextInfo.array_name_},
+                           (offset++ * 4)});
+      }
+      // 语义检查
+      if (offset > final_offset) {  // 语义错误 初始值设定项值太多
+        SemanticError(this->line_no_, "初始值设定项值太多");
+      }
+    }
+  }
+}
+void FunctionFormalParameter::GenerateIR() {}
+void FunctionFormalParameterList::GenerateIR() {}
+void FunctionActualParameterList::GenerateIR() {}
 // int main(){if(1<=1){2;}}
 
 // if ("null" == true_label && "null" != false_label) {
@@ -692,438 +1216,5 @@ void ConditionExpression::GenerateIR() {
     }
   }
 }
-
-void BinaryExpression::GenerateIR() {
-  Opn opn1, opn2;
-  IR::OpKind op;
-
-  lhs_.GenerateIR();
-  opn1 = gContextInfo.opn_;
-  if (!gContextInfo.shape_.empty()) {
-    SemanticError(this->line_no_,
-                  gContextInfo.opn_.name_ + ": lhs exp type not int");
-  }
-  rhs_.GenerateIR();
-  opn2 = gContextInfo.opn_;
-  if (!gContextInfo.shape_.empty()) {
-    SemanticError(this->line_no_,
-                  gContextInfo.opn_.name_ + ": rhs exp type not int");
-  }
-  std::string res_temp_var = NewTemp();
-  gSymbolTables[gContextInfo.current_scope_id_].symbol_table_.insert(
-      {res_temp_var,
-       {false, false, gSymbolTables[gContextInfo.current_scope_id_].size_}});
-  gSymbolTables[gContextInfo.current_scope_id_].size_ += kIntWidth;
-  Opn temp = Opn(Opn::Type::Var, res_temp_var, gContextInfo.current_scope_id_);
-  gContextInfo.opn_ = temp;
-
-  switch (op_) {
-    case ADD:
-      op = IR::OpKind::ADD;
-      break;
-    case SUB:
-      op = IR::OpKind::SUB;
-      break;
-    case MUL:
-      op = IR::OpKind::MUL;
-      break;
-    case DIV:
-      op = IR::OpKind::DIV;
-      break;
-    case MOD:
-      op = IR::OpKind::MOD;
-      break;
-    default:
-      printf("mystery operator code: %d", op_);
-      break;
-  }
-
-  IR ir = IR(op, opn1, opn2, temp);
-  gIRList.push_back(ir);
-}
-
-void UnaryExpression::GenerateIR() {
-  Opn opn1;
-  IR::OpKind op;
-
-  rhs_.GenerateIR();
-  opn1 = gContextInfo.opn_;
-  if (!gContextInfo.shape_.empty()) {
-    SemanticError(this->line_no_,
-                  gContextInfo.opn_.name_ + ": rhs exp type not int");
-  }
-  auto scope_id = gContextInfo.current_scope_id_;
-  std::string rhs_temp_var = NewTemp();
-  gSymbolTables[scope_id].symbol_table_.insert(
-      {rhs_temp_var, {false, false, gSymbolTables[scope_id].size_}});
-  gSymbolTables[scope_id].size_ += kIntWidth;
-  Opn temp = Opn(Opn::Type::Var, rhs_temp_var, gContextInfo.current_scope_id_);
-  gContextInfo.opn_ = temp;
-
-  switch (op_) {
-    case ADD:
-      op = IR::OpKind::POS;
-      break;
-    case SUB:
-      op = IR::OpKind::NEG;
-      break;
-    case NOT:
-      op = IR::OpKind::NOT;
-      break;
-    default:
-      printf("mystery operator code: %d", op_);
-      break;
-  }
-
-  IR ir = IR(op, opn1, temp);
-  gIRList.push_back(ir);
-}
-
-void FunctionCall::GenerateIR() {
-  Opn opn1;
-  if (gFuncTable.find(name_.name_) == gFuncTable.end()) {
-    SemanticError(line_no_, "调用的函数不存在");
-    return;
-  }
-  int i = 0;
-  for (auto &arg : args_.arg_list_) {
-    arg->GenerateIR();
-    if (gContextInfo.shape_ == gFuncTable[name_.name_].shape_list_[i++]) {
-      SemanticError(line_no_, "函数调用参数不正确");
-      return;
-    }
-    opn1 = gContextInfo.opn_;
-
-    IR ir = IR(IR::OpKind::PARAM, opn1);
-    gIRList.push_back(ir);
-  }
-
-  gContextInfo.is_func_ = !gContextInfo.is_func_;
-  name_.GenerateIR();
-  opn1 = gContextInfo.opn_;
-  gContextInfo.is_func_ = !gContextInfo.is_func_;
-  IR ir = IR(IR::OpKind::CALL, opn1);
-  gIRList.push_back(ir);
-}
-
-void VariableDefine::GenerateIR() {
-  // TODO 未完成
-  auto &scope = gSymbolTables[gContextInfo.current_scope_id_];
-  auto &symbol_table = scope.symbol_table_;
-  const auto &var_iter = symbol_table.find(this->name_.name_);
-  if (var_iter == symbol_table.end()) {
-    symbol_table.insert({this->name_.name_, {false, false, scope.size_}});
-    scope.size_ += kIntWidth;
-    // gContextInfo.shape_.clear();
-    // gContextInfo.opn_ =
-    //     Opn(Opn::Type::Var, this->name_.name_,
-    //     gContextInfo.current_scope_id_);
-  } else {
-    SemanticError(this->line_no_, this->name_.name_ + ": variable redefined");
-  }
-}
-void VariableDefineWithInit::GenerateIR() {}
-void ArrayDefine::GenerateIR() {}
-void ArrayDefineWithInit::GenerateIR() {
-  // TODO 未完成
-  auto &name = this->name_.name_.name_;
-  auto &scope = gSymbolTables[gContextInfo.current_scope_id_];
-  auto &symbol_table = scope.symbol_table_;
-  const auto &array_iter = symbol_table.find(name);
-  if (array_iter == symbol_table.end()) {
-    // 调用arrayindent的inserttable函数插入到符号表中 需要传递const信息
-    // 在这里实现
-    SymbolTableItem symbol_item(true, this->is_const_, scope.size_);
-    // 填shape
-    for (const auto &shape : this->name_.shape_list_) {
-      shape->Evaluate();
-      if (gContextInfo.opn_.type_ != Opn::Type::Imm) {
-        // 语义错误 数组维度应为常量表达式
-        return;
-      } else {
-        symbol_item.shape_.push_back(gContextInfo.opn_.imm_num_);
-      }
-    }
-    // 填width和dim total num
-    std::stack<int> temp_width;
-    int width = 4;
-    for (auto reiter = symbol_item.shape_.rbegin();
-         reiter != symbol_item.shape_.rend(); ++reiter) {
-      width *= *reiter;
-      temp_width.push(width);
-    }
-    scope.size_ += temp_width.top();
-    while (!temp_width.empty()) {
-      symbol_item.width_.push_back(temp_width.top());
-      temp_width.pop();
-    }
-    symbol_table.insert({name, symbol_item});
-
-    // 完成赋值操作 或者 填写initval(global or const)
-    // for arrayinitval
-    gContextInfo.dim_total_num_.clear();
-    for (const auto &width : symbol_item.width_) {
-      gContextInfo.dim_total_num_.push_back(width / 4);
-    }
-    gContextInfo.dim_total_num_.push_back(1);
-    gContextInfo.array_name_ = name;
-    gContextInfo.array_offset_ = 0;
-    gContextInfo.brace_num_ = 1;
-    if (this->is_const_ || gContextInfo.current_scope_id_ == 0) {
-      this->value_.Evaluate();
-    } else {
-      this->value_.GenerateIR();
-    }
-  }
-}
-void FunctionDefine::GenerateIR() {
-  // TODO 未完成
-  const auto &func_iter = gFuncTable.find(this->name_.name_);
-  if (func_iter == gFuncTable.end()) {
-    gFuncTable.insert({this->name_.name_, this->return_type_});
-    gContextInfo.current_func_name_ = this->name_.name_;
-    // genir(label,funcname,-,-)
-    gIRList.push_back({IR::OpKind::LABEL, LABEL_OPN(this->name_.name_)});
-    this->body_.GenerateIR();
-  } else {
-    SemanticError(this->line_no_, this->name_.name_ + ": function redefined");
-  }
-}
-
-void AssignStatement::GenerateIR() {
-  this->rhs_.GenerateIR();
-  if (!gContextInfo.shape_.empty()) {
-    // not int
-    // NOTE 语义错误 类型错误 表达式结果非int类型
-    SemanticError(this->line_no_,
-                  gContextInfo.opn_.name_ + ": rhs exp res type not int");
-  }
-  Opn rhs_opn = gContextInfo.opn_;
-
-  this->lhs_.GenerateIR();
-  Opn &lhs_opn = gContextInfo.opn_;
-  // if (lhs_opn.type_ == Opn::Type::Var) {
-  SymbolTableItem *target_symbol_item =
-      FindSymbol(gContextInfo.current_scope_id_, lhs_opn.name_);
-  if (nullptr == target_symbol_item) {
-    // NOTE 语义错误 变量未定义
-    SemanticError(this->line_no_, "use undefined variable: " + lhs_opn.name_);
-  } else {
-    // type check
-    if (!gContextInfo.shape_.empty()) {
-      // not int
-      // NOTE 语义错误 类型错误 左值非int类型
-      SemanticError(this->line_no_, lhs_opn.name_ + ": leftvalue type not int");
-    }
-    // const check
-    if (target_symbol_item->is_const_) {
-      // NOTE 语义错误 给const量赋值
-      SemanticError(this->line_no_,
-                    lhs_opn.name_ + ": constant can't be assigned");
-    }
-  }
-
-  // genir(assign,opn1,-,res)
-  gIRList.push_back({IR::OpKind::ASSIGN, rhs_opn, lhs_opn});
-}
-
-void IfElseStatement::GenerateIR() {
-  std::string label_next = NewLabel();
-  if (nullptr == this->elsestmt_) {
-    // if then
-    gContextInfo.true_label_.push("null");
-    gContextInfo.false_label_.push(label_next);
-    this->cond_.GenerateIR();
-    gContextInfo.true_label_.pop();
-    gContextInfo.false_label_.pop();
-    this->thenstmt_.GenerateIR();
-  } else {
-    // if then else
-    std::string label_else = NewLabel();
-    gContextInfo.true_label_.push("null");
-    gContextInfo.false_label_.push(label_else);
-    this->cond_.GenerateIR();
-    gContextInfo.true_label_.pop();
-    gContextInfo.false_label_.pop();
-    this->thenstmt_.GenerateIR();
-    // genir(goto,next,-,-)
-    gIRList.push_back({IR::OpKind::GOTO, LABEL_OPN(label_next)});
-    // genir(label,else,-,-)
-    gIRList.push_back({IR::OpKind::LABEL, LABEL_OPN(label_else)});
-    this->elsestmt_->GenerateIR();
-  }
-  gIRList.push_back({IR::OpKind::LABEL, LABEL_OPN(label_next)});
-}
-
-void WhileStatement::GenerateIR() {
-  std::string label_next = NewLabel();
-  std::string label_begin = NewLabel();
-  // genir(label,begin,-,-)
-  gIRList.push_back({IR::OpKind::LABEL, LABEL_OPN(label_begin)});
-  gContextInfo.true_label_.push("null");
-  gContextInfo.false_label_.push(label_next);
-  this->cond_.GenerateIR();
-  gContextInfo.true_label_.pop();
-  gContextInfo.false_label_.pop();
-  this->bodystmt_.GenerateIR();
-  // genir(goto,begin,-,-)
-  gIRList.push_back({IR::OpKind::GOTO, LABEL_OPN(label_begin)});
-  gIRList.push_back({IR::OpKind::LABEL, LABEL_OPN(label_next)});
-}
-
-void BreakStatement::GenerateIR() {
-  // 检查是否在while循环中
-  if (gContextInfo.break_label_.empty()) {  // not in while loop
-    // NOTE: 语义错误 break语句位置错误
-    SemanticError(this->line_no_, "'break' not in while loop");
-  } else {
-    // genir (goto,breaklabel,-,-)
-    gIRList.push_back({IR::OpKind::GOTO,
-                       {Opn::Type::Label, gContextInfo.break_label_.top()}});
-  }
-}
-
-void ContinueStatement::GenerateIR() {
-  // 检查是否在while循环中
-  if (gContextInfo.continue_label_.empty()) {  // not in while loop
-    // NOTE: 语义错误 break语句位置错误
-    SemanticError(this->line_no_, "'continue' not in while loop");
-  } else {
-    // genir (goto,continuelabel,-,-)
-    gIRList.push_back({IR::OpKind::GOTO,
-                       {Opn::Type::Label, gContextInfo.continue_label_.top()}});
-  }
-}
-
-void ReturnStatement::GenerateIR() {
-  // [return]语句必然出现在函数定义中
-  // 返回类型检查
-  auto func_iter = gFuncTable.find(gContextInfo.current_func_name_);
-  if (func_iter == gFuncTable.end()) {
-    // NOTE 语义错误 函数未声明定义
-    SemanticError(this->line_no_, "return statement in undeclared function: " +
-                                      gContextInfo.current_func_name_);
-  } else {
-    int ret_type = (*func_iter).second.ret_type_;
-    if (ret_type == VOID) {
-      // return ;
-      if (nullptr == this->value_) {
-        // genir (ret,-,-,-)
-        gIRList.push_back({IR::OpKind::RET});
-      } else {
-        // NOTE 语义错误 函数返回类型不匹配 应为void
-        SemanticError(
-            this->line_no_,
-            "function ret type should be VOID according to function: " +
-                gContextInfo.current_func_name_);
-      }
-    } else {
-      // return exp(int);
-      this->value_->GenerateIR();
-      if (gContextInfo.shape_.empty()) {
-        // exp type is int
-        // genir (ret,opn,-,-)
-        gIRList.push_back({IR::OpKind::RET, gContextInfo.opn_});
-      } else {
-        // NOTE 语义错误 函数返回类型不匹配 应为int
-        SemanticError(
-            this->line_no_,
-            "function ret type should be INT according to function: " +
-                gContextInfo.current_func_name_);
-      }
-    }
-    gContextInfo.has_return = true;
-  }
-}
-
-void VoidStatement::GenerateIR() {}
-
-void EvalStatement::GenerateIR() { this->value_.GenerateIR(); }
-
-void Block::GenerateIR() {
-  // new scope
-  int parent_scope_id = gContextInfo.current_scope_id_;
-  gContextInfo.current_scope_id_ = gSymbolTables.size();
-  gSymbolTables.push_back({gContextInfo.current_scope_id_, parent_scope_id});
-  for (const auto &stmt : this->statement_list_) {
-    stmt->GenerateIR();
-  }
-  // src scope
-  gContextInfo.current_scope_id_ = parent_scope_id;
-}
-
-void DeclareStatement::GenerateIR() {
-  // TODO 未完成
-  for (const auto &def : this->define_list_) {
-    def->GenerateIR();
-  }
-}
-
-// const int c[2][3][4] = {1, {2}, 3,4,{5, 6, 7, 8},9, 10,  {11}, {12}, {13, 14,
-// {15}, 16, {17}, {21}}};
-// int c[2][3][4]={1,{2},3,4,{5},9,10,{11},{12},{13, 14, {15},16,{17},{21}}};
-// int c[2][3][4]={{1},{13, 14, {15},16,{17},{21}}};
-
-void ArrayInitVal::GenerateIR() {
-  if (this->is_exp_) {
-    this->value_->GenerateIR();
-    if (!gContextInfo.shape_.empty()) {  // NOTE 语义错误 类型错误 值非int类型
-      SemanticError(this->line_no_,
-                    gContextInfo.opn_.name_ + ": exp type not int");
-    }
-    // genir([]=,expvalue,-,arrayname offset)
-    gIRList.push_back({IR::OpKind::OFFSET_ASSIGN,
-                       gContextInfo.opn_,
-                       {Opn::Type::Var, gContextInfo.array_name_},
-                       gContextInfo.array_offset_ * 4});
-
-    gContextInfo.array_offset_ += 1;
-  } else {
-    // 此时该结点表示一对大括号 {}
-    int &offset = gContextInfo.array_offset_;
-    int &brace_num = gContextInfo.brace_num_;
-
-    // 根据offset和brace_num算出finaloffset
-    int temp_level = 0;
-    const auto &dim_total_num = gContextInfo.dim_total_num_;
-    for (int i = 0; i < dim_total_num.size(); ++i) {
-      if (offset % dim_total_num[i] == 0) {
-        temp_level = i;
-        break;
-      }
-    }
-    temp_level += brace_num;
-
-    if (temp_level > dim_total_num.size()) {  // 语义错误 大括号过多
-      SemanticError(this->line_no_, "多余大括号");
-    } else {
-      int final_offset = offset + dim_total_num[temp_level - 1];
-      if (!this->initval_list_.empty()) {
-        ++brace_num;
-        this->initval_list_[0]->GenerateIR();
-
-        for (int i = 1; i < this->initval_list_.size(); ++i) {
-          brace_num = 1;
-          this->initval_list_[i]->GenerateIR();
-        }
-      }
-      // 补0补到finaloffset
-      while (offset < final_offset) {
-        // genir([]=,0,-,arrayname offset)
-        gIRList.push_back({IR::OpKind::OFFSET_ASSIGN,
-                           IMM_0_OPN,
-                           {Opn::Type::Var, gContextInfo.array_name_},
-                           (offset++ * 4)});
-      }
-      // 语义检查
-      if (offset > final_offset) {  // 语义错误 初始值设定项值太多
-        SemanticError(this->line_no_, "初始值设定项值太多");
-      }
-    }
-  }
-}
-void FunctionFormalParameter::GenerateIR() {}
-void FunctionFormalParameterList::GenerateIR() {}
-void FunctionActualParameterList::GenerateIR() {}
 
 }  // namespace ast
