@@ -26,21 +26,59 @@ void Root::GenerateIR() {
 }
 void Number::GenerateIR() {
   //生成一个opn 维护shape 不生成目标代码
-  gContextInfo.opn_ = Opn(Opn::Type::Imm, this->value_);
+  Opn opn = Opn(Opn::Type::Imm, value_);
+  gContextInfo.opn_ = opn;
   gContextInfo.shape_.clear();
 }
+
 void Identifier::GenerateIR() {
-  const auto ident_iter =
-      FindSymbol(gContextInfo.current_scope_id_, this->name_);
-  if (nullptr == ident_iter) {
-    SemanticError(this->line_no_, this->name_ + ": variable undefined");
+  SymbolTableItem *s;
+  //如果是函数名就不需要查变量表
+  if (!gContextInfo.is_func_) {
+    s = FindSymbol(gContextInfo.current_scope_id_, name_);
+    if (!s) {
+      SemanticError(line_no_, name_ + ": undefined variable");
+    }
   }
 
-  gContextInfo.shape_.clear();
-  gContextInfo.opn_ =
-      Opn(Opn::Type::Var, this->name_, gContextInfo.current_scope_id_);
+  gContextInfo.shape_ = s->shape_;
+  Opn opn = Opn(Opn::Type::Var, name_, gContextInfo.current_scope_id_);
+  gContextInfo.opn_ = opn;
 }
-void ArrayIdentifier::GenerateIR() {}
+
+void ArrayIdentifier::GenerateIR() {
+  SymbolTableItem *s;
+  s = FindSymbol(gContextInfo.current_scope_id_, name_.name_);
+  if (!s) {
+    SemanticError(line_no_, name_.name_ + ": undefined variable");
+  }
+  if (shape_list_.size() > s->shape_.size()) {
+    SemanticError(line_no_,
+                  name_.name_ + ": the dimension of array is not correct");
+  }
+
+  gContextInfo.shape_ =
+      std::vector<int>(s->shape_.begin() + shape_list_.size(), s->shape_.end());
+
+  int index, t;
+
+  for (int i = 0; i < shape_list_.size(); ++i) {
+    shape_list_[i]->GenerateIR();
+    if (!gContextInfo.shape_.empty()) {
+    }
+
+    t = gContextInfo.opn_.imm_num_;
+    if (i == shape_list_.size() - 1) {
+      index += t * 4;
+    } else {
+      index += t * s->width_[i + 1];
+    }
+  }
+  // a[b+1]
+  gContextInfo.array_offset_ = index;
+  Opn opn = Opn(Opn::Type::Var, name_.name_, gContextInfo.current_scope_id_);
+  gContextInfo.opn_ = opn;
+}
 
 // int main(){if(1<=1){2;}}
 
@@ -184,7 +222,7 @@ void ConditionExpression::GenerateIR() {
         std::string next_label = NewLabel();
         gContextInfo.true_label_.push("null");
         gContextInfo.false_label_.push(next_label);
-        this->rhs_.GenerateIR();
+        this->lhs_.GenerateIR();
         gContextInfo.false_label_.pop();
         gContextInfo.true_label_.pop();
 
@@ -477,7 +515,7 @@ void ConditionExpression::GenerateIR() {
         std::string next_label = NewLabel();
         gContextInfo.true_label_.push("null");
         gContextInfo.false_label_.push(next_label);
-        this->rhs_.GenerateIR();
+        this->lhs_.GenerateIR();
         gContextInfo.false_label_.pop();
         gContextInfo.true_label_.pop();
 
@@ -656,38 +694,117 @@ void ConditionExpression::GenerateIR() {
 }
 
 void BinaryExpression::GenerateIR() {
-  this->lhs_.GenerateIR();
+  Opn opn1, opn2;
+  IR::OpKind op;
+
+  lhs_.GenerateIR();
+  opn1 = gContextInfo.opn_;
   if (!gContextInfo.shape_.empty()) {
-    SemanticError(this->line_no_, "type not int");
+    SemanticError(this->line_no_,
+                  gContextInfo.opn_.name_ + ": lhs exp type not int");
   }
-  Opn lhs_opn = gContextInfo.opn_;
-
-  this->rhs_.GenerateIR();
+  rhs_.GenerateIR();
+  opn2 = gContextInfo.opn_;
   if (!gContextInfo.shape_.empty()) {
-    SemanticError(this->line_no_, "type not int");
+    SemanticError(this->line_no_,
+                  gContextInfo.opn_.name_ + ": rhs exp type not int");
   }
-  Opn rhs_opn = gContextInfo.opn_;
+  std::string res_temp_var = NewTemp();
+  gSymbolTables[gContextInfo.current_scope_id_].symbol_table_.insert(
+      {res_temp_var,
+       {false, false, gSymbolTables[gContextInfo.current_scope_id_].size_}});
+  gSymbolTables[gContextInfo.current_scope_id_].size_ += kIntWidth;
+  Opn temp = Opn(Opn::Type::Var, res_temp_var, gContextInfo.current_scope_id_);
+  gContextInfo.opn_ = temp;
 
-  std::string temp_res = NewTemp();
-  const int &scope_id = gContextInfo.current_scope_id_;
-  auto &scope = gSymbolTables[scope_id];
-  scope.symbol_table_.insert({temp_res, {false, false, scope.size_}});
-  scope.size_ += kIntWidth;
-
-  gContextInfo.shape_.clear();
-  gContextInfo.opn_ = Opn(Opn::Type::Var, temp_res, scope_id);
-
-  switch (this->op_) {
+  switch (op_) {
     case ADD:
-      gIRList.push_back({IR::OpKind::ADD, lhs_opn, rhs_opn, gContextInfo.opn_});
+      op = IR::OpKind::ADD;
       break;
     case SUB:
-      gIRList.push_back({IR::OpKind::SUB, lhs_opn, rhs_opn, gContextInfo.opn_});
+      op = IR::OpKind::SUB;
+      break;
+    case MUL:
+      op = IR::OpKind::MUL;
+      break;
+    case DIV:
+      op = IR::OpKind::DIV;
+      break;
+    case MOD:
+      op = IR::OpKind::MOD;
+      break;
+    default:
+      printf("mystery operator code: %d", op_);
       break;
   }
+
+  IR ir = IR(op, opn1, opn2, temp);
+  gIRList.push_back(ir);
 }
-void UnaryExpression::GenerateIR() {}
-void FunctionCall::GenerateIR() {}
+
+void UnaryExpression::GenerateIR() {
+  Opn opn1;
+  IR::OpKind op;
+
+  rhs_.GenerateIR();
+  opn1 = gContextInfo.opn_;
+  if (!gContextInfo.shape_.empty()) {
+    SemanticError(this->line_no_,
+                  gContextInfo.opn_.name_ + ": rhs exp type not int");
+  }
+  auto scope_id = gContextInfo.current_scope_id_;
+  std::string rhs_temp_var = NewTemp();
+  gSymbolTables[scope_id].symbol_table_.insert(
+      {rhs_temp_var, {false, false, gSymbolTables[scope_id].size_}});
+  gSymbolTables[scope_id].size_ += kIntWidth;
+  Opn temp = Opn(Opn::Type::Var, rhs_temp_var, gContextInfo.current_scope_id_);
+  gContextInfo.opn_ = temp;
+
+  switch (op_) {
+    case ADD:
+      op = IR::OpKind::POS;
+      break;
+    case SUB:
+      op = IR::OpKind::NEG;
+      break;
+    case NOT:
+      op = IR::OpKind::NOT;
+      break;
+    default:
+      printf("mystery operator code: %d", op_);
+      break;
+  }
+
+  IR ir = IR(op, opn1, temp);
+  gIRList.push_back(ir);
+}
+
+void FunctionCall::GenerateIR() {
+  Opn opn1;
+  if (gFuncTable.find(name_.name_) == gFuncTable.end()) {
+    SemanticError(line_no_, "调用的函数不存在");
+    return;
+  }
+  int i = 0;
+  for (auto &arg : args_.arg_list_) {
+    arg->GenerateIR();
+    if (gContextInfo.shape_ == gFuncTable[name_.name_].shape_list_[i++]) {
+      SemanticError(line_no_, "函数调用参数不正确");
+      return;
+    }
+    opn1 = gContextInfo.opn_;
+
+    IR ir = IR(IR::OpKind::PARAM, opn1);
+    gIRList.push_back(ir);
+  }
+
+  gContextInfo.is_func_ = !gContextInfo.is_func_;
+  name_.GenerateIR();
+  opn1 = gContextInfo.opn_;
+  gContextInfo.is_func_ = !gContextInfo.is_func_;
+  IR ir = IR(IR::OpKind::CALL, opn1);
+  gIRList.push_back(ir);
+}
 
 void VariableDefine::GenerateIR() {
   // TODO 未完成
@@ -915,6 +1032,7 @@ void ReturnStatement::GenerateIR() {
                 gContextInfo.current_func_name_);
       }
     }
+    gContextInfo.has_return = true;
   }
 }
 

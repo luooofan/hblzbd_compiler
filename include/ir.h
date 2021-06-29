@@ -25,6 +25,7 @@ class FuncTableItem {
   int ret_type_;  // VOID INT
   std::vector<std::vector<int>> shape_list_;
   FuncTableItem(int ret_type) : ret_type_(ret_type) {}
+  FuncTableItem() {}
   void Print();
 };
 
@@ -72,6 +73,7 @@ class Opn {
     scope_id_ = -1;
   }
   Opn(Type type) : type_(type), name_("-") { scope_id_ = -1; }
+  Opn() {}
 };
 
 class IR {
@@ -79,8 +81,22 @@ class IR {
   enum class OpKind {
     ADD,            // (+,)
     SUB,            // (-,)
-    MINUS,          // (-,)
+    MUL,            // (*,)
+    DIV,            // (/,)
+    MOD,            // (%,)
+    AND,            // (&&,)
+    OR,             // (||,)
+    GT,             // (>,)
+    LT,             // (<,)
+    LE,             // (<=,)
+    GE,             // (>=,)
+    EQ,             // (==,)
+    NE,             // (!=,)
+    NOT,            // (!,)
+    POS,            // (+,)正
+    NEG,            // (-,)负
     LABEL,          // (label,)
+    PARAM,          // (param,)
     CALL,           // (call,)
     RET,            // (ret,) or (ret,opn1,)
     GOTO,           // (goto,label)
@@ -91,9 +107,10 @@ class IR {
     JLE,            // <=
     JGT,            // >
     JGE,            // >=
+    VOID,           // useless
     OFFSET_ASSIGN,  // []=
     ASSIGN_OFFSET,  // =[]
-    VOID,           // useless
+
     // ...
   };
   OpKind op_;
@@ -128,10 +145,12 @@ class ContextInfoInGenIR {
  public:
   int current_scope_id_;
   Opn opn_;
+  bool has_return;
   // Used for type check
   std::vector<int> shape_;
   // Used for ArrayInitVal
   std::string array_name_;
+  bool is_func_;  //是否是函数的名称
   int array_offset_;
   int brace_num_;  // 当前位置(array_offset_)有几个大括号
   std::vector<int> dim_total_num_;  // a[2][3][4] -> 24,12,4,1
