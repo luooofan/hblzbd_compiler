@@ -17,6 +17,7 @@ class SymbolTableItem {
                               // 数组则转换为一维数组存储
   SymbolTableItem(bool is_array, bool is_const, int offset)
       : is_array_(is_array), is_const_(is_const), offset_(offset) {}
+  void Print();
 };
 
 class FuncTableItem {
@@ -24,6 +25,8 @@ class FuncTableItem {
   int ret_type_;  // VOID INT
   std::vector<std::vector<int>> shape_list_;
   FuncTableItem(int ret_type) : ret_type_(ret_type) {}
+  FuncTableItem() {}
+  void Print();
 };
 
 //每个作用域一个符号表
@@ -34,14 +37,16 @@ class SymbolTable {
   int parent_scope_id_;  // 父作用域id
   int size_;  // 当前作用域的大小 每次插入新符号表项后都需要维护
   bool is_func_;
+  SymbolTable(){}
   SymbolTable(int scope_id, int parent_scope_id)
       : scope_id_(scope_id), parent_scope_id_(parent_scope_id) {
     size_ = 0;
     is_func_ = parent_scope_id_ == 0 ? true : false;
   }
+  void Print();
 };
 
-SymbolTableItem* FindSymbol(int scope_id, std::string name);
+SymbolTableItem *FindSymbol(int scope_id, std::string name);
 
 using SymbolTables = std::vector<SymbolTable>;
 using FuncTable = std::unordered_map<std::string, FuncTableItem>;
@@ -59,7 +64,7 @@ class Opn {
   std::string name_;  //
   int scope_id_;      // 标识所在作用域
   Opn(Type type, int imm_num)
-      : type_(type), imm_num_(imm_num), name_(std::to_string(imm_num)) {
+      : type_(type), imm_num_(imm_num), name_("#" + std::to_string(imm_num)) {
     // name_ = std::to_string(imm_num);
     scope_id_ = -1;
   }
@@ -69,45 +74,71 @@ class Opn {
     scope_id_ = -1;
   }
   Opn(Type type) : type_(type), name_("-") { scope_id_ = -1; }
+  Opn() {}
 };
 
 class IR {
  public:
   enum class OpKind {
-    ADD,     // (+,)
-    SUB,     // (-,)
-    MINUS,   // (-,)
-    LABEL,   // (label,)
-    CALL,    // (call,)
-    RET,     // (ret,) or (ret,opn1,)
-    GOTO,    // (goto,label)
-    ASSIGN,  // (assign, opn1,-,res)
-    JEQ,     // ==
-    JNE,     // !=
-    JLT,     // <
-    JLE,     // <=
-    JGT,     // >
-    JGE,     // >=
-    VOID,    // useless
+    ADD,            // (+,)
+    SUB,            // (-,)
+    MUL,            // (*,)
+    DIV,            // (/,)
+    MOD,            // (%,)
+    AND,            // (&&,)
+    OR,             // (||,)
+    GT,             // (>,)
+    LT,             // (<,)
+    LE,             // (<=,)
+    GE,             // (>=,)
+    EQ,             // (==,)
+    NE,             // (!=,)
+    NOT,            // (!,)
+    POS,            // (+,)正
+    NEG,            // (-,)负
+    LABEL,          // (label,)
+    PARAM,          // (param,)
+    CALL,           // (call,)
+    RET,            // (ret,) or (ret,opn1,)
+    GOTO,           // (goto,label)
+    ASSIGN,         // (assign, opn1,-,res)
+    JEQ,            // ==
+    JNE,            // !=
+    JLT,            // <
+    JLE,            // <=
+    JGT,            // >
+    JGE,            // >=
+    VOID,           // useless
+    OFFSET_ASSIGN,  // []=
+    ASSIGN_OFFSET,  // =[]
+
     // ...
   };
   OpKind op_;
   Opn opn1_, opn2_, res_;
   int offset_;  // only used for []instruction
   IR(OpKind op, Opn opn1, Opn opn2, Opn res)
-      : op_(op), opn1_(opn1), opn2_(opn2), res_(res) {}
+      : op_(op), opn1_(opn1), opn2_(opn2), res_(res), offset_(0) {}
+  IR(OpKind op, Opn opn1, Opn res, int offset)
+      : op_(op),
+        opn1_(opn1),
+        opn2_({Opn::Type::Null}),
+        res_(res),
+        offset_(offset) {}
   IR(OpKind op, Opn opn1, Opn res)
-      : op_(op), opn1_(opn1), opn2_({Opn::Type::Null}), res_(res) {}
+      : op_(op), opn1_(opn1), opn2_({Opn::Type::Null}), res_(res), offset_(0) {}
   IR(OpKind op, Opn opn1)
       : op_(op),
         opn1_(opn1),
         opn2_({Opn::Type::Null}),
-        res_({Opn::Type::Null}) {}
+        res_({Opn::Type::Null}),
+        offset_(0) {}
   IR(OpKind op)
       : op_(op),
         opn1_({Opn::Type::Null}),
         opn2_({Opn::Type::Null}),
-        res_({Opn::Type::Null}) {}
+        res_({Opn::Type::Null}),
+        offset_(0) {}
   void PrintIR();
 };
 
@@ -115,13 +146,15 @@ class ContextInfoInGenIR {
  public:
   int current_scope_id_;
   Opn opn_;
+  bool has_return;
   // Used for type check
   std::vector<int> shape_;
   // Used for ArrayInitVal
-  // int nestlevel_;
-  std::stack<int> array_depth_;
-  std::string array_base_;
+  std::string array_name_;
+  bool is_func_;  //是否是函数的名称
   int array_offset_;
+  int brace_num_;  // 当前位置(array_offset_)有几个大括号
+  std::vector<int> dim_total_num_;  // a[2][3][4] -> 24,12,4,1
   // Used for Break Continue
   std::stack<std::string> break_label_;
   std::stack<std::string> continue_label_;
@@ -130,6 +163,7 @@ class ContextInfoInGenIR {
   std::stack<std::string> false_label_;
   // Used for Return Statement
   std::string current_func_name_;
+  bool xingcan;  //函数形参也要加在block的作用域里
 
   ContextInfoInGenIR() : opn_({Opn::Type::Null}), current_scope_id_(0) {}
 };
@@ -145,6 +179,9 @@ std::string NewLabel();
 
 IR::OpKind GetOpKind(int op, bool reverse);
 
-void SemanticError(int line_no, const std::string&& error_msg);
-void RuntimeError(const std::string&& error_msg);
+void PrintSymbolTables();
+void PrintFuncTable();
+void SemanticError(int line_no, const std::string &&error_msg);
+void RuntimeError(const std::string &&error_msg);
+
 #endif
