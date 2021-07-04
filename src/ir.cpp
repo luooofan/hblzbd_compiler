@@ -202,16 +202,16 @@ void IR::PrintIR() {
     case IR::OpKind::JGE:
       PRINT_IR("jge");
       break;
-    case IR::OpKind::OFFSET_ASSIGN:
-      printf("(%10s,%10s,%10s,%6s+%3d)\n", "[]=", this->opn1_.name_.c_str(),
-             this->opn2_.name_.c_str(), this->res_.name_.c_str(),
-             this->offset_);
-      break;
-    case IR::OpKind::ASSIGN_OFFSET:
-      printf("(%10s,%6s+%3d,%10s,%10s)\n", "=[]", this->opn1_.name_.c_str(),
-             this->offset_, this->opn2_.name_.c_str(),
-             this->res_.name_.c_str());
-      break;
+    // case IR::OpKind::OFFSET_ASSIGN:
+    //   printf("(%10s,%10s,%10s,%6s+%3d)\n", "[]=", this->opn1_.name_.c_str(),
+    //          this->opn2_.name_.c_str(), this->res_.name_.c_str(),
+    //          this->offset_);
+    //   break;
+    // case IR::OpKind::ASSIGN_OFFSET:
+    //   printf("(%10s,%6s+%3d,%10s,%10s)\n", "=[]", this->opn1_.name_.c_str(),
+    //          this->offset_, this->opn2_.name_.c_str(),
+    //          this->res_.name_.c_str());
+    //   break;
     default:
       printf("unimplemented\n");
       break;

@@ -58,22 +58,28 @@ class Opn {
     Imm,
     Label,
     Null,
+    Array,
   };
   Type type_;
   int imm_num_;       // 立即数
   std::string name_;  //
   int scope_id_;      // 标识所在作用域
+  Opn *offset_;
   Opn(Type type, int imm_num)
       : type_(type), imm_num_(imm_num), name_("#" + std::to_string(imm_num)) {
     // name_ = std::to_string(imm_num);
     scope_id_ = -1;
+    offset_ = nullptr;
   }
   Opn(Type type, std::string name, int scope_id)
-      : type_(type), name_(name), scope_id_(scope_id) {}
+      : type_(type), name_(name), scope_id_(scope_id) {offset_ = nullptr;}
   Opn(Type type, std::string label) : type_(type), name_(label) {
     scope_id_ = -1;
+    offset_ = nullptr;
   }
-  Opn(Type type) : type_(type), name_("-") { scope_id_ = -1; }
+  Opn(Type type) : type_(type), name_("-") { scope_id_ = -1; offset_ = nullptr; }
+  Opn(Type type, std::string name, int scope_id, Opn* offset) 
+      :type_(type), name_(name), scope_id_(scope_id), offset_(offset) { }
   Opn() {}
 };
 
