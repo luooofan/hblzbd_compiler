@@ -9,8 +9,12 @@
 #define TYPE_STRING(type) \
   ((type) == INT ? "int" : ((type) == VOID ? "void" : "undefined"))
 #define PRINT_IR(op_name)                                                 \
-  printf("(%10s,%10s,%10s,%10s)\n", (op_name), this->opn1_.name_.c_str(), \
-         this->opn2_.name_.c_str(), this->res_.name_.c_str());
+  printf("(%10s,%10s,%10s,%10s)", (op_name), this->opn1_.name_.c_str(), \
+         this->opn2_.name_.c_str(), this->res_.name_.c_str());            \
+  if(opn1_.type_ == Opn::Type::Array) printf(" %s", opn1_.offset_->name_.c_str()); \
+  if(opn2_.type_ == Opn::Type::Array) printf(" %s", opn2_.offset_->name_.c_str()); \
+  if(res_.type_ == Opn::Type::Array) printf(" %s", res_.offset_->name_.c_str()); \
+  printf("\n");
 
 SymbolTables gSymbolTables;
 FuncTable gFuncTable;
@@ -202,16 +206,22 @@ void IR::PrintIR() {
     case IR::OpKind::JGE:
       PRINT_IR("jge");
       break;
-    // case IR::OpKind::OFFSET_ASSIGN:
-    //   printf("(%10s,%10s,%10s,%6s+%3d)\n", "[]=", this->opn1_.name_.c_str(),
-    //          this->opn2_.name_.c_str(), this->res_.name_.c_str(),
-    //          this->offset_);
-    //   break;
-    // case IR::OpKind::ASSIGN_OFFSET:
-    //   printf("(%10s,%6s+%3d,%10s,%10s)\n", "=[]", this->opn1_.name_.c_str(),
-    //          this->offset_, this->opn2_.name_.c_str(),
-    //          this->res_.name_.c_str());
-    //   break;
+    case IR::OpKind::PARAM:
+      PRINT_IR("param");
+      break;
+    case IR::OpKind::CALL:
+      PRINT_IR("call");
+      break;
+    case IR::OpKind::OFFSET_ASSIGN:
+      printf("(%10s,%10s,%10s,%6s+%3d)\n", "[]=", this->opn1_.name_.c_str(),
+             this->opn2_.name_.c_str(), this->res_.name_.c_str(),
+             this->offset_);
+      break;
+    case IR::OpKind::ASSIGN_OFFSET:
+      printf("(%10s,%6s+%3d,%10s,%10s)\n", "=[]", this->opn1_.name_.c_str(),
+             this->offset_, this->opn2_.name_.c_str(),
+             this->res_.name_.c_str());
+      break;
     default:
       printf("unimplemented\n");
       break;

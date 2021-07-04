@@ -87,12 +87,17 @@ void ArrayIdentifier::GenerateIR() {
     }   
   }
 
-
   gContextInfo.shape_ =
       std::vector<int>(s->shape_.begin() + shape_list_.size(), s->shape_.end());
 
-  Number zero = Number(0, 0);
-  BinaryExpression *res = new BinaryExpression(0, ADD, zero, zero);
+  // for(int i = 0; i < s->width_.size(); ++i)
+  // {
+  //   printf("width: %d\n", s->width_[i]);
+  // }
+
+  BinaryExpression *res = (BinaryExpression*)(new Number(0, 0));
+  BinaryExpression *add_exp;
+  BinaryExpression *mul_exp;
   // 计算数组取值的偏移
   for(int i = 0; i < shape_list_.size(); ++i)
   {
@@ -117,15 +122,27 @@ void ArrayIdentifier::GenerateIR() {
     // Opn add_opn = Opn(Opn::Type::Var,)
 
     //构造一个二元表达式
-    Number width = Number(0, s->width_[i]);
-    BinaryExpression mul_exp = BinaryExpression(0, MUL, width, *shape_list_[i]);
-    BinaryExpression add_exp = BinaryExpression(0, ADD, mul_exp, *res);
-    res = &add_exp;
+    Number *width = new Number(0, s->width_[i + 1]);
+    // printf("width: %d\n", s->width_[i + 1]);
+    mul_exp = new BinaryExpression(0, MUL, *width, *shape_list_[i]);
+    add_exp = new BinaryExpression(0, ADD, *mul_exp, *res);
+    res = add_exp;
+    if(i == shape_list_.size() - 1)
+    {
+      res -> GenerateIR();
+      res -> PrintNode();
+    }
   }
-  res -> GenerateIR();
   // a[b+1]
   // gContextInfo.array_offset_ = index;
-  Opn opn = Opn(Opn::Type::Array, name_.name_, gContextInfo.current_scope_id_, &gContextInfo.opn_);
+  // if(gContextInfo.opn_.type_ == Opn::Type::Imm) printf("******************************%d", gContextInfo.opn_.imm_num_);
+  Opn *offset = new Opn();
+  offset -> type_ = gContextInfo.opn_.type_;
+  offset -> imm_num_ = gContextInfo.opn_.imm_num_;
+  offset -> name_ = gContextInfo.opn_.name_;
+  offset -> scope_id_ = gContextInfo.opn_.scope_id_;
+  offset -> offset_ = gContextInfo.opn_.offset_;
+  Opn opn = Opn(Opn::Type::Array, name_.name_, gContextInfo.current_scope_id_, offset);
   gContextInfo.opn_ = opn;
 }
 
@@ -193,6 +210,7 @@ void BinaryExpression::GenerateIR() {
         break;
     }
     temp = Opn(Opn::Type::Imm, result);
+    gContextInfo.opn_ = temp;
   }
   else
   {
@@ -273,7 +291,7 @@ void UnaryExpression::GenerateIR() {
 
 
 void FunctionCall::GenerateIR() {
-  Opn opn1;
+  Opn opn1, opn2;
   if (gFuncTable.find(name_.name_) == gFuncTable.end()) {
     SemanticError(line_no_, "调用的函数不存在");
     return;
@@ -314,7 +332,27 @@ void FunctionCall::GenerateIR() {
   name_.GenerateIR();
   opn1 = gContextInfo.opn_;
   gContextInfo.is_func_ = !gContextInfo.is_func_;
-  IR ir = IR(IR::OpKind::CALL, opn1);
+  opn2 = Opn(Opn::Type::Imm, gFuncTable[name_.name_].shape_list_.size());
+
+  IR ir;
+  if(gFuncTable[name_.name_].ret_type_ == INT)
+  {
+    auto scope_id = gContextInfo.current_scope_id_;
+    std::string ret_var = NewTemp();
+    gSymbolTables[scope_id].symbol_table_.insert(
+        {ret_var, {false, false, gSymbolTables[scope_id].size_}});
+    gSymbolTables[scope_id].size_ += kIntWidth;
+    Opn temp = Opn(Opn::Type::Var, ret_var, gContextInfo.current_scope_id_);
+    gContextInfo.opn_ = temp;
+    ir = IR(IR::OpKind::CALL, opn1, opn2, temp);
+  }
+  else
+  {
+    Opn temp = Opn(Opn::Type::Null);
+    gContextInfo.opn_ = temp;
+    ir = IR(IR::OpKind::CALL, opn1, opn2, temp);
+  }
+
   gIRList.push_back(ir);
 }
 
@@ -354,6 +392,8 @@ void VariableDefineWithInit::GenerateIR() {
       tmp->initval_.push_back(gContextInfo.opn_.imm_num_);
     } else {
       value_.GenerateIR();
+      Opn lhs_opn = Opn(Opn::Type::Var, name_.name_, gContextInfo.current_scope_id_);
+      gIRList.push_back({IR::OpKind::ASSIGN, gContextInfo.opn_, lhs_opn});
     }
     symbol_table.insert({this->name_.name_, *tmp});
   } else {
@@ -373,10 +413,10 @@ void ArrayDefine::GenerateIR() {
           gContextInfo.opn_
               .imm_num_);  // shape的类型必定为常量表达式，所以opn一定是立即数
     }
-    tmp->width_.resize(tmp->shape_.size());
+    tmp->width_.resize(tmp->shape_.size() + 1);
     tmp->width_[tmp->width_.size() - 1] = kIntWidth;
     for (int i = tmp->width_.size() - 2; i >= 0; i--)
-      tmp->width_[i] = tmp->width_[i + 1] * tmp->shape_[i + 1];
+      tmp->width_[i] = tmp->width_[i + 1] * tmp->shape_[i];
     scope.size_ += tmp->width_[0];
     // symbol_table[name_.name_.name_]=*tmp;
     symbol_table.insert({name_.name_.name_, *tmp});
@@ -408,6 +448,7 @@ void ArrayDefineWithInit::GenerateIR() {
     // 填width和dim total num
     std::stack<int> temp_width;
     int width = 4;
+    temp_width.push(width);
     for (auto reiter = symbol_item.shape_.rbegin();
          reiter != symbol_item.shape_.rend(); ++reiter) {
       width *= *reiter;

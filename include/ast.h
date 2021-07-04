@@ -112,7 +112,6 @@ class BinaryExpression : public Expression {
   Expression& lhs_;
   Expression& rhs_;
   BinaryExpression(int line_no, int op, Expression& lhs, Expression& rhs);
-//   BinaryExpression() {}
   virtual ~BinaryExpression();
   virtual void GenerateIR();
   virtual void Evaluate();

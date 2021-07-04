@@ -69,13 +69,13 @@ class Opn {
       : type_(type), imm_num_(imm_num), name_("#" + std::to_string(imm_num)) {
     // name_ = std::to_string(imm_num);
     scope_id_ = -1;
-    offset_ = nullptr;
+    // offset_ = nullptr;
   }
   Opn(Type type, std::string name, int scope_id)
       : type_(type), name_(name), scope_id_(scope_id) {offset_ = nullptr;}
   Opn(Type type, std::string label) : type_(type), name_(label) {
     scope_id_ = -1;
-    offset_ = nullptr;
+    // offset_ = nullptr;
   }
   Opn(Type type) : type_(type), name_("-") { scope_id_ = -1; offset_ = nullptr; }
   Opn(Type type, std::string name, int scope_id, Opn* offset) 
@@ -125,6 +125,8 @@ class IR {
   int offset_;  // only used for []instruction
   IR(OpKind op, Opn opn1, Opn opn2, Opn res)
       : op_(op), opn1_(opn1), opn2_(opn2), res_(res), offset_(0) {}
+  // IR(OpKind op, Opn opn1, Opn opn2)
+  //     : op_(op), opn1_(opn1), opn2_(opn2), res_({Opn::Type::Null}), offset_(0) {}
   IR(OpKind op, Opn opn1, Opn res, int offset)
       : op_(op),
         opn1_(opn1),
@@ -145,6 +147,7 @@ class IR {
         opn2_({Opn::Type::Null}),
         res_({Opn::Type::Null}),
         offset_(0) {}
+  IR() {}
   void PrintIR();
 };
 
