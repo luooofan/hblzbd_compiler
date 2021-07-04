@@ -1,5 +1,6 @@
 %option noyywrap nodefault yylineno
 %x COMMENT
+%x SINGLELINECOMMENT
 
 UCN (\\u[0-9a-fA-F]{4}|\\U[0-9a-fA-F]{8})
 ILEN ([Uu](L|l|LL|ll)?|(L|l|LL|ll)[Uu]?)
@@ -24,7 +25,10 @@ int cal16(char *s);
 <COMMENT>"*/"  {BEGIN(INITIAL);}
 <COMMENT>([^*]|\n)+|.
 <COMMENT><<EOF>>   {printf("Unterminated comment\n"); return 0;}
-"//".*\n
+"//" {BEGIN(SINGLELINECOMMENT);}
+<SINGLELINECOMMENT>.*
+<SINGLELINECOMMENT>\n {BEGIN(INITIAL);}
+<SINGLELINECOMMENT><<EOF>> {BEGIN(INITIAL);}
 
 
 int 		{ yylval.token = INT; return INT; }
@@ -69,8 +73,8 @@ while		{ yylval.token = WHILE; return WHILE; }
 
 ([_a-zA-Z]|{UCN})([_a-zA-Z0-9]|{UCN})* { SAVE_TOKEN; return IDENT; }
 
-[ \t\n]+ 	{ /*忽略空白符*/ }
-.   { printf("mystery chacators in %d lines: %s", yylineno, yytext);}
+[ \t\n\r]+ 	{ /*忽略空白符*/ }
+.   { printf("mystery chacators in %d lines: %d\n", yylineno, atoi(yytext));}
 
 %%
 
