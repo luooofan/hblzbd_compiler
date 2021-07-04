@@ -426,20 +426,18 @@ void ArrayDefine::GenerateIR() {
   }
 }
 void ArrayDefineWithInit::GenerateIR() {
-  // TODO 未完成
   auto &name = this->name_.name_.name_;
   auto &scope = gSymbolTables[gContextInfo.current_scope_id_];
   auto &symbol_table = scope.symbol_table_;
   const auto &array_iter = symbol_table.find(name);
   if (array_iter == symbol_table.end()) {
-    // 调用arrayindent的inserttable函数插入到符号表中 需要传递const信息
-    // 在这里实现
     SymbolTableItem symbol_item(true, this->is_const_, scope.size_);
     // 填shape
     for (const auto &shape : this->name_.shape_list_) {
       shape->Evaluate();
       if (gContextInfo.opn_.type_ != Opn::Type::Imm) {
         // 语义错误 数组维度应为常量表达式
+        SemanticError(this->line_no_,"array dim should be constexp.");
         return;
       } else {
         symbol_item.shape_.push_back(gContextInfo.opn_.imm_num_);
@@ -471,8 +469,14 @@ void ArrayDefineWithInit::GenerateIR() {
     gContextInfo.array_name_ = name;
     gContextInfo.array_offset_ = 0;
     gContextInfo.brace_num_ = 1;
-    if (this->is_const_ || gContextInfo.current_scope_id_ == 0) {
+    if (gContextInfo.current_scope_id_ == 0) {
       this->value_.Evaluate();
+    } else if (this->is_const_) {
+      // 局部常量
+      this->value_.Evaluate();
+      gContextInfo.array_offset_ = 0;
+      gContextInfo.brace_num_ = 1;
+      this->value_.GenerateIR();
     } else {
       this->value_.GenerateIR();
     }
@@ -734,10 +738,16 @@ void ArrayInitVal::GenerateIR() {
                     gContextInfo.opn_.name_ + ": exp type not int");
     }
     // genir([]=,expvalue,-,arrayname offset)
+    // gIRList.push_back({IR::OpKind::OFFSET_ASSIGN,
+    //                    gContextInfo.opn_,
+    //                    {Opn::Type::Var, gContextInfo.array_name_},
+    //                    gContextInfo.array_offset_ * 4});
     gIRList.push_back({IR::OpKind::OFFSET_ASSIGN,
                        gContextInfo.opn_,
-                       {Opn::Type::Var, gContextInfo.array_name_},
-                       gContextInfo.array_offset_ * 4});
+                       {Opn::Type::Array,
+                        gContextInfo.array_name_,
+                        gContextInfo.current_scope_id_,
+                        new Opn(Opn::Type::Imm, gContextInfo.array_offset_ * 4)}});
 
     gContextInfo.array_offset_ += 1;
   } else {
@@ -772,10 +782,16 @@ void ArrayInitVal::GenerateIR() {
       // 补0补到finaloffset
       while (offset < final_offset) {
         // genir([]=,0,-,arrayname offset)
+        // gIRList.push_back({IR::OpKind::OFFSET_ASSIGN,
+        //                    IMM_0_OPN,
+        //                    {Opn::Type::Var, gContextInfo.array_name_},
+        //                    (offset++ * 4)});
         gIRList.push_back({IR::OpKind::OFFSET_ASSIGN,
                            IMM_0_OPN,
-                           {Opn::Type::Var, gContextInfo.array_name_},
-                           (offset++ * 4)});
+                           {Opn::Type::Array,
+                            gContextInfo.array_name_,
+                            gContextInfo.current_scope_id_,
+                            new Opn(Opn::Type::Imm, (offset++ * 4))}});
       }
       // 语义检查
       if (offset > final_offset) {  // 语义错误 初始值设定项值太多
