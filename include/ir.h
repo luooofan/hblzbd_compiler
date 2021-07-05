@@ -160,7 +160,6 @@ class ContextInfoInGenIR {
   std::vector<int> shape_;
   // Used for ArrayInitVal
   std::string array_name_;
-  bool is_func_;  //是否是函数的名称
   int array_offset_;
   int brace_num_;  // 当前位置(array_offset_)有几个大括号
   std::vector<int> dim_total_num_;  // a[2][3][4] -> 24,12,4,1
@@ -174,7 +173,7 @@ class ContextInfoInGenIR {
   std::string current_func_name_;
   bool xingcan;  //函数形参也要加在block的作用域里
 
-  ContextInfoInGenIR() : opn_({Opn::Type::Null}), current_scope_id_(0) {}
+  ContextInfoInGenIR() : opn_({Opn::Type::Null}), current_scope_id_(0) { }
 };
 
 extern SymbolTables gSymbolTables;

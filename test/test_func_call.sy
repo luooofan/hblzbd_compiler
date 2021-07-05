@@ -1,6 +1,6 @@
-void f(int a, int b)
+int f(int a, int b[])
 {
-    return a + b;
+    return a + b[0];
 }
 
 int main()
@@ -8,7 +8,7 @@ int main()
     int a = 10;
     int b[10] = {0};
 
-    int c = f(a, b[0]);
+    int c = f(a, b);
 
     return 0;
 }

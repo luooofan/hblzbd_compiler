@@ -49,13 +49,12 @@ void Number::GenerateIR() {
 void Identifier::GenerateIR() {
   SymbolTableItem *s;
   //如果是函数名就不需要查变量表
-  if (!gContextInfo.is_func_) {
-    s = FindSymbol(gContextInfo.current_scope_id_, name_);
-    if (!s) {
-      SemanticError(line_no_, name_ + ": undefined variable");
-    }
+  s = FindSymbol(gContextInfo.current_scope_id_, name_);
+  if (!s) {
+    SemanticError(line_no_, name_ + ": undefined variable");
   }
 
+  //这里如果是函数名的话s就未被初始化，所以函数名还是不要调用这个函数了
   gContextInfo.shape_ = s->shape_;
   Opn opn = Opn(Opn::Type::Var, name_, gContextInfo.current_scope_id_);
   gContextInfo.opn_ = opn;
@@ -65,26 +64,16 @@ void Identifier::GenerateIR() {
 // 这里有个点需要注意：如果是普通情况下取数组元素则shape_list_中的维度必须与符号表中维度相同，
 // 但如果是函数调用中使用数组则可以传递指针shape_list_维度小于符号表中的维度即可
 // ？？？语义检查时是否区分这两种情况
-// 下面的实现按照区分两种情况来写
+// 下面的实现按照不区分两种情况来写
 void ArrayIdentifier::GenerateIR() {
   SymbolTableItem *s;
   s = FindSymbol(gContextInfo.current_scope_id_, name_.name_);
   if (!s) {
     SemanticError(line_no_, name_.name_ + ": undefined variable");
   }
-  if(gContextInfo.is_func_)
-  {
-    if (shape_list_.size() > s->shape_.size()) {
-      SemanticError(line_no_,
-                    name_.name_ + ": the dimension of array is not correct");
-    }
-  }
-  else
-  {
-    if (shape_list_.size() != s->shape_.size()) {
-      SemanticError(line_no_,
-                    name_.name_ + ": the dimension of array is not correct");
-    }   
+  if (shape_list_.size() > s->shape_.size()) {
+    SemanticError(line_no_,
+                  name_.name_ + ": the dimension of array is not correct");
   }
 
   gContextInfo.shape_ =
@@ -136,13 +125,17 @@ void ArrayIdentifier::GenerateIR() {
   // a[b+1]
   // gContextInfo.array_offset_ = index;
   // if(gContextInfo.opn_.type_ == Opn::Type::Imm) printf("******************************%d", gContextInfo.opn_.imm_num_);
+
+  Opn opn;
   Opn *offset = new Opn();
   offset -> type_ = gContextInfo.opn_.type_;
   offset -> imm_num_ = gContextInfo.opn_.imm_num_;
   offset -> name_ = gContextInfo.opn_.name_;
   offset -> scope_id_ = gContextInfo.opn_.scope_id_;
   offset -> offset_ = gContextInfo.opn_.offset_;
-  Opn opn = Opn(Opn::Type::Array, name_.name_, gContextInfo.current_scope_id_, offset);
+  // if(offset -> type_ == Opn::Type::Imm) opn = Opn(Opn::Type::Imm, s -> initval_[offset -> imm_num_ / 4]);
+  // else opn = Opn(Opn::Type::Array, name_.name_, gContextInfo.current_scope_id_, offset);
+  opn = Opn(Opn::Type::Array, name_.name_, gContextInfo.current_scope_id_, offset);
   gContextInfo.opn_ = opn;
 }
 
@@ -304,11 +297,6 @@ void FunctionCall::GenerateIR() {
   int i = 0;
   for (auto &arg : args_.arg_list_) {
     arg->GenerateIR();
-    // mxd把下面的改了，下面注释的是原代码，改成了if else
-    // if (gContextInfo.shape_ == gFuncTable[name_.name_].shape_list_[i++]) {
-    //   SemanticError(line_no_, "函数调用参数不正确");
-    //   return;
-    // }
     if(gContextInfo.shape_.size()!=gFuncTable[name_.name_].shape_list_[i].size())
     {
       std::cout<<gContextInfo.shape_.size()<<' '<<gFuncTable[name_.name_].shape_list_[i].size()<<'\n';
@@ -339,16 +327,24 @@ void FunctionCall::GenerateIR() {
     }
 
     opn1 = gContextInfo.opn_;
+    Opn *offset = new Opn(Opn::Type::Imm, 0);
+    if (s && s -> is_array_) {
+      opn1 = Opn(Opn::Type::Array, opn1.name_, gContextInfo.current_scope_id_, offset);
+    }
 
     IR ir = IR(IR::OpKind::PARAM, opn1);
     gIRList.push_back(ir);
     i++;
   }
 
-  gContextInfo.is_func_ = !gContextInfo.is_func_;
-  name_.GenerateIR();
-  opn1 = gContextInfo.opn_;
-  gContextInfo.is_func_ = !gContextInfo.is_func_;
+  // printf("%d\n", gContextInfo.is_func_);
+  // gContextInfo.is_func_ = !gContextInfo.is_func_;
+  // name_.GenerateIR();
+  // printf("%d\n", gContextInfo.is_func_);
+  // opn1 = gContextInfo.opn_;
+  // gContextInfo.is_func_ = !gContextInfo.is_func_;
+
+  opn1 = Opn(Opn::Type::Var, name_.name_, gContextInfo.current_scope_id_);
   opn2 = Opn(Opn::Type::Imm, gFuncTable[name_.name_].shape_list_.size());
 
   IR ir;
@@ -370,7 +366,7 @@ void FunctionCall::GenerateIR() {
     gContextInfo.opn_ = temp;
     ir = IR(IR::OpKind::CALL, opn1, opn2, temp);
   }
-
+  // printf("/*********************\n");
   gIRList.push_back(ir);
 }
 
@@ -568,6 +564,8 @@ void FunctionDefine::GenerateIR() {
   } else {
     SemanticError(this->line_no_, this->name_.name_ + ": function redefined");
   }
+
+  // printf("1*******************\n");
 }
 
 void AssignStatement::GenerateIR() {
