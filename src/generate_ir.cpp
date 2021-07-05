@@ -130,7 +130,7 @@ void ArrayIdentifier::GenerateIR() {
     if(i == shape_list_.size() - 1)
     {
       res -> GenerateIR();
-      res -> PrintNode();
+      // res -> PrintNode();
     }
   }
   // a[b+1]
@@ -221,10 +221,11 @@ void BinaryExpression::GenerateIR() {
     gSymbolTables[gContextInfo.current_scope_id_].size_ += kIntWidth;
     temp = Opn(Opn::Type::Var, res_temp_var, gContextInfo.current_scope_id_);
     gContextInfo.opn_ = temp;
+    IR ir = IR(op, opn1, opn2, temp);
+    gIRList.push_back(ir);
   }
 
-  IR ir = IR(op, opn1, opn2, temp);
-  gIRList.push_back(ir);
+  
 }
 
 void UnaryExpression::GenerateIR() {
@@ -296,6 +297,10 @@ void FunctionCall::GenerateIR() {
     SemanticError(line_no_, "调用的函数不存在");
     return;
   }
+  if(gFuncTable[name_.name_].shape_list_.size()!=args_.arg_list_.size()){
+    SemanticError(line_no_,"参数个数不匹配");
+    return ;
+  }
   int i = 0;
   for (auto &arg : args_.arg_list_) {
     arg->GenerateIR();
@@ -307,7 +312,7 @@ void FunctionCall::GenerateIR() {
     if(gContextInfo.shape_.size()!=gFuncTable[name_.name_].shape_list_[i].size())
     {
       std::cout<<gContextInfo.shape_.size()<<' '<<gFuncTable[name_.name_].shape_list_[i].size()<<'\n';
-      SemanticError(line_no_, "函数调用参数个数不匹配");
+      SemanticError(line_no_, "函数调用参数类型不匹配");
       return;
     }
     else
@@ -321,6 +326,18 @@ void FunctionCall::GenerateIR() {
         }
       }
     }
+
+    SymbolTableItem *s;
+    //如果是函数名就不需要查变量表
+    s = FindSymbol(gContextInfo.current_scope_id_, gContextInfo.opn_.name_);
+    if (s) {
+      if(s->is_array_ && s->is_const_)
+      {
+        SemanticError(line_no_, "实参不能是const数组");
+        return;
+      }
+    }
+
     opn1 = gContextInfo.opn_;
 
     IR ir = IR(IR::OpKind::PARAM, opn1);
@@ -344,6 +361,7 @@ void FunctionCall::GenerateIR() {
     gSymbolTables[scope_id].size_ += kIntWidth;
     Opn temp = Opn(Opn::Type::Var, ret_var, gContextInfo.current_scope_id_);
     gContextInfo.opn_ = temp;
+    gContextInfo.shape_.clear();
     ir = IR(IR::OpKind::CALL, opn1, opn2, temp);
   }
   else
