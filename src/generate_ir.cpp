@@ -572,8 +572,7 @@ void AssignStatement::GenerateIR() {
     SemanticError(this->line_no_, "use undefined variable: " + lhs_opn.name_);
   } else {
     // type check
-    if (!gContextInfo.shape_.empty()) {
-      // not int
+    if (!gContextInfo.shape_.empty()||gContextInfo.opn_.type_==Opn::Type::Null) {
       // NOTE 语义错误 类型错误 左值非int类型
       SemanticError(this->line_no_, lhs_opn.name_ + ": leftvalue type not int");
     }

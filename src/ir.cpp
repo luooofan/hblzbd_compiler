@@ -231,6 +231,7 @@ void IR::PrintIR() {
 void SemanticError(int line_no, const std::string &&error_msg) {
   std::cerr << "语义错误 at line " << line_no << " : " << error_msg
             << std::endl;
+  exit(1);
 }
 void RuntimeError(const std::string &&error_msg) {
   std::cerr << "运行时错误: " << error_msg << std::endl;
