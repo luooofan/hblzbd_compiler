@@ -15,22 +15,7 @@
 namespace ast {
 
 void Root::GenerateIR() {
-  //把系统库中的函数添加到函数表中
-  gFuncTable.insert({"getint",{INT}});
-  gFuncTable.insert({"getch", {INT}});
-  FuncTableItem func_item={INT};
-  func_item.shape_list_.push_back({-1});
-  gFuncTable.insert({"getarray", func_item});
-  FuncTableItem func_item_void = {VOID};
-  func_item_void.shape_list_.push_back({});
-  gFuncTable.insert({"putint", func_item_void});
-  gFuncTable.insert({"putch", func_item_void});
-  func_item_void.shape_list_.push_back({-1});
-  gFuncTable.insert({"putarray", func_item_void});
-  // TODO
-  // gFuncTable.insert({"putf", {VOID}});
-  gFuncTable.insert({"starttime", {VOID}});
-  gFuncTable.insert({"stoptime", {VOID}});
+  // TODO 未完成
   //创建一张全局符号表
   gSymbolTables.push_back({0, -1});
   gContextInfo.current_scope_id_ = 0;
@@ -551,7 +536,7 @@ void FunctionDefine::GenerateIR() {
                 gContextInfo.opn_
                     .imm_num_);  // shape的类型必定为常量表达式，所以opn一定是立即数
           }
-          tmp1->width_.resize(tmp1->shape_.size());
+          tmp1->width_.resize(tmp1->shape_.size() + 1);
           if (tmp1->shape_.size()) {
             tmp1->width_[tmp1->width_.size() - 1] = kIntWidth;
             for (int i = tmp1->width_.size() - 2; i >= 0; i--)
