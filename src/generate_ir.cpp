@@ -267,6 +267,7 @@ void UnaryExpression::GenerateIR() {
         break;
     }
     temp = Opn(Opn::Type::Imm, result);
+    gContextInfo.opn_ = temp;
   }
   else
   {
@@ -277,10 +278,9 @@ void UnaryExpression::GenerateIR() {
     gSymbolTables[scope_id].size_ += kIntWidth;
     Opn temp = Opn(Opn::Type::Var, rhs_temp_var, gContextInfo.current_scope_id_);
     gContextInfo.opn_ = temp;
+    IR ir = IR(op, opn1, temp);
+    gIRList.push_back(ir);
   }
-
-  IR ir = IR(op, opn1, temp);
-  gIRList.push_back(ir);
 }
 
 
