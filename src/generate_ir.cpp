@@ -642,9 +642,17 @@ void WhileStatement::GenerateIR() {
   this->cond_.GenerateIR();
   gContextInfo.true_label_.pop();
   gContextInfo.false_label_.pop();
+
+  gContextInfo.break_label_.push(label_next);
+  gContextInfo.continue_label_.push(label_begin);
+
   this->bodystmt_.GenerateIR();
   // genir(goto,begin,-,-)
   gIRList.push_back({IR::OpKind::GOTO, LABEL_OPN(label_begin)});
+
+  gContextInfo.continue_label_.pop();
+  gContextInfo.break_label_.pop();
+
   gIRList.push_back({IR::OpKind::LABEL, LABEL_OPN(label_next)});
 }
 
