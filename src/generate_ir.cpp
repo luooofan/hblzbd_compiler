@@ -780,7 +780,7 @@ void ArrayInitVal::GenerateIR() {
     //                    gContextInfo.opn_,
     //                    {Opn::Type::Var, gContextInfo.array_name_},
     //                    gContextInfo.array_offset_ * 4});
-    gIRList.push_back({IR::OpKind::OFFSET_ASSIGN,
+    gIRList.push_back({IR::OpKind::/*OFFSET_*/ASSIGN,
                        gContextInfo.opn_,
                        {Opn::Type::Array,
                         gContextInfo.array_name_,
@@ -824,7 +824,7 @@ void ArrayInitVal::GenerateIR() {
         //                    IMM_0_OPN,
         //                    {Opn::Type::Var, gContextInfo.array_name_},
         //                    (offset++ * 4)});
-        gIRList.push_back({IR::OpKind::OFFSET_ASSIGN,
+        gIRList.push_back({IR::OpKind::/*OFFSET_*/ASSIGN,
                            IMM_0_OPN,
                            {Opn::Type::Array,
                             gContextInfo.array_name_,

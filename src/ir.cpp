@@ -213,14 +213,16 @@ void IR::PrintIR() {
       PRINT_IR("call");
       break;
     case IR::OpKind::OFFSET_ASSIGN:
-      printf("(%10s,%10s,%10s,%6s+%3d)\n", "[]=", this->opn1_.name_.c_str(),
-             this->opn2_.name_.c_str(), this->res_.name_.c_str(),
-             this->offset_);
+      // printf("(%10s,%10s,%10s,%6s+%3d)\n", "[]=", this->opn1_.name_.c_str(),
+      //        this->opn2_.name_.c_str(), this->res_.name_.c_str(),
+      //        this->offset_);
+      PRINT_IR("[]=");
       break;
     case IR::OpKind::ASSIGN_OFFSET:
-      printf("(%10s,%6s+%3d,%10s,%10s)\n", "=[]", this->opn1_.name_.c_str(),
-             this->offset_, this->opn2_.name_.c_str(),
-             this->res_.name_.c_str());
+      // printf("(%10s,%6s+%3d,%10s,%10s)\n", "=[]", this->opn1_.name_.c_str(),
+      //        this->offset_, this->opn2_.name_.c_str(),
+      //        this->res_.name_.c_str());
+      PRINT_IR("=[]");
       break;
     default:
       printf("unimplemented\n");
