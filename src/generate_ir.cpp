@@ -312,7 +312,7 @@ void FunctionCall::GenerateIR() {
   }
 
   for (int i = args_.arg_list_.size() - 1; i >= 0; --i) {
-    arg->GenerateIR();
+    args_.arg_list_[i]->GenerateIR();
     if(gContextInfo.shape_.size()!=gFuncTable[name_.name_].shape_list_[i].size())
     {
       std::cout<<gContextInfo.shape_.size()<<' '<<gFuncTable[name_.name_].shape_list_[i].size()<<'\n';
@@ -326,6 +326,7 @@ void FunctionCall::GenerateIR() {
         if(gContextInfo.shape_[j]!=gFuncTable[name_.name_].shape_list_[i][j])
         {
           SemanticError(line_no_, "函数调用参数类型不匹配");
+          // printf("/*****************\n");
           return;
         }
       }
@@ -346,6 +347,7 @@ void FunctionCall::GenerateIR() {
     Opn *offset = new Opn(Opn::Type::Imm, 0);
     if (s && s -> is_array_) {
       opn1 = Opn(Opn::Type::Array, opn1.name_, gContextInfo.current_scope_id_, offset);
+      // gContextInfo.shape_ = s -> shape_;
     }
 
     IR ir = IR(IR::OpKind::PARAM, opn1);
@@ -354,7 +356,7 @@ void FunctionCall::GenerateIR() {
   
   for(auto &param : param_list)
   {
-      gIRList.piush_back(param);
+      gIRList.push_back(param);
   }
 
   // printf("%d\n", gContextInfo.is_func_);
