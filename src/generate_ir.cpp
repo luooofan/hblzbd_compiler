@@ -452,6 +452,12 @@ void ArrayDefine::GenerateIR() {
     for (int i = tmp->width_.size() - 2; i >= 0; i--)
       tmp->width_[i] = tmp->width_[i + 1] * tmp->shape_[i];
     scope.size_ += tmp->width_[0];
+    if(gContextInfo.current_scope_id_==0)
+    {
+      int mul=1;
+      for(int i=0;i<tmp->shape_.size();i++)mul*=tmp->shape_[i];
+      tmp->initval_.resize(mul);
+    }
     // symbol_table[name_.name_.name_]=*tmp;
     symbol_table.insert({name_.name_.name_, *tmp});
   } else {
