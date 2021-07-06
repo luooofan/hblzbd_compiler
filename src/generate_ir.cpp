@@ -301,6 +301,7 @@ void UnaryExpression::GenerateIR() {
 
 void FunctionCall::GenerateIR() {
   Opn opn1, opn2;
+  std::vector<IR> param_list;
   if (gFuncTable.find(name_.name_) == gFuncTable.end()) {
     SemanticError(line_no_, "调用的函数不存在");
     return;
@@ -309,8 +310,8 @@ void FunctionCall::GenerateIR() {
     SemanticError(line_no_,"参数个数不匹配");
     return ;
   }
-  int i = 0;
-  for (auto &arg : args_.arg_list_) {
+
+  for (int i = args_.arg_list_.size() - 1; i >= 0; --i) {
     arg->GenerateIR();
     if(gContextInfo.shape_.size()!=gFuncTable[name_.name_].shape_list_[i].size())
     {
@@ -348,8 +349,12 @@ void FunctionCall::GenerateIR() {
     }
 
     IR ir = IR(IR::OpKind::PARAM, opn1);
-    gIRList.push_back(ir);
-    i++;
+    param_list.push_back(ir);
+  }
+  
+  for(auto &param : param_list)
+  {
+      gIRList.piush_back(param);
   }
 
   // printf("%d\n", gContextInfo.is_func_);
