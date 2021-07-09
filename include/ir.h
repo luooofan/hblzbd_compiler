@@ -37,7 +37,7 @@ class SymbolTable {
   int parent_scope_id_;  // 父作用域id
   int size_;  // 当前作用域的大小 每次插入新符号表项后都需要维护
   bool is_func_;
-  SymbolTable(){}
+  SymbolTable() {}
   SymbolTable(int scope_id, int parent_scope_id)
       : scope_id_(scope_id), parent_scope_id_(parent_scope_id) {
     size_ = 0;
@@ -72,51 +72,56 @@ class Opn {
     // offset_ = nullptr;
   }
   Opn(Type type, std::string name, int scope_id)
-      : type_(type), name_(name), scope_id_(scope_id) {offset_ = nullptr;}
+      : type_(type), name_(name), scope_id_(scope_id) {
+    offset_ = nullptr;
+  }
   Opn(Type type, std::string label) : type_(type), name_(label) {
     scope_id_ = -1;
     // offset_ = nullptr;
   }
-  Opn(Type type) : type_(type), name_("-") { scope_id_ = -1; offset_ = nullptr; }
-  Opn(Type type, std::string name, int scope_id, Opn* offset) 
-      :type_(type), name_(name), scope_id_(scope_id), offset_(offset) { }
+  Opn(Type type) : type_(type), name_("-") {
+    scope_id_ = -1;
+    offset_ = nullptr;
+  }
+  Opn(Type type, std::string name, int scope_id, Opn *offset)
+      : type_(type), name_(name), scope_id_(scope_id), offset_(offset) {}
   Opn() {}
 };
 
 class IR {
  public:
   enum class OpKind {
-    ADD,            // (+,)
-    SUB,            // (-,)
-    MUL,            // (*,)
-    DIV,            // (/,)
-    MOD,            // (%,)
-    AND,            // (&&,)
-    OR,             // (||,)
-    GT,             // (>,)
-    LT,             // (<,)
-    LE,             // (<=,)
-    GE,             // (>=,)
-    EQ,             // (==,)
-    NE,             // (!=,)
-    NOT,            // (!,)
-    POS,            // (+,)正
-    NEG,            // (-,)负
-    LABEL,          // (label,)
-    PARAM,          // (param,)
-    CALL,           // (call,)
-    RET,            // (ret,) or (ret,opn1,)
-    GOTO,           // (goto,label)
-    ASSIGN,         // (assign, opn1,-,res)
-    JEQ,            // ==
-    JNE,            // !=
-    JLT,            // <
-    JLE,            // <=
-    JGT,            // >
-    JGE,            // >=
-    VOID,           // useless
-    OFFSET_ASSIGN,  // []=
-    ASSIGN_OFFSET,  // =[]
+    ADD,  // (+,)
+    SUB,  // (-,)
+    MUL,  // (*,)
+    DIV,  // (/,)
+    MOD,  // (%,)
+    // AND,            // (&&,)
+    // OR,             // (||,)
+    // GT,             // (>,)
+    // LT,             // (<,)
+    // LE,             // (<=,)
+    // GE,             // (>=,)
+    // EQ,             // (==,)
+    // NE,             // (!=,)
+    NOT,     // (!,)
+    POS,     // (+,)正
+    NEG,     // (-,)负
+    LABEL,   // (label,)
+    PARAM,   // (param,)
+    CALL,    // (call,)
+    RET,     // (ret,) or (ret,opn1,)
+    GOTO,    // (goto,label)
+    ASSIGN,  // (assign, opn1,-,res)
+    JEQ,     // ==
+    JNE,     // !=
+    JLT,     // <
+    JLE,     // <=
+    JGT,     // >
+    JGE,     // >=
+    VOID,    // useless
+    // OFFSET_ASSIGN,  // []=
+    // ASSIGN_OFFSET,  // =[]
 
     // ...
   };
@@ -126,7 +131,8 @@ class IR {
   IR(OpKind op, Opn opn1, Opn opn2, Opn res)
       : op_(op), opn1_(opn1), opn2_(opn2), res_(res), offset_(0) {}
   // IR(OpKind op, Opn opn1, Opn opn2)
-  //     : op_(op), opn1_(opn1), opn2_(opn2), res_({Opn::Type::Null}), offset_(0) {}
+  //     : op_(op), opn1_(opn1), opn2_(opn2), res_({Opn::Type::Null}),
+  //     offset_(0) {}
   IR(OpKind op, Opn opn1, Opn res, int offset)
       : op_(op),
         opn1_(opn1),
@@ -173,7 +179,7 @@ class ContextInfoInGenIR {
   std::string current_func_name_;
   bool xingcan;  //函数形参也要加在block的作用域里
 
-  ContextInfoInGenIR() : opn_({Opn::Type::Null}), current_scope_id_(0) { }
+  ContextInfoInGenIR() : opn_({Opn::Type::Null}), current_scope_id_(0) {}
 };
 
 extern SymbolTables gSymbolTables;

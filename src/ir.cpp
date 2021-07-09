@@ -8,12 +8,15 @@
 
 #define TYPE_STRING(type) \
   ((type) == INT ? "int" : ((type) == VOID ? "void" : "undefined"))
-#define PRINT_IR(op_name)                                                 \
+#define PRINT_IR(op_name)                                               \
   printf("(%10s,%10s,%10s,%10s)", (op_name), this->opn1_.name_.c_str(), \
-         this->opn2_.name_.c_str(), this->res_.name_.c_str());            \
-  if(opn1_.type_ == Opn::Type::Array) printf(" %s", opn1_.offset_->name_.c_str()); \
-  if(opn2_.type_ == Opn::Type::Array) printf(" %s", opn2_.offset_->name_.c_str()); \
-  if(res_.type_ == Opn::Type::Array) printf(" %s", res_.offset_->name_.c_str()); \
+         this->opn2_.name_.c_str(), this->res_.name_.c_str());          \
+  if (opn1_.type_ == Opn::Type::Array)                                  \
+    printf(" %s", opn1_.offset_->name_.c_str());                        \
+  if (opn2_.type_ == Opn::Type::Array)                                  \
+    printf(" %s", opn2_.offset_->name_.c_str());                        \
+  if (res_.type_ == Opn::Type::Array)                                   \
+    printf(" %s", res_.offset_->name_.c_str());                         \
   printf("\n");
 
 SymbolTables gSymbolTables;
@@ -106,6 +109,8 @@ IR::OpKind GetOpKind(int op, bool reverse) {
         return IR::OpKind::JLE;
       case GE:
         return IR::OpKind::JLT;
+      default:
+        return IR::OpKind::VOID;
     }
   } else {
     switch (op) {
@@ -121,6 +126,8 @@ IR::OpKind GetOpKind(int op, bool reverse) {
         return IR::OpKind::JGT;
       case GE:
         return IR::OpKind::JGE;
+      default:
+        return IR::OpKind::VOID;
     }
   }
   return IR::OpKind::VOID;
@@ -143,36 +150,36 @@ void IR::PrintIR() {
     case IR::OpKind::MOD:
       PRINT_IR("mod");
       break;
-    case IR::OpKind::AND:
-      PRINT_IR("and");
-      break;
-    case IR::OpKind::OR:
-      PRINT_IR("or");
-      break;
+    // case IR::OpKind::AND:
+    //   PRINT_IR("and");
+    //   break;
+    // case IR::OpKind::OR:
+    //   PRINT_IR("or");
+    //   break;
     case IR::OpKind::POS:
       PRINT_IR("pos");
       break;
     case IR::OpKind::NEG:
       PRINT_IR("neg");
       break;
-    case IR::OpKind::GT:
-      PRINT_IR(">");
-      break;
-    case IR::OpKind::GE:
-      PRINT_IR(">=");
-      break;
-    case IR::OpKind::LT:
-      PRINT_IR("<");
-      break;
-    case IR::OpKind::LE:
-      PRINT_IR("<=");
-      break;
-    case IR::OpKind::EQ:
-      PRINT_IR("==");
-      break;
-    case IR::OpKind::NE:
-      PRINT_IR("!=");
-      break;
+    // case IR::OpKind::GT:
+    //   PRINT_IR(">");
+    //   break;
+    // case IR::OpKind::GE:
+    //   PRINT_IR(">=");
+    //   break;
+    // case IR::OpKind::LT:
+    //   PRINT_IR("<");
+    //   break;
+    // case IR::OpKind::LE:
+    //   PRINT_IR("<=");
+    //   break;
+    // case IR::OpKind::EQ:
+    //   PRINT_IR("==");
+    //   break;
+    // case IR::OpKind::NE:
+    //   PRINT_IR("!=");
+    //   break;
     case IR::OpKind::NOT:
       PRINT_IR("not");
       break;
@@ -212,18 +219,20 @@ void IR::PrintIR() {
     case IR::OpKind::CALL:
       PRINT_IR("call");
       break;
-    case IR::OpKind::OFFSET_ASSIGN:
-      // printf("(%10s,%10s,%10s,%6s+%3d)\n", "[]=", this->opn1_.name_.c_str(),
-      //        this->opn2_.name_.c_str(), this->res_.name_.c_str(),
-      //        this->offset_);
-      PRINT_IR("[]=");
-      break;
-    case IR::OpKind::ASSIGN_OFFSET:
-      // printf("(%10s,%6s+%3d,%10s,%10s)\n", "=[]", this->opn1_.name_.c_str(),
-      //        this->offset_, this->opn2_.name_.c_str(),
-      //        this->res_.name_.c_str());
-      PRINT_IR("=[]");
-      break;
+    // case IR::OpKind::OFFSET_ASSIGN:
+    //   // printf("(%10s,%10s,%10s,%6s+%3d)\n", "[]=",
+    //   this->opn1_.name_.c_str(),
+    //   //        this->opn2_.name_.c_str(), this->res_.name_.c_str(),
+    //   //        this->offset_);
+    //   PRINT_IR("[]=");
+    //   break;
+    // case IR::OpKind::ASSIGN_OFFSET:
+    //   // printf("(%10s,%6s+%3d,%10s,%10s)\n", "=[]",
+    //   this->opn1_.name_.c_str(),
+    //   //        this->offset_, this->opn2_.name_.c_str(),
+    //   //        this->res_.name_.c_str());
+    //   PRINT_IR("=[]");
+    //   break;
     default:
       printf("unimplemented\n");
       break;

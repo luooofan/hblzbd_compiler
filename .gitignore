@@ -13,4 +13,5 @@ src/parser.cpp
 src/parser.hpp
 src/scanner.c
 src/struct.h
+src/asm.cpp
 .vscode/
