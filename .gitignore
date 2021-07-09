@@ -1,0 +1,16 @@
+sysyruntimelibrary/
+sysyruntimelibrary-master/
+/*.sh
+*.out*
+/*.sy
+*.txt
+/mycompiler
+test/*
+!test/test_*.sy
+docs/
+# .gitignore
+src/parser.cpp
+src/parser.hpp
+src/scanner.c
+src/struct.h
+.vscode/
