@@ -22,7 +22,7 @@ int main(int argc, char **argv) {
   yyset_lineno(1);
   yyparse();  // if success, ast_root is valid
   if (nullptr != ast_root) {
-    ast_root->PrintNode();
+    ast_root->PrintNode(0,std::cout);
     std::cout << "\nGenerate IR:" << std::endl;
     ast_root->GenerateIR();
     PrintFuncTable();
