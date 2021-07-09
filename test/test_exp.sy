@@ -1,56 +1,11 @@
 int main()
 {
-    int a, b, c;
+    int a[10][10] = {10};
+    a[0][1] = 1;
+    int b;
+    b = a[0][1] + 1;
+    int c;
+    c = a[b+1][0];
 
-    a = 10;
-    b = 11;
-    c = 12;
-
-    if(a == 10)
-    {
-        b = a + c;
-        b = a - c;
-        b = a * c;
-        b = a % c;
-
-
-        b = -a;
-        b = +a;
-        b = !a;
-
-        a;
-        a+b;
-        0;
-        123;
-        12 + 2 + 4 + a + b + c;
-    }
+    return 1;
 }
-
-/*
-IRList:
-(     label,      main,         -,         -)
-(    assign,       #10,         -,         a)
-(    assign,       #11,         -,         b)
-(    assign,       #12,         -,         c)
-(       jne,         a,       #10,    label0)
-(       add,         a,         c,    temp-0)
-(    assign,    temp-0,         -,         b)
-(       sub,         a,         c,    temp-1)
-(    assign,    temp-1,         -,         b)
-(       mul,         a,         c,    temp-2)
-(    assign,    temp-2,         -,         b)
-(       mod,         a,         c,    temp-3)
-(    assign,    temp-3,         -,         b)
-(       neg,         a,         -,    temp-4)
-(    assign,    temp-4,         -,         b)
-(       pos,         a,         -,    temp-5)
-(    assign,    temp-5,         -,         b)
-(       not,         a,         -,    temp-6)
-(    assign,    temp-6,         -,         b)
-(       add,         a,         b,    temp-7)
-(       add,       #12,        #2,    temp-8)
-(       add,    temp-8,        #4,    temp-9)
-(       add,    temp-9,         a,   temp-10)
-(       add,   temp-10,         b,   temp-11)
-(       add,   temp-11,         c,   temp-12)
-(     label,    label0,         -,         -)*/

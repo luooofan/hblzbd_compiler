@@ -37,6 +37,7 @@ class SymbolTable {
   int parent_scope_id_;  // 父作用域id
   int size_;  // 当前作用域的大小 每次插入新符号表项后都需要维护
   bool is_func_;
+  SymbolTable(){}
   SymbolTable(int scope_id, int parent_scope_id)
       : scope_id_(scope_id), parent_scope_id_(parent_scope_id) {
     size_ = 0;
@@ -57,22 +58,28 @@ class Opn {
     Imm,
     Label,
     Null,
+    Array,
   };
   Type type_;
   int imm_num_;       // 立即数
   std::string name_;  //
   int scope_id_;      // 标识所在作用域
+  Opn *offset_;
   Opn(Type type, int imm_num)
       : type_(type), imm_num_(imm_num), name_("#" + std::to_string(imm_num)) {
     // name_ = std::to_string(imm_num);
     scope_id_ = -1;
+    // offset_ = nullptr;
   }
   Opn(Type type, std::string name, int scope_id)
-      : type_(type), name_(name), scope_id_(scope_id) {}
+      : type_(type), name_(name), scope_id_(scope_id) {offset_ = nullptr;}
   Opn(Type type, std::string label) : type_(type), name_(label) {
     scope_id_ = -1;
+    // offset_ = nullptr;
   }
-  Opn(Type type) : type_(type), name_("-") { scope_id_ = -1; }
+  Opn(Type type) : type_(type), name_("-") { scope_id_ = -1; offset_ = nullptr; }
+  Opn(Type type, std::string name, int scope_id, Opn* offset) 
+      :type_(type), name_(name), scope_id_(scope_id), offset_(offset) { }
   Opn() {}
 };
 
@@ -118,6 +125,8 @@ class IR {
   int offset_;  // only used for []instruction
   IR(OpKind op, Opn opn1, Opn opn2, Opn res)
       : op_(op), opn1_(opn1), opn2_(opn2), res_(res), offset_(0) {}
+  // IR(OpKind op, Opn opn1, Opn opn2)
+  //     : op_(op), opn1_(opn1), opn2_(opn2), res_({Opn::Type::Null}), offset_(0) {}
   IR(OpKind op, Opn opn1, Opn res, int offset)
       : op_(op),
         opn1_(opn1),
@@ -138,6 +147,7 @@ class IR {
         opn2_({Opn::Type::Null}),
         res_({Opn::Type::Null}),
         offset_(0) {}
+  IR() {}
   void PrintIR();
 };
 
@@ -150,7 +160,6 @@ class ContextInfoInGenIR {
   std::vector<int> shape_;
   // Used for ArrayInitVal
   std::string array_name_;
-  bool is_func_;  //是否是函数的名称
   int array_offset_;
   int brace_num_;  // 当前位置(array_offset_)有几个大括号
   std::vector<int> dim_total_num_;  // a[2][3][4] -> 24,12,4,1
@@ -164,7 +173,7 @@ class ContextInfoInGenIR {
   std::string current_func_name_;
   bool xingcan;  //函数形参也要加在block的作用域里
 
-  ContextInfoInGenIR() : opn_({Opn::Type::Null}), current_scope_id_(0) {}
+  ContextInfoInGenIR() : opn_({Opn::Type::Null}), current_scope_id_(0) { }
 };
 
 extern SymbolTables gSymbolTables;

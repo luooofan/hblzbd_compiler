@@ -7,15 +7,13 @@ void Number::Evaluate() { gContextInfo.opn_ = Opn(Opn::Type::Imm, value_); }
 
 void Identifier::Evaluate() {
   SymbolTableItem *s;
-  if (!gContextInfo.is_func_) {
-    s = FindSymbol(gContextInfo.current_scope_id_, name_);
-    if (!s) {
-      SemanticError(line_no_, name_ + ": undefined variable");
-    }
+  s = FindSymbol(gContextInfo.current_scope_id_, name_);
+  if (!s) {
+    SemanticError(line_no_, name_ + ": undefined variable");
+  }
 
-    if (!s->is_const_) {
-      SemanticError(line_no_, name_ + ": not const type");
-    }
+  if (!s->is_const_) {
+    SemanticError(line_no_, name_ + ": not const type");
   }
 
   gContextInfo.opn_ = Opn(Opn::Type::Imm, s->initval_[0]);

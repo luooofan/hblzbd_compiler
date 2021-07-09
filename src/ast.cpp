@@ -115,6 +115,7 @@ namespace ast
   {
     delete &(this->lhs_);
     delete &(this->rhs_);
+    // printf("2\n");
   }
   void BinaryExpression::PrintNode(int indentation, std::ostream &outfile)
   {
