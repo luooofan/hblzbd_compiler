@@ -60,8 +60,8 @@ void SymbolTableItem::Print() {
   }
 }
 void FuncTableItem::Print() { printf("%10s\n", TYPE_STRING(this->ret_type_)); }
-void SymbolTable::Print() {
-  std::cout << "SymbolTable:\n"
+void Scope::Print() {
+  std::cout << "Scope:\n"
             << "  scope_id: " << this->scope_id_ << std::endl
             << "  parent_scope_id: " << this->parent_scope_id_ << std::endl
             << "  size: " << this->size_ << std::endl;

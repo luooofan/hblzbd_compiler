@@ -391,7 +391,7 @@ void VariableDefine::GenerateIR() {
   const auto &var_iter = symbol_table.find(this->name_.name_);
   // 得往上递归地找
   // int scope_id=ir::gContextInfo.current_scope_id_;
-  // SymbolTable scope;
+  // Scope scope;
   // std::unordered_map<std::string,ir::SymbolTableItem> symbol_table;
   // while(scope_id!=-1)
   // {

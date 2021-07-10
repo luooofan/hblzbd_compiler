@@ -31,15 +31,15 @@ class FuncTableItem {
 };
 
 //每个作用域一个符号表
-class SymbolTable {
+class Scope {
  public:
   std::unordered_map<std::string, SymbolTableItem> symbol_table_;
   int scope_id_;         // 作用域id
   int parent_scope_id_;  // 父作用域id
   int size_;  // 当前作用域的大小 每次插入新符号表项后都需要维护
   bool is_func_;
-  SymbolTable() {}
-  SymbolTable(int scope_id, int parent_scope_id)
+  Scope() {}
+  Scope(int scope_id, int parent_scope_id)
       : scope_id_(scope_id), parent_scope_id_(parent_scope_id) {
     size_ = 0;
     is_func_ = parent_scope_id_ == 0 ? true : false;
@@ -49,7 +49,7 @@ class SymbolTable {
 
 SymbolTableItem *FindSymbol(int scope_id, std::string name);
 
-using SymbolTables = std::vector<SymbolTable>;
+using SymbolTables = std::vector<Scope>;
 using FuncTable = std::unordered_map<std::string, FuncTableItem>;
 
 class Opn {
