@@ -58,6 +58,7 @@ class Opn {
     Var,
     Imm,
     Label,
+    Func,
     Null,
     Array,
   };

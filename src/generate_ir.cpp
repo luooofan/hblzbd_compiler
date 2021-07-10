@@ -11,6 +11,8 @@
   { ir::Opn::Type::Imm, 1 }
 #define LABEL_OPN(label_name) \
   { ir::Opn::Type::Label, label_name }
+#define FUNC_OPN(label_name) \
+  { ir::Opn::Type::Func, label_name }
 #define OPN_IS_NOT_INT (!ir::gContextInfo.shape_.empty())
 
 namespace ast {
@@ -525,8 +527,7 @@ void FunctionDefine::GenerateIR() {
   if (func_iter == ir::gFuncTable.end()) {
     auto tmp = new ir::FuncTableItem(return_type_);
     ir::gContextInfo.current_func_name_ = this->name_.name_;
-    ir::gIRList.push_back(
-        {ir::IR::OpKind::LABEL, LABEL_OPN(this->name_.name_)});
+    ir::gIRList.push_back({ir::IR::OpKind::LABEL, FUNC_OPN(this->name_.name_)});
     int parent_scope_id = 0;
     ir::gContextInfo.current_scope_id_ = ir::gScopes.size();
     ir::gScopes.push_back(
