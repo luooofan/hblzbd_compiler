@@ -105,8 +105,8 @@ class IR {
     // GE,             // (>=,)
     // EQ,             // (==,)
     // NE,             // (!=,)
-    NOT,     // (!,)
-    POS,     // (+,)正
+    NOT,  // (!,)
+    // POS,     // (+,)正
     NEG,     // (-,)负
     LABEL,   // (label,)
     PARAM,   // (param,)

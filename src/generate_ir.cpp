@@ -11,6 +11,7 @@
   { ir::Opn::Type::Imm, 1 }
 #define LABEL_OPN(label_name) \
   { ir::Opn::Type::Label, label_name }
+#define OPN_IS_NOT_INT (!ir::gContextInfo.shape_.empty())
 
 namespace ast {
 
@@ -50,6 +51,7 @@ void Root::GenerateIR() {
     }
   }
 }
+
 void Number::GenerateIR() {
   //生成一个opn 维护shape 不生成目标代码
   ir::Opn opn = ir::Opn(ir::Opn::Type::Imm, value_);
@@ -161,13 +163,13 @@ void BinaryExpression::GenerateIR() {
 
   lhs_.GenerateIR();
   opn1 = ir::gContextInfo.opn_;
-  if (!ir::gContextInfo.shape_.empty()) {
+  if (OPN_IS_NOT_INT) {
     ir::SemanticError(this->line_no_,
                       ir::gContextInfo.opn_.name_ + ": lhs exp type not int");
   }
   rhs_.GenerateIR();
   opn2 = ir::gContextInfo.opn_;
-  if (!ir::gContextInfo.shape_.empty()) {
+  if (OPN_IS_NOT_INT) {
     ir::SemanticError(this->line_no_,
                       ir::gContextInfo.opn_.name_ + ": rhs exp type not int");
   }
@@ -234,29 +236,13 @@ void BinaryExpression::GenerateIR() {
 }
 
 void UnaryExpression::GenerateIR() {
-  ir::Opn opn1, temp;
-  ir::IR::OpKind op;
+  ir::Opn opn1;
 
   rhs_.GenerateIR();
   opn1 = ir::gContextInfo.opn_;
-  if (!ir::gContextInfo.shape_.empty()) {
+  if (OPN_IS_NOT_INT) {
     ir::SemanticError(this->line_no_,
                       ir::gContextInfo.opn_.name_ + ": rhs exp type not int");
-  }
-
-  switch (op_) {
-    case ADD:
-      op = ir::IR::OpKind::POS;
-      break;
-    case SUB:
-      op = ir::IR::OpKind::NEG;
-      break;
-    case NOT:
-      op = ir::IR::OpKind::NOT;
-      break;
-    default:
-      printf("mystery operator code: %d", op_);
-      break;
   }
 
   if (opn1.type_ == ir::Opn::Type::Imm) {
@@ -276,9 +262,24 @@ void UnaryExpression::GenerateIR() {
         printf("mystery operator code: %d", op_);
         break;
     }
-    temp = ir::Opn(ir::Opn::Type::Imm, result);
-    ir::gContextInfo.opn_ = temp;
+    ir::gContextInfo.opn_ = ir::Opn(ir::Opn::Type::Imm, result);
   } else {
+    ir::IR::OpKind op;
+    switch (op_) {
+      case ADD:
+        // op = ir::IR::OpKind::POS;
+        return;
+        break;
+      case SUB:
+        op = ir::IR::OpKind::NEG;
+        break;
+      case NOT:
+        op = ir::IR::OpKind::NOT;
+        break;
+      default:
+        printf("mystery operator code: %d", op_);
+        break;
+    }
     auto scope_id = ir::gContextInfo.current_scope_id_;
     std::string rhs_temp_var = ir::NewTemp();
     ir::gScopes[scope_id].symbol_table_.insert(
@@ -287,8 +288,7 @@ void UnaryExpression::GenerateIR() {
     ir::Opn temp = ir::Opn(ir::Opn::Type::Var, rhs_temp_var,
                            ir::gContextInfo.current_scope_id_);
     ir::gContextInfo.opn_ = temp;
-    ir::IR ir = ir::IR(op, opn1, temp);
-    ir::gIRList.push_back(ir);
+    ir::gIRList.push_back(ir::IR(op, opn1, temp));
   }
 }
 
@@ -600,7 +600,7 @@ void FunctionDefine::GenerateIR() {
 
 void AssignStatement::GenerateIR() {
   this->rhs_.GenerateIR();
-  if (!ir::gContextInfo.shape_.empty()) {
+  if (OPN_IS_NOT_INT) {
     // not int
     // NOTE 语义错误 类型错误 表达式结果非int类型
     ir::SemanticError(this->line_no_, ir::gContextInfo.opn_.name_ +
@@ -619,8 +619,7 @@ void AssignStatement::GenerateIR() {
                       "use undefined variable: " + lhs_opn.name_);
   } else {
     // type check
-    if (!ir::gContextInfo.shape_.empty() ||
-        ir::gContextInfo.opn_.type_ == ir::Opn::Type::Null) {
+    if (OPN_IS_NOT_INT || ir::gContextInfo.opn_.type_ == ir::Opn::Type::Null) {
       // NOTE 语义错误 类型错误 左值非int类型
       ir::SemanticError(this->line_no_,
                         lhs_opn.name_ + ": leftvalue type not int");
@@ -1048,7 +1047,7 @@ void ConditionExpression::GenerateIR() {
           ir::gContextInfo.true_label_.pop();
 
           this->rhs_.GenerateIR();
-          if (!ir::gContextInfo.shape_.empty()) {
+          if (OPN_IS_NOT_INT) {
             // NOTE 语义错误 类型错误 条件表达式右边非int类型
             ir::SemanticError(
                 this->line_no_,
@@ -1073,7 +1072,7 @@ void ConditionExpression::GenerateIR() {
           ir::gContextInfo.true_label_.pop();
 
           this->rhs_.GenerateIR();
-          if (!ir::gContextInfo.shape_.empty()) {
+          if (OPN_IS_NOT_INT) {
             // NOTE 语义错误 类型错误 条件表达式右边非int类型
             ir::SemanticError(
                 this->line_no_,
@@ -1106,7 +1105,7 @@ void ConditionExpression::GenerateIR() {
           ir::gContextInfo.true_label_.pop();
 
           this->rhs_.GenerateIR();
-          if (!ir::gContextInfo.shape_.empty()) {
+          if (OPN_IS_NOT_INT) {
             // NOTE 语义错误 类型错误 条件表达式右边非int类型
             ir::SemanticError(
                 this->line_no_,
@@ -1125,7 +1124,7 @@ void ConditionExpression::GenerateIR() {
           this->lhs_.GenerateIR();
 
           this->rhs_.GenerateIR();
-          if (!ir::gContextInfo.shape_.empty()) {
+          if (OPN_IS_NOT_INT) {
             // NOTE 语义错误 类型错误 条件表达式右边非int类型
             ir::SemanticError(
                 this->line_no_,
@@ -1142,7 +1141,7 @@ void ConditionExpression::GenerateIR() {
           ir::gContextInfo.false_label_.pop();
 
           this->rhs_.GenerateIR();
-          if (!ir::gContextInfo.shape_.empty()) {
+          if (OPN_IS_NOT_INT) {
             // NOTE 语义错误 类型错误 条件表达式右边非int类型
             ir::SemanticError(
                 this->line_no_,
@@ -1189,7 +1188,7 @@ void ConditionExpression::GenerateIR() {
 
         this->rhs_.GenerateIR();
         // type check
-        if (!ir::gContextInfo.shape_.empty()) {
+        if (OPN_IS_NOT_INT) {
           // NOTE 语义错误 类型错误 条件表达式右边非int类型
           ir::SemanticError(
               this->line_no_,
@@ -1221,7 +1220,7 @@ void ConditionExpression::GenerateIR() {
   } else if (!lhs_is_cond && rhs_is_cond) {
     this->lhs_.GenerateIR();
     // type check
-    if (!ir::gContextInfo.shape_.empty()) {
+    if (OPN_IS_NOT_INT) {
       // NOTE 语义错误 类型错误 条件表达式左边非int类型
       ir::SemanticError(this->line_no_, ir::gContextInfo.opn_.name_ +
                                             ": condexp lhs exp type not int");
@@ -1345,7 +1344,7 @@ void ConditionExpression::GenerateIR() {
     // lhs_和rhs_都不是CondExp
     this->lhs_.GenerateIR();
     // type check
-    if (!ir::gContextInfo.shape_.empty()) {
+    if (OPN_IS_NOT_INT) {
       // NOTE 语义错误 类型错误 条件表达式左边非int类型
       ir::SemanticError(this->line_no_, ir::gContextInfo.opn_.name_ +
                                             ": condexp lhs exp type not int");
@@ -1360,7 +1359,7 @@ void ConditionExpression::GenerateIR() {
               {ir::IR::OpKind::JEQ, lhs_opn, IMM_0_OPN, false_label_opn});
 
           this->rhs_.GenerateIR();
-          if (!ir::gContextInfo.shape_.empty()) {
+          if (OPN_IS_NOT_INT) {
             // NOTE 语义错误 类型错误 条件表达式右边非int类型
             ir::SemanticError(
                 this->line_no_,
@@ -1382,7 +1381,7 @@ void ConditionExpression::GenerateIR() {
                                  LABEL_OPN(new_false_label)});
 
           this->rhs_.GenerateIR();
-          if (!ir::gContextInfo.shape_.empty()) {
+          if (OPN_IS_NOT_INT) {
             // NOTE 语义错误 类型错误 条件表达式右边非int类型
             ir::SemanticError(
                 this->line_no_,
@@ -1417,7 +1416,7 @@ void ConditionExpression::GenerateIR() {
                                  LABEL_OPN(new_true_label)});
 
           this->rhs_.GenerateIR();
-          if (!ir::gContextInfo.shape_.empty()) {
+          if (OPN_IS_NOT_INT) {
             // NOTE 语义错误 类型错误 条件表达式右边非int类型
             ir::SemanticError(
                 this->line_no_,
@@ -1443,7 +1442,7 @@ void ConditionExpression::GenerateIR() {
               {ir::IR::OpKind::JNE, lhs_opn, IMM_0_OPN, true_label_opn});
 
           this->rhs_.GenerateIR();
-          if (!ir::gContextInfo.shape_.empty()) {
+          if (OPN_IS_NOT_INT) {
             // NOTE 语义错误 类型错误 条件表达式右边非int类型
             ir::SemanticError(
                 this->line_no_,
@@ -1464,7 +1463,7 @@ void ConditionExpression::GenerateIR() {
       }
       default: {  // relop eqop
         this->rhs_.GenerateIR();
-        if (!ir::gContextInfo.shape_.empty()) {
+        if (OPN_IS_NOT_INT) {
           // NOTE 语义错误 类型错误 条件表达式右边非int类型
           ir::SemanticError(
               this->line_no_,

@@ -158,9 +158,9 @@ void IR::PrintIR() {
     // case IR::OpKind::OR:
     //   PRINT_IR("or");
     //   break;
-    case IR::OpKind::POS:
-      PRINT_IR("pos");
-      break;
+    // case IR::OpKind::POS:
+    //   PRINT_IR("pos");
+    //   break;
     case IR::OpKind::NEG:
       PRINT_IR("neg");
       break;
