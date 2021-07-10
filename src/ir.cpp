@@ -19,6 +19,8 @@
     printf(" %s", res_.offset_->name_.c_str());                         \
   printf("\n");
 
+namespace ir {
+
 SymbolTables gSymbolTables;
 FuncTable gFuncTable;
 std::vector<IR> gIRList;
@@ -248,3 +250,5 @@ void RuntimeError(const std::string &&error_msg) {
   std::cerr << "运行时错误: " << error_msg << std::endl;
   exit(1);
 }
+
+}  // namespace ir

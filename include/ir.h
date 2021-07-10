@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <vector>
 
+namespace ir {
 class SymbolTableItem {
  public:
   bool is_array_;
@@ -198,4 +199,5 @@ void PrintFuncTable();
 void SemanticError(int line_no, const std::string &&error_msg);
 void RuntimeError(const std::string &&error_msg);
 
+}  // namespace ir
 #endif
