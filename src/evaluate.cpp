@@ -113,9 +113,10 @@ void FunctionCall::Evaluate() {  //返回一个空ir::Opn
 
 // 填写initval信息
 void ArrayInitVal::Evaluate() {
-  auto &symbol_item = (*ir::gSymbolTables[ir::gContextInfo.current_scope_id_]
-                            .symbol_table_.find(ir::gContextInfo.array_name_))
-                          .second;
+  auto &symbol_item =
+      (*ir::gScopes[ir::gContextInfo.current_scope_id_].symbol_table_.find(
+           ir::gContextInfo.array_name_))
+          .second;
   if (this->is_exp_) {
     this->value_->Evaluate();
     if (ir::gContextInfo.opn_.type_ !=

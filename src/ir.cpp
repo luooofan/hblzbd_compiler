@@ -21,15 +21,15 @@
 
 namespace ir {
 
-SymbolTables gSymbolTables;
+Scopes gScopes;
 FuncTable gFuncTable;
 std::vector<IR> gIRList;
 ContextInfoInGenIR gContextInfo;
 
 const int kIntWidth = 4;
 
-void PrintSymbolTables() {
-  for (auto &symbol_table : gSymbolTables) {
+void PrintScopes() {
+  for (auto &symbol_table : gScopes) {
     symbol_table.Print();
   }
 }
@@ -74,7 +74,7 @@ void Scope::Print() {
 
 SymbolTableItem *FindSymbol(int scope_id, std::string name) {
   while (-1 != scope_id) {
-    auto &current_scope = gSymbolTables[scope_id];
+    auto &current_scope = gScopes[scope_id];
     auto &current_symbol_table = current_scope.symbol_table_;
     auto symbol_iter = current_symbol_table.find(name);
     if (symbol_iter == current_symbol_table.end()) {

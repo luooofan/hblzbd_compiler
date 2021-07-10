@@ -49,7 +49,7 @@ class Scope {
 
 SymbolTableItem *FindSymbol(int scope_id, std::string name);
 
-using SymbolTables = std::vector<Scope>;
+using Scopes = std::vector<Scope>;
 using FuncTable = std::unordered_map<std::string, FuncTableItem>;
 
 class Opn {
@@ -183,7 +183,7 @@ class ContextInfoInGenIR {
   ContextInfoInGenIR() : opn_({Opn::Type::Null}), current_scope_id_(0) {}
 };
 
-extern SymbolTables gSymbolTables;
+extern Scopes gScopes;
 extern FuncTable gFuncTable;
 extern std::vector<IR> gIRList;
 extern ContextInfoInGenIR gContextInfo;
@@ -194,7 +194,7 @@ std::string NewLabel();
 
 IR::OpKind GetOpKind(int op, bool reverse);
 
-void PrintSymbolTables();
+void PrintScopes();
 void PrintFuncTable();
 void SemanticError(int line_no, const std::string &&error_msg);
 void RuntimeError(const std::string &&error_msg);

@@ -24,7 +24,7 @@ int main(int argc, char **argv) {
     std::cout << "\nGenerate IR:" << std::endl;
     ast_root->GenerateIR();
     ir::PrintFuncTable();
-    ir::PrintSymbolTables();
+    ir::PrintScopes();
     std::cout << "IRList:" << std::endl;
     for (auto &ir : ir::gIRList) {
       ir.PrintIR();

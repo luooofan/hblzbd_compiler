@@ -32,7 +32,7 @@ void Root::GenerateIR() {
   ir::gFuncTable.insert({"starttime", {VOID}});
   ir::gFuncTable.insert({"stoptime", {VOID}});
   //创建一张全局符号表
-  ir::gSymbolTables.push_back({0, -1});
+  ir::gScopes.push_back({0, -1});
   ir::gContextInfo.current_scope_id_ = 0;
   for (const auto &ele : this->compunit_list_) {
     ele->GenerateIR();
@@ -104,11 +104,11 @@ void ArrayIdentifier::GenerateIR() {
 
     // // 计算当前维度偏移
     // std::string mul_temp = ir::NewTemp();
-    // ir::gSymbolTables[ir::gContextInfo.current_scope_id_].symbol_table_.insert(
+    // ir::gScopes[ir::gContextInfo.current_scope_id_].symbol_table_.insert(
     //     {mul_temp,
     //     {false, false,
-    //     ir::gSymbolTables[ir::gContextInfo.current_scope_id_].size_}});
-    // ir::gSymbolTables[ir::gContextInfo.current_scope_id_].size_ +=
+    //     ir::gScopes[ir::gContextInfo.current_scope_id_].size_}});
+    // ir::gScopes[ir::gContextInfo.current_scope_id_].size_ +=
     // ir::kIntWidth; ir::Opn mul_opn = ir::Opn(ir::Opn::Type::Var, nul_temp,
     // ir::gContextInfo.current_scope_id_); IR mul_ir = IR(ir::IR::OpKind::MUL,
     // ir::gContextInfo.opn_, ir::Opn(ir::Opn::Type::Imm, s->width_[i]),
@@ -116,11 +116,11 @@ void ArrayIdentifier::GenerateIR() {
 
     // //加到总偏移中
     // std::string add_temp = ir::NewTemp();
-    // ir::gSymbolTables[ir::gContextInfo.current_scope_id_].symbol_table_.insert(
+    // ir::gScopes[ir::gContextInfo.current_scope_id_].symbol_table_.insert(
     //     {add_temp,
     //     {false, false,
-    //     ir::gSymbolTables[ir::gContextInfo.current_scope_id_].size_}});
-    // ir::gSymbolTables[ir::gContextInfo.current_scope_id_].size_ +=
+    //     ir::gScopes[ir::gContextInfo.current_scope_id_].size_}});
+    // ir::gScopes[ir::gContextInfo.current_scope_id_].size_ +=
     // ir::kIntWidth; ir::Opn add_opn = ir::Opn(ir::Opn::Type::Var,)
 
     //构造一个二元表达式
@@ -220,12 +220,11 @@ void BinaryExpression::GenerateIR() {
     ir::gContextInfo.opn_ = temp;
   } else {
     std::string res_temp_var = ir::NewTemp();
-    ir::gSymbolTables[ir::gContextInfo.current_scope_id_].symbol_table_.insert(
+    ir::gScopes[ir::gContextInfo.current_scope_id_].symbol_table_.insert(
         {res_temp_var,
          {false, false,
-          ir::gSymbolTables[ir::gContextInfo.current_scope_id_].size_}});
-    ir::gSymbolTables[ir::gContextInfo.current_scope_id_].size_ +=
-        ir::kIntWidth;
+          ir::gScopes[ir::gContextInfo.current_scope_id_].size_}});
+    ir::gScopes[ir::gContextInfo.current_scope_id_].size_ += ir::kIntWidth;
     temp = ir::Opn(ir::Opn::Type::Var, res_temp_var,
                    ir::gContextInfo.current_scope_id_);
     ir::gContextInfo.opn_ = temp;
@@ -282,9 +281,9 @@ void UnaryExpression::GenerateIR() {
   } else {
     auto scope_id = ir::gContextInfo.current_scope_id_;
     std::string rhs_temp_var = ir::NewTemp();
-    ir::gSymbolTables[scope_id].symbol_table_.insert(
-        {rhs_temp_var, {false, false, ir::gSymbolTables[scope_id].size_}});
-    ir::gSymbolTables[scope_id].size_ += ir::kIntWidth;
+    ir::gScopes[scope_id].symbol_table_.insert(
+        {rhs_temp_var, {false, false, ir::gScopes[scope_id].size_}});
+    ir::gScopes[scope_id].size_ += ir::kIntWidth;
     ir::Opn temp = ir::Opn(ir::Opn::Type::Var, rhs_temp_var,
                            ir::gContextInfo.current_scope_id_);
     ir::gContextInfo.opn_ = temp;
@@ -368,9 +367,9 @@ void FunctionCall::GenerateIR() {
   if (ir::gFuncTable[name_.name_].ret_type_ == INT) {
     auto scope_id = ir::gContextInfo.current_scope_id_;
     std::string ret_var = ir::NewTemp();
-    ir::gSymbolTables[scope_id].symbol_table_.insert(
-        {ret_var, {false, false, ir::gSymbolTables[scope_id].size_}});
-    ir::gSymbolTables[scope_id].size_ += ir::kIntWidth;
+    ir::gScopes[scope_id].symbol_table_.insert(
+        {ret_var, {false, false, ir::gScopes[scope_id].size_}});
+    ir::gScopes[scope_id].size_ += ir::kIntWidth;
     ir::Opn temp = ir::Opn(ir::Opn::Type::Var, ret_var,
                            ir::gContextInfo.current_scope_id_);
     ir::gContextInfo.opn_ = temp;
@@ -386,7 +385,7 @@ void FunctionCall::GenerateIR() {
 }
 
 void VariableDefine::GenerateIR() {
-  auto &scope = ir::gSymbolTables[ir::gContextInfo.current_scope_id_];
+  auto &scope = ir::gScopes[ir::gContextInfo.current_scope_id_];
   auto &symbol_table = scope.symbol_table_;
   const auto &var_iter = symbol_table.find(this->name_.name_);
   // 得往上递归地找
@@ -395,7 +394,7 @@ void VariableDefine::GenerateIR() {
   // std::unordered_map<std::string,ir::SymbolTableItem> symbol_table;
   // while(scope_id!=-1)
   // {
-  //   scope = ir::gSymbolTables[ir::gContextInfo.current_scope_id_];
+  //   scope = ir::gScopes[ir::gContextInfo.current_scope_id_];
   //   symbol_table = scope.symbol_table_;
   //   const auto &var_iter = symbol_table.find(this->name_.name_);
   //   if(var_iter == symbol_table.end())scope_id=scope.parent_scope_id_;
@@ -411,7 +410,7 @@ void VariableDefine::GenerateIR() {
   }
 }
 void VariableDefineWithInit::GenerateIR() {
-  auto &scope = ir::gSymbolTables[ir::gContextInfo.current_scope_id_];
+  auto &scope = ir::gScopes[ir::gContextInfo.current_scope_id_];
   auto &symbol_table = scope.symbol_table_;
   const auto &var_iter = symbol_table.find(this->name_.name_);
   if (var_iter == symbol_table.end()) {
@@ -434,7 +433,7 @@ void VariableDefineWithInit::GenerateIR() {
   }
 }
 void ArrayDefine::GenerateIR() {
-  auto &scope = ir::gSymbolTables[ir::gContextInfo.current_scope_id_];
+  auto &scope = ir::gScopes[ir::gContextInfo.current_scope_id_];
   auto &symbol_table = scope.symbol_table_;
   const auto &var_iter = symbol_table.find(this->name_.name_.name_);
   if (var_iter == symbol_table.end()) {
@@ -465,7 +464,7 @@ void ArrayDefine::GenerateIR() {
 }
 void ArrayDefineWithInit::GenerateIR() {
   auto &name = this->name_.name_.name_;
-  auto &scope = ir::gSymbolTables[ir::gContextInfo.current_scope_id_];
+  auto &scope = ir::gScopes[ir::gContextInfo.current_scope_id_];
   auto &symbol_table = scope.symbol_table_;
   const auto &array_iter = symbol_table.find(name);
   if (array_iter == symbol_table.end()) {
@@ -529,13 +528,13 @@ void FunctionDefine::GenerateIR() {
     ir::gIRList.push_back(
         {ir::IR::OpKind::LABEL, LABEL_OPN(this->name_.name_)});
     int parent_scope_id = 0;
-    ir::gContextInfo.current_scope_id_ = ir::gSymbolTables.size();
-    ir::gSymbolTables.push_back(
+    ir::gContextInfo.current_scope_id_ = ir::gScopes.size();
+    ir::gScopes.push_back(
         {ir::gContextInfo.current_scope_id_, parent_scope_id});
     ir::gContextInfo.xingcan = true;
     for (const auto &arg : args_.arg_list_) {
       if (Identifier *ident = dynamic_cast<Identifier *>(&arg->name_)) {
-        auto &scope = ir::gSymbolTables[ir::gContextInfo.current_scope_id_];
+        auto &scope = ir::gScopes[ir::gContextInfo.current_scope_id_];
         auto &symbol_table = scope.symbol_table_;
         const auto &var_iter = symbol_table.find(ident->name_);
         if (var_iter == symbol_table.end()) {
@@ -549,7 +548,7 @@ void FunctionDefine::GenerateIR() {
         tmp->shape_list_.push_back(tmp1);
       } else if (ArrayIdentifier *arrident =
                      dynamic_cast<ArrayIdentifier *>(&arg->name_)) {
-        auto &scope = ir::gSymbolTables[ir::gContextInfo.current_scope_id_];
+        auto &scope = ir::gScopes[ir::gContextInfo.current_scope_id_];
         auto &symbol_table = scope.symbol_table_;
         const auto &var_iter = symbol_table.find(arrident->name_.name_);
         if (var_iter == symbol_table.end()) {
@@ -767,8 +766,8 @@ void Block::GenerateIR() {
   int parent_scope_id = ir::gContextInfo.current_scope_id_;
   ;
   if (ir::gContextInfo.xingcan == false) {
-    ir::gContextInfo.current_scope_id_ = ir::gSymbolTables.size();
-    ir::gSymbolTables.push_back(
+    ir::gContextInfo.current_scope_id_ = ir::gScopes.size();
+    ir::gScopes.push_back(
         {ir::gContextInfo.current_scope_id_, parent_scope_id});
   }
   ir::gContextInfo.xingcan = false;
@@ -974,9 +973,9 @@ void ConditionExpression::GenerateIR() {
         std::string lhs_temp_var = ir::NewTemp();
         // insert symboltable 之前一定没有
         int scope_id = ir::gContextInfo.current_scope_id_;
-        ir::gSymbolTables[scope_id].symbol_table_.insert(
-            {lhs_temp_var, {false, false, ir::gSymbolTables[scope_id].size_}});
-        ir::gSymbolTables[scope_id].size_ += ir::kIntWidth;
+        ir::gScopes[scope_id].symbol_table_.insert(
+            {lhs_temp_var, {false, false, ir::gScopes[scope_id].size_}});
+        ir::gScopes[scope_id].size_ += ir::kIntWidth;
         ir::Opn lhs_opn = {ir::Opn::Type::Var, lhs_temp_var, scope_id};
 
         // genir(assign,0,-,lhstmpvar)
@@ -997,9 +996,9 @@ void ConditionExpression::GenerateIR() {
 
         std::string rhs_temp_var = ir::NewTemp();
         // insert symboltable 之前一定没有
-        ir::gSymbolTables[scope_id].symbol_table_.insert(
-            {rhs_temp_var, {false, false, ir::gSymbolTables[scope_id].size_}});
-        ir::gSymbolTables[scope_id].size_ += ir::kIntWidth;
+        ir::gScopes[scope_id].symbol_table_.insert(
+            {rhs_temp_var, {false, false, ir::gScopes[scope_id].size_}});
+        ir::gScopes[scope_id].size_ += ir::kIntWidth;
         ir::Opn rhs_opn = {ir::Opn::Type::Var, rhs_temp_var, scope_id};
 
         // genir(assign,0,-,rhstmpvar)
@@ -1167,9 +1166,9 @@ void ConditionExpression::GenerateIR() {
         std::string lhs_temp_var = ir::NewTemp();
         // insert symboltable 之前一定没有
         int scope_id = ir::gContextInfo.current_scope_id_;
-        ir::gSymbolTables[scope_id].symbol_table_.insert(
-            {lhs_temp_var, {false, false, ir::gSymbolTables[scope_id].size_}});
-        ir::gSymbolTables[scope_id].size_ += ir::kIntWidth;
+        ir::gScopes[scope_id].symbol_table_.insert(
+            {lhs_temp_var, {false, false, ir::gScopes[scope_id].size_}});
+        ir::gScopes[scope_id].size_ += ir::kIntWidth;
         ir::Opn lhs_opn = {ir::Opn::Type::Var, lhs_temp_var, scope_id};
 
         // genir(assign,0,-,lhstmpvar)
@@ -1300,9 +1299,9 @@ void ConditionExpression::GenerateIR() {
         std::string rhs_temp_var = ir::NewTemp();
         // insert symboltable 之前一定没有
         int scope_id = ir::gContextInfo.current_scope_id_;
-        ir::gSymbolTables[scope_id].symbol_table_.insert(
-            {rhs_temp_var, {false, false, ir::gSymbolTables[scope_id].size_}});
-        ir::gSymbolTables[scope_id].size_ += ir::kIntWidth;
+        ir::gScopes[scope_id].symbol_table_.insert(
+            {rhs_temp_var, {false, false, ir::gScopes[scope_id].size_}});
+        ir::gScopes[scope_id].size_ += ir::kIntWidth;
         ir::Opn rhs_opn = {ir::Opn::Type::Var, rhs_temp_var, scope_id};
 
         // genir(assign,0,-,rhstmpvar)
