@@ -99,7 +99,6 @@ BinaryExpression::BinaryExpression(int line_no, int op, Expression &lhs,
 BinaryExpression::~BinaryExpression() {
   delete &(this->lhs_);
   delete &(this->rhs_);
-  // printf("2\n");
 }
 void BinaryExpression::PrintNode(int indentation, std::ostream &outfile) {
   PRINT_INDENT;

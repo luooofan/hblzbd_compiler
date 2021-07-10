@@ -111,7 +111,7 @@ class IR {
     NEG,     // (-,)负
     LABEL,   // (label,)
     PARAM,   // (param,)
-    CALL,    // (call,)
+    CALL,    // (call, func, num, res|-)
     RET,     // (ret,) or (ret,opn1,)
     GOTO,    // (goto,label)
     ASSIGN,  // (assign, opn1,-,res)
@@ -179,7 +179,8 @@ class ContextInfoInGenIR {
   std::stack<std::string> false_label_;
   // Used for Return Statement
   std::string current_func_name_;
-  bool xingcan;  //函数形参也要加在block的作用域里
+  // Used for Block
+  bool has_aug_scope;  //函数形参也要加在block的作用域里
 
   ContextInfoInGenIR() : opn_({Opn::Type::Null}), current_scope_id_(0) {}
 };

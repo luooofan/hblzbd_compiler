@@ -1,3 +1,4 @@
+#include <cassert>
 #include <cstdio>
 #include <stdexcept>
 
@@ -76,21 +77,28 @@ void Identifier::GenerateIR() {
   ir::gContextInfo.opn_ = opn;
 }
 
-// 这里有个点需要注意：如果是普通情况下取数组元素则shape_list_中的维度必须与符号表中维度相同，
+// NOTE:
+// 如果是普通情况下取数组元素则shape_list_中的维度必须与符号表中维度相同，
 // 但如果是函数调用中使用数组则可以传递指针shape_list_维度小于符号表中的维度即可
-// ？？？语义检查时是否区分这两种情况
-// 下面的实现按照不区分两种情况来写
+// 该检查交由caller来实现
 void ArrayIdentifier::GenerateIR() {
   ir::SymbolTableItem *s;
   s = ir::FindSymbol(ir::gContextInfo.current_scope_id_, name_.name_);
   if (!s) {
     ir::SemanticError(line_no_, name_.name_ + ": undefined variable");
+    return;
   }
+
+  // 结点中存的shape(可能比应有的shape的size小)比符号表中存的shape的size大
+  // eg. int a[2][3]; a[1][3][4]=1; 使用数组时维度错误
   if (shape_list_.size() > s->shape_.size()) {
     ir::SemanticError(line_no_,
                       name_.name_ + ": the dimension of array is not correct");
+    return;
   }
 
+  // 设置当前arrayidentifier的维度
+  // eg. int a[2][3][4]; a[0]'s shape is [3,4].
   ir::gContextInfo.shape_ =
       std::vector<int>(s->shape_.begin() + shape_list_.size(), s->shape_.end());
 
@@ -99,64 +107,30 @@ void ArrayIdentifier::GenerateIR() {
   //   printf("width: %d\n", s->width_[i]);
   // }
 
-  BinaryExpression *res = (BinaryExpression *)(new Number(0, 0));
-  BinaryExpression *add_exp;
-  BinaryExpression *mul_exp;
-  // 计算数组取值的偏移
-  for (int i = 0; i < shape_list_.size(); ++i) {
-    // shape_list_[i]->GenerateIR();
-
-    // // 计算当前维度偏移
-    // std::string mul_temp = ir::NewTemp();
-    // ir::gScopes[ir::gContextInfo.current_scope_id_].symbol_table_.insert(
-    //     {mul_temp,
-    //     {false, false,
-    //     ir::gScopes[ir::gContextInfo.current_scope_id_].size_}});
-    // ir::gScopes[ir::gContextInfo.current_scope_id_].size_ +=
-    // ir::kIntWidth; ir::Opn mul_opn = ir::Opn(ir::Opn::Type::Var, nul_temp,
-    // ir::gContextInfo.current_scope_id_); IR mul_ir = IR(ir::IR::OpKind::MUL,
-    // ir::gContextInfo.opn_, ir::Opn(ir::Opn::Type::Imm, s->width_[i]),
-    // mul_opn); ir::gIRList.push_back(mul_ir);
-
-    // //加到总偏移中
-    // std::string add_temp = ir::NewTemp();
-    // ir::gScopes[ir::gContextInfo.current_scope_id_].symbol_table_.insert(
-    //     {add_temp,
-    //     {false, false,
-    //     ir::gScopes[ir::gContextInfo.current_scope_id_].size_}});
-    // ir::gScopes[ir::gContextInfo.current_scope_id_].size_ +=
-    // ir::kIntWidth; ir::Opn add_opn = ir::Opn(ir::Opn::Type::Var,)
-
-    //构造一个二元表达式
-    Number *width = new Number(0, s->width_[i + 1]);
-    // printf("width: %d\n", s->width_[i + 1]);
-    mul_exp = new BinaryExpression(0, MUL, *width, *shape_list_[i]);
-    add_exp = new BinaryExpression(0, ADD, *mul_exp, *res);
-    res = add_exp;
-    if (i == shape_list_.size() - 1) {
-      res->GenerateIR();
-      // res -> PrintNode();
+  {
+    BinaryExpression *res;  // = (BinaryExpression *)(new Number(line_no_, 0));
+    BinaryExpression *add_exp;
+    BinaryExpression *mul_exp;
+    // 计算数组取值的偏移
+    if (shape_list_.size() > 0) {
+      res = new BinaryExpression(line_no_, MUL, *shape_list_[0],
+                                 *(new Number(line_no_, s->width_[1])));
     }
+    for (int i = 1; i < shape_list_.size(); ++i) {
+      //构造一个二元表达式
+      Number *width = new Number(line_no_, s->width_[i + 1]);
+      // printf("width: %d\n", s->width_[i + 1]);
+      mul_exp = new BinaryExpression(line_no_, MUL, *shape_list_[i], *width);
+      add_exp = new BinaryExpression(line_no_, ADD, *res, *mul_exp);
+      res = add_exp;
+    }
+    res->GenerateIR();
+    // res -> PrintNode();
   }
-  // a[b+1]
-  // ir::gContextInfo.array_offset_ = index;
-  // if(ir::gContextInfo.opn_.type_ == ir::Opn::Type::Imm)
-  // printf("******************************%d", ir::gContextInfo.opn_.imm_num_);
 
-  ir::Opn opn;
-  ir::Opn *offset = new ir::Opn();
-  offset->type_ = ir::gContextInfo.opn_.type_;
-  offset->imm_num_ = ir::gContextInfo.opn_.imm_num_;
-  offset->name_ = ir::gContextInfo.opn_.name_;
-  offset->scope_id_ = ir::gContextInfo.opn_.scope_id_;
-  offset->offset_ = ir::gContextInfo.opn_.offset_;
-  // if(offset -> type_ == ir::Opn::Type::Imm) opn = ir::Opn(ir::Opn::Type::Imm,
-  // s -> initval_[offset -> imm_num_ / 4]); else opn =
-  // ir::Opn(ir::Opn::Type::Array, name_.name_,
-  // ir::gContextInfo.current_scope_id_, offset);
-  opn = ir::Opn(ir::Opn::Type::Array, name_.name_,
-                ir::gContextInfo.current_scope_id_, offset);
-  ir::gContextInfo.opn_ = opn;
+  ir::Opn *offset = new ir::Opn(ir::gContextInfo.opn_);
+  ir::gContextInfo.opn_ = ir::Opn(ir::Opn::Type::Array, name_.name_,
+                                  ir::gContextInfo.current_scope_id_, offset);
 }
 
 void BinaryExpression::GenerateIR() {
@@ -169,6 +143,7 @@ void BinaryExpression::GenerateIR() {
     ir::SemanticError(this->line_no_,
                       ir::gContextInfo.opn_.name_ + ": lhs exp type not int");
   }
+
   rhs_.GenerateIR();
   opn2 = ir::gContextInfo.opn_;
   if (OPN_IS_NOT_INT) {
@@ -237,6 +212,7 @@ void BinaryExpression::GenerateIR() {
   }
 }
 
+// NOTE: 根据语义分析 单目运算取非操作 只会出现在条件表达式中
 void UnaryExpression::GenerateIR() {
   ir::Opn opn1;
 
@@ -360,7 +336,7 @@ void FunctionCall::GenerateIR() {
   // opn1 = ir::gContextInfo.opn_;
   // ir::gContextInfo.is_func_ = !ir::gContextInfo.is_func_;
 
-  opn1 = ir::Opn(ir::Opn::Type::Var, name_.name_,
+  opn1 = ir::Opn(ir::Opn::Type::Func, name_.name_,
                  ir::gContextInfo.current_scope_id_);
   opn2 = ir::Opn(ir::Opn::Type::Imm,
                  ir::gFuncTable[name_.name_].shape_list_.size());
@@ -411,6 +387,7 @@ void VariableDefine::GenerateIR() {
                       this->name_.name_ + ": variable redefined");
   }
 }
+
 void VariableDefineWithInit::GenerateIR() {
   auto &scope = ir::gScopes[ir::gContextInfo.current_scope_id_];
   auto &symbol_table = scope.symbol_table_;
@@ -434,6 +411,7 @@ void VariableDefineWithInit::GenerateIR() {
                       this->name_.name_ + ": variable redefined");
   }
 }
+
 void ArrayDefine::GenerateIR() {
   auto &scope = ir::gScopes[ir::gContextInfo.current_scope_id_];
   auto &symbol_table = scope.symbol_table_;
@@ -464,6 +442,7 @@ void ArrayDefine::GenerateIR() {
                       this->name_.name_.name_ + ": variable redefined");
   }
 }
+
 void ArrayDefineWithInit::GenerateIR() {
   auto &name = this->name_.name_.name_;
   auto &scope = ir::gScopes[ir::gContextInfo.current_scope_id_];
@@ -474,13 +453,9 @@ void ArrayDefineWithInit::GenerateIR() {
     // 填shape
     for (const auto &shape : this->name_.shape_list_) {
       shape->Evaluate();
-      if (ir::gContextInfo.opn_.type_ != ir::Opn::Type::Imm) {
-        // 语义错误 数组维度应为常量表达式
-        ir::SemanticError(this->line_no_, "array dim should be constexp.");
-        return;
-      } else {
-        symbol_item.shape_.push_back(ir::gContextInfo.opn_.imm_num_);
-      }
+      // 如果Evaluate没有执行成功会直接退出程序
+      // 如果执行成功说明返回的一定是立即数
+      symbol_item.shape_.push_back(ir::gContextInfo.opn_.imm_num_);
     }
     // 填width和dim total num
     std::stack<int> temp_width;
@@ -519,6 +494,9 @@ void ArrayDefineWithInit::GenerateIR() {
     } else {
       this->value_.GenerateIR();
     }
+  } else {
+    ir::SemanticError(this->line_no_,
+                      this->name_.name_.name_ + ": variable redefined");
   }
 }
 
@@ -532,7 +510,7 @@ void FunctionDefine::GenerateIR() {
     ir::gContextInfo.current_scope_id_ = ir::gScopes.size();
     ir::gScopes.push_back(
         {ir::gContextInfo.current_scope_id_, parent_scope_id});
-    ir::gContextInfo.xingcan = true;
+    ir::gContextInfo.has_aug_scope = true;
     for (const auto &arg : args_.arg_list_) {
       if (Identifier *ident = dynamic_cast<Identifier *>(&arg->name_)) {
         auto &scope = ir::gScopes[ir::gContextInfo.current_scope_id_];
@@ -555,13 +533,11 @@ void FunctionDefine::GenerateIR() {
         if (var_iter == symbol_table.end()) {
           auto tmp1 = new ir::SymbolTableItem(true, false, scope.size_);
           //计算shape和width
-          tmp1->shape_.push_back(
-              -1);  //第一维因为文法规定必须留空，所以我这里记个-1
+          tmp1->shape_.push_back(-1);  //第一维因为文法规定必须留空，这里记-1
           for (const auto &shape : arrident->shape_list_) {
             shape->Evaluate();
-            tmp1->shape_.push_back(
-                ir::gContextInfo.opn_
-                    .imm_num_);  // shape的类型必定为常量表达式，所以opn一定是立即数
+            tmp1->shape_.push_back(ir::gContextInfo.opn_.imm_num_);
+            // shape的类型必定为常量表达式，所以opn一定是立即数
           }
           tmp1->width_.resize(tmp1->shape_.size() + 1);
           if (tmp1->shape_.size()) {
@@ -585,25 +561,22 @@ void FunctionDefine::GenerateIR() {
     this->body_.GenerateIR();
     // 以下判断只有在返回类型为int并且无return语句才有用，如果返回类型为int并且写了个return;则bison
     // 会报段错误（不知道为啥）
-    if (return_type_ == 289 &&
-        ir::gContextInfo.has_return == false)  // 这是parser.hpp中INT的值
+    if (return_type_ == INT && ir::gContextInfo.has_return == false)
       ir::SemanticError(
           this->line_no_,
           this->name_.name_ +
               ": function's return type is INT,but does not return anything");
+    // Set current_scope_id
+    ir::gContextInfo.current_scope_id_ = 0;
   } else {
     ir::SemanticError(this->line_no_,
                       this->name_.name_ + ": function redefined");
   }
-
-  // printf("1*******************\n");
 }
 
 void AssignStatement::GenerateIR() {
   this->rhs_.GenerateIR();
-  if (OPN_IS_NOT_INT) {
-    // not int
-    // NOTE 语义错误 类型错误 表达式结果非int类型
+  if (OPN_IS_NOT_INT) {  // NOTE 语义错误 类型错误 表达式结果非int类型
     ir::SemanticError(this->line_no_, ir::gContextInfo.opn_.name_ +
                                           ": rhs exp res type not int");
   }
@@ -611,26 +584,23 @@ void AssignStatement::GenerateIR() {
 
   this->lhs_.GenerateIR();
   ir::Opn &lhs_opn = ir::gContextInfo.opn_;
-  // if (lhs_opn.type_ == ir::Opn::Type::Var) {
-  ir::SymbolTableItem *target_symbol_item =
-      ir::FindSymbol(ir::gContextInfo.current_scope_id_, lhs_opn.name_);
-  if (nullptr == target_symbol_item) {
-    // NOTE 语义错误 变量未定义
+
+  if (OPN_IS_NOT_INT ||
+      lhs_opn.type_ == ir::Opn::Type::Null  // TODO: What Condition?
+  ) {  // NOTE 语义错误 类型错误 左值非int类型
     ir::SemanticError(this->line_no_,
-                      "use undefined variable: " + lhs_opn.name_);
-  } else {
-    // type check
-    if (OPN_IS_NOT_INT || ir::gContextInfo.opn_.type_ == ir::Opn::Type::Null) {
-      // NOTE 语义错误 类型错误 左值非int类型
-      ir::SemanticError(this->line_no_,
-                        lhs_opn.name_ + ": leftvalue type not int");
-    }
-    // const check
-    if (target_symbol_item->is_const_) {
-      // NOTE 语义错误 给const量赋值
-      ir::SemanticError(this->line_no_,
-                        lhs_opn.name_ + ": constant can't be assigned");
-    }
+                      lhs_opn.name_ + ": leftvalue type not int");
+    return;
+  }
+
+  ir::SymbolTableItem *symbol =
+      ir::FindSymbol(ir::gContextInfo.current_scope_id_, lhs_opn.name_);
+
+  // const check
+  if (nullptr != symbol && symbol->is_const_) {  // NOTE 语义错误 给const量赋值
+    ir::SemanticError(this->line_no_,
+                      lhs_opn.name_ + ": constant can't be assigned");
+    return;
   }
 
   // genir(assign,opn1,-,res)
@@ -676,6 +646,7 @@ void WhileStatement::GenerateIR() {
   ir::gContextInfo.true_label_.pop();
   ir::gContextInfo.false_label_.pop();
 
+  // maybe useless
   ir::gContextInfo.break_label_.push(label_next);
   ir::gContextInfo.continue_label_.push(label_begin);
 
@@ -691,7 +662,7 @@ void WhileStatement::GenerateIR() {
 
 void BreakStatement::GenerateIR() {
   // 检查是否在while循环中
-  if (ir::gContextInfo.break_label_.empty()) {  // not in while loop
+  if (ir::gContextInfo.break_label_.empty()) {
     // NOTE: 语义错误 break语句位置错误
     ir::SemanticError(this->line_no_, "'break' not in while loop");
   } else {
@@ -704,7 +675,7 @@ void BreakStatement::GenerateIR() {
 
 void ContinueStatement::GenerateIR() {
   // 检查是否在while循环中
-  if (ir::gContextInfo.continue_label_.empty()) {  // not in while loop
+  if (ir::gContextInfo.continue_label_.empty()) {
     // NOTE: 语义错误 break语句位置错误
     ir::SemanticError(this->line_no_, "'continue' not in while loop");
   } else {
@@ -718,12 +689,12 @@ void ContinueStatement::GenerateIR() {
 void ReturnStatement::GenerateIR() {
   // [return]语句必然出现在函数定义中
   // 返回类型检查
-  auto func_iter = ir::gFuncTable.find(ir::gContextInfo.current_func_name_);
-  if (func_iter == ir::gFuncTable.end()) {
-    // NOTE 语义错误 函数未声明定义
+  auto &func_name = ir::gContextInfo.current_func_name_;
+  auto func_iter = ir::gFuncTable.find(func_name);
+  if (func_iter == ir::gFuncTable.end()) {  // NOTE 语义错误 函数未声明定义
     ir::SemanticError(this->line_no_,
-                      "return statement in undeclared function: " +
-                          ir::gContextInfo.current_func_name_);
+                      "return statement in undeclared function: " + func_name);
+    return;
   } else {
     int ret_type = (*func_iter).second.ret_type_;
     if (ret_type == VOID) {
@@ -731,12 +702,9 @@ void ReturnStatement::GenerateIR() {
       if (nullptr == this->value_) {
         // genir (ret,-,-,-)
         ir::gIRList.push_back({ir::IR::OpKind::RET});
-      } else {
-        // NOTE 语义错误 函数返回类型不匹配 应为void
-        ir::SemanticError(
-            this->line_no_,
-            "function ret type should be VOID according to function: " +
-                ir::gContextInfo.current_func_name_);
+      } else {  // NOTE 语义错误 函数返回类型不匹配 应为void
+        ir::SemanticError(this->line_no_,
+                          "function ret type should be VOID: " + func_name);
       }
     } else {
       // return exp(int);
@@ -747,13 +715,12 @@ void ReturnStatement::GenerateIR() {
         ir::gIRList.push_back({ir::IR::OpKind::RET, ir::gContextInfo.opn_});
       } else {
         // NOTE 语义错误 函数返回类型不匹配 应为int
-        ir::SemanticError(
-            this->line_no_,
-            "function ret type should be INT according to function: " +
-                ir::gContextInfo.current_func_name_);
+        ir::SemanticError(this->line_no_,
+                          "function ret type should be INT: " + func_name);
       }
     }
     ir::gContextInfo.has_return = true;
+    return;
   }
 }
 
@@ -762,47 +729,35 @@ void VoidStatement::GenerateIR() {}
 void EvalStatement::GenerateIR() { this->value_.GenerateIR(); }
 
 void Block::GenerateIR() {
-  // new scope
   int parent_scope_id = ir::gContextInfo.current_scope_id_;
-  ;
-  if (ir::gContextInfo.xingcan == false) {
-    ir::gContextInfo.current_scope_id_ = ir::gScopes.size();
-    ir::gScopes.push_back(
-        {ir::gContextInfo.current_scope_id_, parent_scope_id});
+  int &scope_id = ir::gContextInfo.current_scope_id_;
+  if (!ir::gContextInfo.has_aug_scope) {
+    // new scope
+    scope_id = ir::gScopes.size();
+    ir::gScopes.push_back({scope_id, parent_scope_id});
   }
-  ir::gContextInfo.xingcan = false;
+  ir::gContextInfo.has_aug_scope = false;
   for (const auto &stmt : this->statement_list_) {
     stmt->GenerateIR();
   }
   // src scope
-  ir::gContextInfo.current_scope_id_ = parent_scope_id;
+  scope_id = parent_scope_id;
 }
 
 void DeclareStatement::GenerateIR() {
-  // TODO 未完成
   for (const auto &def : this->define_list_) {
     def->GenerateIR();
   }
 }
 
-// const int c[2][3][4] = {1, {2}, 3,4,{5, 6, 7, 8},9, 10,  {11}, {12}, {13, 14,
-// {15}, 16, {17}, {21}}};
-// int c[2][3][4]={1,{2},3,4,{5},9,10,{11},{12},{13, 14, {15},16,{17},{21}}};
-// int c[2][3][4]={{1},{13, 14, {15},16,{17},{21}}};
-
 void ArrayInitVal::GenerateIR() {
   if (this->is_exp_) {
     this->value_->GenerateIR();
-    if (!ir::gContextInfo.shape_
-             .empty()) {  // NOTE 语义错误 类型错误 值非int类型
+    if (OPN_IS_NOT_INT) {  // NOTE 语义错误 类型错误 值非int类型
       ir::SemanticError(this->line_no_,
                         ir::gContextInfo.opn_.name_ + ": exp type not int");
     }
     // genir([]=,expvalue,-,arrayname offset)
-    // ir::gIRList.push_back({ir::IR::OpKind::OFFSET_ASSIGN,
-    //                    ir::gContextInfo.opn_,
-    //                    {ir::Opn::Type::Var, ir::gContextInfo.array_name_},
-    //                    ir::gContextInfo.array_offset_ * 4});
     ir::gIRList.push_back({ir::IR::OpKind::/*OFFSET_*/ ASSIGN,
                            ir::gContextInfo.opn_,
                            {ir::Opn::Type::Array, ir::gContextInfo.array_name_,
@@ -843,10 +798,6 @@ void ArrayInitVal::GenerateIR() {
       // 补0补到finaloffset
       while (offset < final_offset) {
         // genir([]=,0,-,arrayname offset)
-        // ir::gIRList.push_back({ir::IR::OpKind::OFFSET_ASSIGN,
-        //                    IMM_0_OPN,
-        //                    {ir::Opn::Type::Var,
-        //                    ir::gContextInfo.array_name_}, (offset++ * 4)});
         ir::gIRList.push_back(
             {ir::IR::OpKind::/*OFFSET_*/ ASSIGN,
              IMM_0_OPN,
@@ -861,23 +812,35 @@ void ArrayInitVal::GenerateIR() {
     }
   }
 }
-void FunctionFormalParameter::GenerateIR() {}
-void FunctionFormalParameterList::GenerateIR() {}
-void FunctionActualParameterList::GenerateIR() {}
-// int main(){if(1<=1){2;}}
 
+void FunctionFormalParameter::GenerateIR() {}
+
+void FunctionFormalParameterList::GenerateIR() {}
+
+void FunctionActualParameterList::GenerateIR() {}
+
+// NOTE:
+// 只有if和while中会用到Cond
+// 条件表达式并不会维护上下文中的Opn和Shape 所有的条件都会转化为跳转语句执行
+// 由于考虑了
+//  1.lhs和rhs是CondExp还是AddExp
+//  2.操作符是And Or 还是其他
+//  3.truelabel和falselabel是否可为空
+// 导致代码量过多
+// 每种情况的处理逻辑如下:
 // if ("null" == true_label && "null" != false_label) {
 // } else if ("null" != true_label && "null" == false_label) {
 // } else if ("null" != true_label && "null" != false_label) {
 // } else {
 //   // ERROR
 // }
-
+// 或者:
 // if ("null" != false_label) {
 // } else if ("null" != true_label) {
 // } else {
 //   // ERROR
 // }
+// TODO: 对lhs和rhs都是立即数的情况简化处理
 void ConditionExpression::GenerateIR() {
   bool lhs_is_cond = false;
   bool rhs_is_cond = false;
@@ -891,6 +854,7 @@ void ConditionExpression::GenerateIR() {
     rhs_is_cond = true;
   } catch (std::bad_cast &e) {
   }
+
   std::string &true_label = ir::gContextInfo.true_label_.top();
   std::string &false_label = ir::gContextInfo.false_label_.top();
   ir::Opn true_label_opn = LABEL_OPN(true_label);
@@ -1220,9 +1184,7 @@ void ConditionExpression::GenerateIR() {
     }
   } else if (!lhs_is_cond && rhs_is_cond) {
     this->lhs_.GenerateIR();
-    // type check
-    if (OPN_IS_NOT_INT) {
-      // NOTE 语义错误 类型错误 条件表达式左边非int类型
+    if (OPN_IS_NOT_INT) {  // NOTE 语义错误 类型错误 条件表达式左边非int类型
       ir::SemanticError(this->line_no_, ir::gContextInfo.opn_.name_ +
                                             ": condexp lhs exp type not int");
     }
@@ -1344,9 +1306,7 @@ void ConditionExpression::GenerateIR() {
   } else {
     // lhs_和rhs_都不是CondExp
     this->lhs_.GenerateIR();
-    // type check
-    if (OPN_IS_NOT_INT) {
-      // NOTE 语义错误 类型错误 条件表达式左边非int类型
+    if (OPN_IS_NOT_INT) {  // NOTE 语义错误 类型错误 条件表达式左边非int类型
       ir::SemanticError(this->line_no_, ir::gContextInfo.opn_.name_ +
                                             ": condexp lhs exp type not int");
     }
