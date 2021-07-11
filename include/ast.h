@@ -84,7 +84,7 @@ class Identifier : public LeftValue {
 class ArrayIdentifier : public LeftValue {
  public:
   Identifier& name_;
-  std::vector<Expression*> shape_list_;
+  std::vector<std::shared_ptr<Expression>> shape_list_;
   ArrayIdentifier(int line_no, Identifier& name);
   virtual ~ArrayIdentifier();
   virtual void GenerateIR();
@@ -109,9 +109,10 @@ class ConditionExpression : public Expression {
 class BinaryExpression : public Expression {
  public:
   int op_;
-  Expression& lhs_;
+  std::shared_ptr<Expression> lhs_;
   Expression& rhs_;
-  BinaryExpression(int line_no, int op, Expression& lhs, Expression& rhs);
+  BinaryExpression(int line_no, int op, std::shared_ptr<Expression> lhs,
+                   Expression& rhs);
   virtual ~BinaryExpression();
   virtual void GenerateIR();
   virtual void Evaluate();

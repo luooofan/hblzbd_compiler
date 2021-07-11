@@ -51,7 +51,8 @@ void ConditionExpression::Evaluate() {
 void BinaryExpression::Evaluate() {
   int l, r, res;
 
-  lhs_.Evaluate();
+  // lhs_.Evaluate();
+  lhs_->Evaluate();
   l = ir::gContextInfo.opn_.imm_num_;
   rhs_.Evaluate();
   r = ir::gContextInfo.opn_.imm_num_;

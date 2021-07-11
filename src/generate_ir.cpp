@@ -108,26 +108,29 @@ void ArrayIdentifier::GenerateIR() {
   // }
 
   {
-    BinaryExpression *res;  // = (BinaryExpression *)(new Number(line_no_, 0));
+    BinaryExpression *res = nullptr;
     BinaryExpression *add_exp;
     BinaryExpression *mul_exp;
     // 计算数组取值的偏移
     if (shape_list_.size() > 0) {
-      res = new BinaryExpression(line_no_, MUL, *shape_list_[0],
+      res = new BinaryExpression(line_no_, MUL, shape_list_[0],
                                  *(new Number(line_no_, s->width_[1])));
     }
     for (int i = 1; i < shape_list_.size(); ++i) {
       //构造一个二元表达式
       Number *width = new Number(line_no_, s->width_[i + 1]);
       // printf("width: %d\n", s->width_[i + 1]);
-      mul_exp = new BinaryExpression(line_no_, MUL, *shape_list_[i], *width);
-      add_exp = new BinaryExpression(line_no_, ADD, *res, *mul_exp);
+      mul_exp = new BinaryExpression(line_no_, MUL, shape_list_[i], *width);
+      add_exp = new BinaryExpression(
+          line_no_, ADD, std::shared_ptr<Expression>(res), *mul_exp);
       res = add_exp;
     }
-    res->GenerateIR();
-    // res -> PrintNode();
+    if (nullptr != res) {
+      res->GenerateIR();
+      // res -> PrintNode();
+      delete res;
+    }
   }
-
   ir::Opn *offset = new ir::Opn(ir::gContextInfo.opn_);
   ir::gContextInfo.opn_ = ir::Opn(ir::Opn::Type::Array, name_.name_,
                                   ir::gContextInfo.current_scope_id_, offset);
@@ -137,7 +140,8 @@ void BinaryExpression::GenerateIR() {
   ir::Opn opn1, opn2, temp;
   ir::IR::OpKind op;
 
-  lhs_.GenerateIR();
+  // lhs_.GenerateIR();
+  lhs_->GenerateIR();
   opn1 = ir::gContextInfo.opn_;
   if (OPN_IS_NOT_INT) {
     ir::SemanticError(this->line_no_,

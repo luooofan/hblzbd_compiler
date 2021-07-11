@@ -62,9 +62,9 @@ ArrayIdentifier::ArrayIdentifier(int line_no, Identifier &name)
     : LeftValue(line_no), name_(name) {}
 ArrayIdentifier::~ArrayIdentifier() {
   delete &name_;
-  for (auto &ptr : shape_list_) {
-    delete ptr;
-  }
+  // for (auto &ptr : shape_list_) {
+  //   delete ptr;
+  // }
 }
 void ArrayIdentifier::PrintNode(int indentation, std::ostream &outfile) {
   PRINT_INDENT;
@@ -93,18 +93,20 @@ void ConditionExpression::PrintNode(int indentation, std::ostream &outfile) {
   this->rhs_.PRINT_NODE;
 }
 
-BinaryExpression::BinaryExpression(int line_no, int op, Expression &lhs,
+BinaryExpression::BinaryExpression(int line_no, int op,
+                                   std::shared_ptr<Expression> lhs,
                                    Expression &rhs)
-    : Expression(line_no), op_(op), lhs_(lhs), rhs_(rhs) {}
+    : Expression(line_no), op_(op), lhs_(std::move(lhs)), rhs_(rhs) {}
 BinaryExpression::~BinaryExpression() {
-  delete &(this->lhs_);
+  // delete &(this->lhs_);
   delete &(this->rhs_);
 }
 void BinaryExpression::PrintNode(int indentation, std::ostream &outfile) {
   PRINT_INDENT;
   outfile << "BinaryExpression OP: " << OP_STRING(this->op_) << LINE_NO
           << std::endl;
-  this->lhs_.PRINT_NODE;
+  // this->lhs_.PRINT_NODE;
+  this->lhs_->PRINT_NODE;
   this->rhs_.PRINT_NODE;
 }
 
