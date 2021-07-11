@@ -152,36 +152,9 @@ void IR::PrintIR() {
     case IR::OpKind::MOD:
       PRINT_IR("mod");
       break;
-    // case IR::OpKind::AND:
-    //   PRINT_IR("and");
-    //   break;
-    // case IR::OpKind::OR:
-    //   PRINT_IR("or");
-    //   break;
-    // case IR::OpKind::POS:
-    //   PRINT_IR("pos");
-    //   break;
     case IR::OpKind::NEG:
       PRINT_IR("neg");
       break;
-    // case IR::OpKind::GT:
-    //   PRINT_IR(">");
-    //   break;
-    // case IR::OpKind::GE:
-    //   PRINT_IR(">=");
-    //   break;
-    // case IR::OpKind::LT:
-    //   PRINT_IR("<");
-    //   break;
-    // case IR::OpKind::LE:
-    //   PRINT_IR("<=");
-    //   break;
-    // case IR::OpKind::EQ:
-    //   PRINT_IR("==");
-    //   break;
-    // case IR::OpKind::NE:
-    //   PRINT_IR("!=");
-    //   break;
     case IR::OpKind::NOT:
       PRINT_IR("not");
       break;
@@ -222,17 +195,9 @@ void IR::PrintIR() {
       PRINT_IR("call");
       break;
     // case IR::OpKind::OFFSET_ASSIGN:
-    //   // printf("(%10s,%10s,%10s,%6s+%3d)\n", "[]=",
-    //   this->opn1_.name_.c_str(),
-    //   //        this->opn2_.name_.c_str(), this->res_.name_.c_str(),
-    //   //        this->offset_);
     //   PRINT_IR("[]=");
     //   break;
     // case IR::OpKind::ASSIGN_OFFSET:
-    //   // printf("(%10s,%6s+%3d,%10s,%10s)\n", "=[]",
-    //   this->opn1_.name_.c_str(),
-    //   //        this->offset_, this->opn2_.name_.c_str(),
-    //   //        this->res_.name_.c_str());
     //   PRINT_IR("=[]");
     //   break;
     default:

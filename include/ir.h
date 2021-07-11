@@ -93,21 +93,12 @@ class Opn {
 class IR {
  public:
   enum class OpKind {
-    ADD,  // (+,)
-    SUB,  // (-,)
-    MUL,  // (*,)
-    DIV,  // (/,)
-    MOD,  // (%,)
-    // AND,            // (&&,)
-    // OR,             // (||,)
-    // GT,             // (>,)
-    // LT,             // (<,)
-    // LE,             // (<=,)
-    // GE,             // (>=,)
-    // EQ,             // (==,)
-    // NE,             // (!=,)
-    NOT,  // (!,)
-    // POS,     // (+,)正
+    ADD,     // (+,)
+    SUB,     // (-,)
+    MUL,     // (*,)
+    DIV,     // (/,)
+    MOD,     // (%,)
+    NOT,     // (!,)
     NEG,     // (-,)负
     LABEL,   // (label,)
     PARAM,   // (param,)
@@ -124,8 +115,6 @@ class IR {
     VOID,    // useless
     // OFFSET_ASSIGN,  // []=
     // ASSIGN_OFFSET,  // =[]
-
-    // ...
   };
   OpKind op_;
   Opn opn1_, opn2_, res_;
