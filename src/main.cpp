@@ -1,5 +1,9 @@
+#include <fstream>
+
+#include "../include/arm_struct.h"
 #include "../include/ast.h"
 #include "../include/ir.h"
+#include "../include/ir_struct.h"
 #include "parser.hpp"
 ast::Root *ast_root;  // the root node of final AST
 extern int yyparse();
@@ -20,15 +24,23 @@ int main(int argc, char **argv) {
   yyset_lineno(1);
   yyparse();  // if success, ast_root is valid
   if (nullptr != ast_root) {
-    ast_root->PrintNode(0, std::cout);
-    std::cout << "\nGenerate IR:" << std::endl;
+    // ast_root->PrintNode(0, std::cout);
+    // std::cout << "\nGenerate IR:" << std::endl;
     ast_root->GenerateIR();
-    ir::PrintFuncTable();
-    ir::PrintScopes();
+    // ir::PrintFuncTable();
+    // ir::PrintScopes();
     std::cout << "IRList:" << std::endl;
     for (auto &ir : ir::gIRList) {
       ir.PrintIR();
     }
+    ir::Module *ir_module = ir::ConstructModule();
+    arm::Module *arm_module = arm::GenerateAsm(ir_module);
+    std::ofstream outfile;
+    outfile.open("./arm_code.s");
+    std::cout << "EmitCode Begin" << std::endl;
+    arm_module->EmitCode(outfile);
+    std::cout << "EmitCode End" << std::endl;
+    outfile.close();
   }
 
   yylex_destroy();
