@@ -13,4 +13,8 @@ src/parser.cpp
 src/parser.hpp
 src/scanner.c
 src/struct.h
+src/asm.cpp
+src/main2.cpp
+*_struct.*
 .vscode/
+arm_code.s

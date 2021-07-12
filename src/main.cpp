@@ -5,8 +5,6 @@ ast::Root *ast_root;  // the root node of final AST
 extern int yyparse();
 extern int yylex_destroy();
 extern void yyset_lineno(int _line_number);
-extern void PrintFuncTable();
-extern void PrintSymbolTables();
 
 int main(int argc, char **argv) {
   char *in = nullptr;
@@ -22,13 +20,13 @@ int main(int argc, char **argv) {
   yyset_lineno(1);
   yyparse();  // if success, ast_root is valid
   if (nullptr != ast_root) {
-    ast_root->PrintNode();
+    ast_root->PrintNode(0, std::cout);
     std::cout << "\nGenerate IR:" << std::endl;
     ast_root->GenerateIR();
-    PrintFuncTable();
-    PrintSymbolTables();
+    ir::PrintFuncTable();
+    ir::PrintScopes();
     std::cout << "IRList:" << std::endl;
-    for (auto &ir : gIRList) {
+    for (auto &ir : ir::gIRList) {
       ir.PrintIR();
     }
   }

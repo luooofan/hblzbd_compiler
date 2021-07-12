@@ -152,11 +152,11 @@ ConstDefArray: ArrayIdent ASSIGN InitValArray {
 
 ArrayIdent: Ident LSQUARE Exp RSQUARE {
     $$=new ast::ArrayIdentifier(yyget_lineno(), *$1);
-    $$->shape_list_.push_back($3);
+    $$->shape_list_.push_back(std::shared_ptr<ast::Expression>($3));
 }
     | ArrayIdent LSQUARE Exp RSQUARE {
         $$=$1;
-        $$->shape_list_.push_back($3);
+        $$->shape_list_.push_back(std::shared_ptr<ast::Expression>($3));
     }
     ;
 
@@ -264,7 +264,7 @@ FuncFParamArray: BType Ident LSQUARE RSQUARE {
 }
     | FuncFParamArray LSQUARE Exp RSQUARE {
         $$=$1;
-        dynamic_cast<ast::ArrayIdentifier&>($$->name_).shape_list_.push_back($3);
+        dynamic_cast<ast::ArrayIdentifier&>($$->name_).shape_list_.push_back(std::shared_ptr<ast::Expression>($3));
     }
     ;
 
@@ -404,13 +404,13 @@ FuncRParamList: Exp {
 
 MulExp: UnaryExp
     | MulExp MulOp UnaryExp {
-        $$=static_cast<ast::Expression*>(new ast::BinaryExpression(yyget_lineno(), $2,*$1,*$3));
+        $$=static_cast<ast::Expression*>(new ast::BinaryExpression(yyget_lineno(), $2, std::shared_ptr<ast::Expression>($1), *$3));
     }
     ;
 
 AddExp: MulExp
     | AddExp AddOp MulExp {
-        $$=static_cast<ast::Expression*>(new ast::BinaryExpression(yyget_lineno(), $2,*$1,*$3));
+        $$=static_cast<ast::Expression*>(new ast::BinaryExpression(yyget_lineno(), $2, std::shared_ptr<ast::Expression>($1), *$3));
     }
     ;
 
