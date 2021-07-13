@@ -41,7 +41,7 @@ Module* GenerateAsm(ir::Module* module) {
     // 需要在第一个基本块 维护栈 保护寄存器
     // 需要在最后一个基本块 维护栈 恢复寄存器
     // 但是此时并不明确到底该如何做
-    Function* armfunc = new Function(func->func_name_);
+    Function* armfunc = new Function(func->func_name_, func->stack_size_);
     func_map.insert({func, armfunc});
     armmodule->func_list_.push_back(armfunc);
 
@@ -438,7 +438,8 @@ Module* GenerateAsm(ir::Module* module) {
       auto iter = func_map.find(callee);
       if (iter == func_map.end()) {
         // buildin system library function
-        armfunc->call_func_list_.push_back(new Function(callee->func_name_));
+        armfunc->call_func_list_.push_back(
+            new Function(callee->func_name_, callee->stack_size_));
       } else {
         armfunc->call_func_list_.push_back((*iter).second);
       }
@@ -450,10 +451,7 @@ Module* GenerateAsm(ir::Module* module) {
   // 需要知道函数使用的栈大小 过程中操作的寄存器 才能决定最终指令
   // 可以等寄存器分配之后再插入
   // 函数开头要-sp 参数也要作为栈空间的一部分 把参数从寄存器中取出放入栈中
-  // TODO:
-  // 数组类型暂时没处理
-  // 商和取余和取非操作目前没实现
-  // ret语句 B lr?
+
   return armmodule;
 }
 

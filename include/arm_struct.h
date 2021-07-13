@@ -291,11 +291,13 @@ class Function {
   // all BasicBlocks
   std::string func_name_;
   std::vector<BasicBlock*> bb_list_;
+  int stack_size_;
 
   // optional
   // Function*
   std::vector<Function*> call_func_list_;
-  Function(std::string func_name) : func_name_(func_name) {}
+  Function(std::string func_name, int stack_size)
+      : func_name_(func_name), stack_size_(stack_size) {}
   //   void Print();
   bool IsLeaf() { return call_func_list_.empty(); }
   void EmitCode(std::ostream& outfile = std::clog);

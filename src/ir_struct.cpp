@@ -19,7 +19,8 @@ void BasicBlock::Print() {
 }
 
 void Function::Print() {
-  std::cout << "Function: " << func_name_ << std::endl;
+  std::cout << "Function: " << func_name_ << " size:" << stack_size_
+            << std::endl;
   std::cout << "call_func: " << std::endl;
   for (auto func : call_func_list_) {
     std::cout << "\t" << func->func_name_ << std::endl;
@@ -29,6 +30,7 @@ void Function::Print() {
     bb->Print();
   }
   std::cout << "BasicBloks End.=================" << std::endl;
+  std::cout << std::endl;
 }
 
 void Module::Print() {
@@ -56,16 +58,17 @@ Module* ConstructModule() {
 
   // add library function to label2func
   // not add them to module
-  label2func.insert({"getint", new Function("getint")});
-  label2func.insert({"getch", new Function("getch")});
-  label2func.insert({"getarray", new Function("getarray")});
-  label2func.insert({"putint", new Function("putint")});
-  label2func.insert({"putch", new Function("putch")});
-  label2func.insert({"putarray", new Function("putarray")});
-  label2func.insert({"starttime", new Function("starttime")});
-  label2func.insert({"stoptime", new Function("stoptime")});
+  label2func.insert({"getint", new Function("getint", 0)});
+  label2func.insert({"getch", new Function("getch", 0)});
+  label2func.insert({"getarray", new Function("getarray", 0)});
+  label2func.insert({"putint", new Function("putint", 0)});
+  label2func.insert({"putch", new Function("putch", 0)});
+  label2func.insert({"putarray", new Function("putarray", 0)});
+  label2func.insert({"starttime", new Function("starttime", 0)});
+  label2func.insert({"stoptime", new Function("stoptime", 0)});
 
   Module* module = new Module(gScopes[0]);
+
   for (int i = 0; i < gIRList.size(); ++i) {
     auto& ir = gIRList[i];
     if (ir.op_ == IR::OpKind::LABEL) {
@@ -74,7 +77,8 @@ Module* ConstructModule() {
       label2bb.insert({label_name, bb});
       if (ir.opn1_.type_ == Opn::Type::Func) {
         // is a function begin
-        Function* func = new Function(label_name);
+        Function* func = new Function(
+            label_name, (*ir::gFuncTable.find(label_name)).second.size_);
         func->bb_list_.push_back(bb);
         label2func.insert({label_name, func});
         module->func_list_.push_back(func);
