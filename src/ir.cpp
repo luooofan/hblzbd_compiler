@@ -68,8 +68,8 @@ void FuncTableItem::Print() {
 void Scope::Print() {
   std::cout << "Scope:\n"
             << "  scope_id: " << this->scope_id_ << std::endl
-            << "  parent_scope_id: " << this->parent_scope_id_ << std::endl;
-  // << "  size: " << this->size_ << std::endl;
+            << "  parent_scope_id: " << this->parent_scope_id_ << std::endl
+            << "  dyn_offset: " << this->dynamic_offset_ << std::endl;
   printf("%10s%10s%10s%10s\n", "name", "is_array", "is_const", "offset");
   for (auto &symbol : this->symbol_table_) {
     printf("%10s", symbol.first.c_str());

@@ -15,6 +15,7 @@ src/scanner.c
 src/struct.h
 src/asm.cpp
 src/main2.cpp
+src/ast_*
 # *_struct.*
 .vscode/
 arm_code.s

@@ -539,11 +539,16 @@ void FunctionDefine::GenerateIR(ir::ContextInfo &ctx) {
 
     ctx.has_return = false;
     this->body_.GenerateIR(ctx);
+
     if (return_type_ == INT && ctx.has_return == false)
       ir::SemanticError(
           this->line_no_,
           this->name_.name_ +
               ": function's return type is INT,but does not return anything");
+
+    // 填写函数表项中的栈大小size
+    const auto &iter = ir::gFuncTable.find(name_.name_);
+    (*iter).second.size_ = ir::gScopes[ctx.scope_id_].dynamic_offset_;
 
     // Set current_scope_id
     ctx.scope_id_ = 0;
@@ -700,22 +705,22 @@ void EvalStatement::GenerateIR(ir::ContextInfo &ctx) {
 
 void Block::GenerateIR(ir::ContextInfo &ctx) {
   int parent_scope_id = ctx.scope_id_;
-  int &dyn_offset = ir::gScopes[parent_scope_id].dynamic_offset_;
-  int &scope_id = ctx.scope_id_;
   if (!ctx.has_aug_scope) {
     // new scope
-    scope_id = ir::gScopes.size();
-    ir::gScopes.push_back({scope_id, parent_scope_id, dyn_offset});
+    ctx.scope_id_ = ir::gScopes.size();
+    ir::gScopes.push_back({ctx.scope_id_, parent_scope_id,
+                           ir::gScopes[parent_scope_id].dynamic_offset_});
   }
   ctx.has_aug_scope = false;
   for (const auto &stmt : this->statement_list_) {
     stmt->GenerateIR(ctx);
   }
   if (0 != parent_scope_id) {
-    dyn_offset = ir::gScopes[scope_id].dynamic_offset_;
+    ir::gScopes[parent_scope_id].dynamic_offset_ =
+        ir::gScopes[ctx.scope_id_].dynamic_offset_;
   }
   // src scope
-  scope_id = parent_scope_id;
+  ctx.scope_id_ = parent_scope_id;
 }
 
 void DeclareStatement::GenerateIR(ir::ContextInfo &ctx) {
