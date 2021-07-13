@@ -24,7 +24,6 @@ namespace ir {
 Scopes gScopes;
 FuncTable gFuncTable;
 std::vector<IR> gIRList;
-ContextInfoInGenIR gContextInfo;
 
 const int kIntWidth = 4;
 
@@ -33,14 +32,16 @@ void PrintScopes() {
     symbol_table.Print();
   }
 }
+
 void PrintFuncTable() {
   std::cout << "FuncTable:" << std::endl;
-  printf("%10s%10s\n", "name", "ret_type");
+  printf("%10s%10s%10s\n", "name", "ret_type", "size");
   for (auto &symbol : gFuncTable) {
     printf("%10s", symbol.first.c_str());
     symbol.second.Print();
   }
 }
+
 void SymbolTableItem::Print() {
   printf("%10s%10s%10d\n", (this->is_array_ ? "√" : "×"),
          (this->is_const_ ? "√" : "×"), this->offset_);
@@ -59,12 +60,16 @@ void SymbolTableItem::Print() {
     printf("\n");
   }
 }
-void FuncTableItem::Print() { printf("%10s\n", TYPE_STRING(this->ret_type_)); }
+
+void FuncTableItem::Print() {
+  printf("%10s%10d\n", TYPE_STRING(this->ret_type_), this->size_);
+}
+
 void Scope::Print() {
   std::cout << "Scope:\n"
             << "  scope_id: " << this->scope_id_ << std::endl
-            << "  parent_scope_id: " << this->parent_scope_id_ << std::endl
-            << "  size: " << this->size_ << std::endl;
+            << "  parent_scope_id: " << this->parent_scope_id_ << std::endl;
+  // << "  size: " << this->size_ << std::endl;
   printf("%10s%10s%10s%10s\n", "name", "is_array", "is_const", "offset");
   for (auto &symbol : this->symbol_table_) {
     printf("%10s", symbol.first.c_str());
@@ -211,6 +216,7 @@ void SemanticError(int line_no, const std::string &&error_msg) {
             << std::endl;
   exit(1);
 }
+
 void RuntimeError(const std::string &&error_msg) {
   std::cerr << "运行时错误: " << error_msg << std::endl;
   exit(1);

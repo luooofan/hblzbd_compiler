@@ -2,14 +2,15 @@
 #include "../include/ir.h"
 
 namespace ast {
+
 // 若计算成功 返回一个立即数形式的ir::Opn
-void Number::Evaluate() {
-  ir::gContextInfo.opn_ = ir::Opn(ir::Opn::Type::Imm, value_);
+void Number::Evaluate(ir::ContextInfo& ctx) {
+  ctx.opn_ = ir::Opn(ir::Opn::Type::Imm, value_, ctx.scope_id_);
 }
 
-void Identifier::Evaluate() {
-  ir::SymbolTableItem *s;
-  s = ir::FindSymbol(ir::gContextInfo.current_scope_id_, name_);
+void Identifier::Evaluate(ir::ContextInfo& ctx) {
+  ir::SymbolTableItem* s;
+  s = ir::FindSymbol(ctx.scope_id_, name_);
   if (!s) {
     ir::SemanticError(line_no_, name_ + ": undefined variable");
   }
@@ -18,11 +19,11 @@ void Identifier::Evaluate() {
     ir::SemanticError(line_no_, name_ + ": not const type");
   }
 
-  ir::gContextInfo.opn_ = ir::Opn(ir::Opn::Type::Imm, s->initval_[0]);
+  ctx.opn_ = ir::Opn(ir::Opn::Type::Imm, s->initval_[0], ctx.scope_id_);
 }
-void ArrayIdentifier::Evaluate() {
-  ir::SymbolTableItem *s;
-  s = ir::FindSymbol(ir::gContextInfo.current_scope_id_, name_.name_);
+void ArrayIdentifier::Evaluate(ir::ContextInfo& ctx) {
+  ir::SymbolTableItem* s;
+  s = ir::FindSymbol(ctx.scope_id_, name_.name_);
   if (!s) {
     ir::SemanticError(line_no_, name_.name_ + ": undefined variable");
   }
@@ -34,8 +35,8 @@ void ArrayIdentifier::Evaluate() {
   int index, t;
 
   for (int i = 0; i < shape_list_.size(); ++i) {
-    shape_list_[i]->Evaluate();
-    t = ir::gContextInfo.opn_.imm_num_;
+    shape_list_[i]->Evaluate(ctx);
+    t = ctx.opn_.imm_num_;
     if (i == shape_list_.size() - 1) {
       index += t * 4;
     } else {
@@ -43,19 +44,19 @@ void ArrayIdentifier::Evaluate() {
     }
   }
 
-  ir::gContextInfo.opn_ = ir::Opn(ir::Opn::Type::Imm, s->initval_[index / 4]);
+  ctx.opn_ = ir::Opn(ir::Opn::Type::Imm, s->initval_[index / 4], ctx.scope_id_);
 }
-void ConditionExpression::Evaluate() {
+void ConditionExpression::Evaluate(ir::ContextInfo& ctx) {
   ir::RuntimeError("条件表达式不实现Evaluate函数");
 }
-void BinaryExpression::Evaluate() {
+void BinaryExpression::Evaluate(ir::ContextInfo& ctx) {
   int l, r, res;
 
-  // lhs_.Evaluate();
-  lhs_->Evaluate();
-  l = ir::gContextInfo.opn_.imm_num_;
-  rhs_.Evaluate();
-  r = ir::gContextInfo.opn_.imm_num_;
+  // lhs_.Evaluate(ctx);
+  lhs_->Evaluate(ctx);
+  l = ctx.opn_.imm_num_;
+  rhs_.Evaluate(ctx);
+  r = ctx.opn_.imm_num_;
 
   switch (op_) {
     case 258:
@@ -84,13 +85,13 @@ void BinaryExpression::Evaluate() {
       break;
   }
 
-  ir::gContextInfo.opn_ = ir::Opn(ir::Opn::Type::Imm, res);
+  ctx.opn_ = ir::Opn(ir::Opn::Type::Imm, res, ctx.scope_id_);
 }
-void UnaryExpression::Evaluate() {
+void UnaryExpression::Evaluate(ir::ContextInfo& ctx) {
   int r, res;
 
-  rhs_.Evaluate();
-  r = ir::gContextInfo.opn_.imm_num_;
+  rhs_.Evaluate(ctx);
+  r = ctx.opn_.imm_num_;
 
   switch (op_) {
     case 258:
@@ -107,35 +108,31 @@ void UnaryExpression::Evaluate() {
       break;
   }
 
-  ir::gContextInfo.opn_ = ir::Opn(ir::Opn::Type::Imm, res);
+  ctx.opn_ = ir::Opn(ir::Opn::Type::Imm, res, ctx.scope_id_);
 }
-void FunctionCall::Evaluate() {  //返回一个空ir::Opn
+void FunctionCall::Evaluate(ir::ContextInfo& ctx) {  //返回一个空ir::Opn
 }
 
 // 填写initval信息
-void ArrayInitVal::Evaluate() {
-  auto &symbol_item =
-      (*ir::gScopes[ir::gContextInfo.current_scope_id_].symbol_table_.find(
-           ir::gContextInfo.array_name_))
-          .second;
+void ArrayInitVal::Evaluate(ir::ContextInfo& ctx) {
+  auto& symbol_item =
+      (*ir::gScopes[ctx.scope_id_].symbol_table_.find(ctx.array_name_)).second;
   if (this->is_exp_) {
-    this->value_->Evaluate();
-    if (ir::gContextInfo.opn_.type_ !=
-        ir::Opn::Type::Imm) {  // 语义错误 非常量表达式
-      ir::SemanticError(this->line_no_,
-                        ir::gContextInfo.opn_.name_ + "非常量表达式");
+    this->value_->Evaluate(ctx);
+    if (ctx.opn_.type_ != ir::Opn::Type::Imm) {  // 语义错误 非常量表达式
+      ir::SemanticError(this->line_no_, ctx.opn_.name_ + "非常量表达式");
     }
 
-    symbol_item.initval_.push_back(ir::gContextInfo.opn_.imm_num_);
-    ++ir::gContextInfo.array_offset_;
+    symbol_item.initval_.push_back(ctx.opn_.imm_num_);
+    ++ctx.array_offset_;
   } else {
     // 此时该结点表示一对大括号 {}
-    int &offset = ir::gContextInfo.array_offset_;
-    int &brace_num = ir::gContextInfo.brace_num_;
+    int& offset = ctx.array_offset_;
+    int& brace_num = ctx.brace_num_;
 
     // 根据offset和brace_num算出finaloffset
     int temp_level = 0;
-    const auto &dim_total_num = ir::gContextInfo.dim_total_num_;
+    const auto& dim_total_num = ctx.dim_total_num_;
     for (int i = 0; i < dim_total_num.size(); ++i) {
       if (offset % dim_total_num[i] == 0) {
         temp_level = i;
@@ -150,11 +147,11 @@ void ArrayInitVal::Evaluate() {
       int final_offset = offset + dim_total_num[temp_level - 1];
       if (!this->initval_list_.empty()) {
         ++brace_num;
-        this->initval_list_[0]->Evaluate();
+        this->initval_list_[0]->Evaluate(ctx);
 
         for (int i = 1; i < this->initval_list_.size(); ++i) {
           brace_num = 1;
-          this->initval_list_[i]->Evaluate();
+          this->initval_list_[i]->Evaluate(ctx);
         }
       }
       // 补0补到finaloffset

@@ -6,6 +6,7 @@
 namespace arm {
 
 // ref: https://en.wikipedia.org/wiki/Calling_convention#ARM_(A32)
+// ref: https://developer.arm.com/documentation/ihi0042/j/
 enum class ArmReg {
   // args and return value (caller saved)
   r0,

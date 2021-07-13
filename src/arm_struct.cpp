@@ -195,6 +195,13 @@ Module* GenerateAsm(ir::Module* module) {
       // valid ir: gIRList[start,end_)
       while (start < bb->end_) {
         // every ir
+        // 对于每条有原始变量(非中间变量)的四元式
+        // 为了保证正确性 必须生成对使用变量的ldr指令
+        // 因为无法确认程序执行流 无法确认当前使用的变量的上一个定值点
+        // 也就无法确认到底在哪个寄存器中 所以需要ldr到一个新的虚拟寄存器中
+        // 为了保证逻辑与存储的一致性 必须生成对定值变量的str指令
+        // 寄存器分配期间也无法删除这些ldr和str指令
+        // 这些虚拟寄存器对应的活跃区间也非常短
         auto& ir = ir::gIRList[start++];
         switch (ir.op_) {
           case ir::IR::OpKind::ADD: {
@@ -439,9 +446,10 @@ Module* GenerateAsm(ir::Module* module) {
   }
 
   // TODO:
-  // 函数的开头和结尾 以及call语句附近 还缺少一些指令
+  // 函数的开头prologue和结尾epilogue 以及call语句附近 还缺少一些指令
   // 需要知道函数使用的栈大小 过程中操作的寄存器 才能决定最终指令
   // 可以等寄存器分配之后再插入
+  // 函数开头要-sp 参数也要作为栈空间的一部分 把参数从寄存器中取出放入栈中
   // TODO:
   // 数组类型暂时没处理
   // 商和取余和取非操作目前没实现

@@ -22,28 +22,32 @@ int main(int argc, char **argv) {
   }
 
   yyset_lineno(1);
+  std::cout << "Start Parser()" << std::endl;
   yyparse();  // if success, ast_root is valid
   if (nullptr != ast_root) {
-    // ast_root->PrintNode(0, std::cout);
-    // std::cout << "\nGenerate IR:" << std::endl;
-    ast_root->GenerateIR();
-    // ir::PrintFuncTable();
-    // ir::PrintScopes();
+    std::cout << "PrintNode()" << std::endl;
+    ast_root->PrintNode(0, std::cout);
+    std::cout << "\nGenerate IR:" << std::endl;
+    ir::ContextInfo ctx;
+    ast_root->GenerateIR(ctx);
+    ir::PrintFuncTable();
+    ir::PrintScopes();
     std::cout << "IRList:" << std::endl;
     for (auto &ir : ir::gIRList) {
       ir.PrintIR();
     }
-    ir::Module *ir_module = ir::ConstructModule();
-    arm::Module *arm_module = arm::GenerateAsm(ir_module);
-    std::ofstream outfile;
-    outfile.open("./arm_code.s");
-    std::cout << "EmitCode Begin" << std::endl;
-    arm_module->EmitCode(outfile);
-    std::cout << "EmitCode End" << std::endl;
-    outfile.close();
+    // ir::Module *ir_module = ir::ConstructModule();
+    // arm::Module *arm_module = arm::GenerateAsm(ir_module);
+    // std::ofstream outfile;
+    // outfile.open("./arm_code.s");
+    // std::cout << "EmitCode Begin" << std::endl;
+    // arm_module->EmitCode(outfile);
+    // std::cout << "EmitCode End" << std::endl;
+    // outfile.close();
   }
 
   yylex_destroy();
+
   delete ast_root;
 
   return 0;
