@@ -71,13 +71,14 @@ void Number::GenerateIR(ir::ContextInfo &ctx) {
 
 // NOTE: 对于函数名的检查在FunctionCall完成 不调用此函数
 void Identifier::GenerateIR(ir::ContextInfo &ctx) {
-  ir::SymbolTableItem *s = ir::FindSymbol(ctx.scope_id_, name_);
+  ir::SymbolTableItem *s = nullptr;
+  int scope_id = ir::FindSymbol(ctx.scope_id_, name_, s);
   if (!s) {
     ir::SemanticError(line_no_, name_ + ": undefined variable");
   }
 
   ctx.shape_ = s->shape_;
-  ctx.opn_ = ir::Opn(ir::Opn::Type::Var, name_, ctx.scope_id_);
+  ctx.opn_ = ir::Opn(ir::Opn::Type::Var, name_, scope_id);
 }
 
 // NOTE:
@@ -85,7 +86,8 @@ void Identifier::GenerateIR(ir::ContextInfo &ctx) {
 // 但如果是函数调用中使用数组则可以传递指针shape_list_维度小于符号表中的维度即可
 // 该检查交由caller来实现
 void ArrayIdentifier::GenerateIR(ir::ContextInfo &ctx) {
-  ir::SymbolTableItem *s = ir::FindSymbol(ctx.scope_id_, name_.name_);
+  ir::SymbolTableItem *s = nullptr;
+  int scope_id = ir::FindSymbol(ctx.scope_id_, name_.name_, s);
   if (!s) {
     ir::SemanticError(line_no_, name_.name_ + ": undefined variable");
     return;
@@ -134,7 +136,7 @@ void ArrayIdentifier::GenerateIR(ir::ContextInfo &ctx) {
     }
   }
   ir::Opn *offset = new ir::Opn(ctx.opn_);
-  ctx.opn_ = ir::Opn(ir::Opn::Type::Array, name_.name_, ctx.scope_id_, offset);
+  ctx.opn_ = ir::Opn(ir::Opn::Type::Array, name_.name_, scope_id, offset);
 }
 
 // TODO: var+0 0+var var-0 var*0 0*var var/0 var%0 var/1 var%1
@@ -290,8 +292,8 @@ void FunctionCall::GenerateIR(ir::ContextInfo &ctx) {
       }
     }
 
-    ir::SymbolTableItem *s;
-    s = ir::FindSymbol(ctx.scope_id_, ctx.opn_.name_);
+    ir::SymbolTableItem *s = nullptr;
+    int scope_id = ir::FindSymbol(ctx.scope_id_, ctx.opn_.name_, s);
     if (s && s->is_array_ && s->is_const_) {
       ir::SemanticError(line_no_, "实参不能是const数组");
       return;
@@ -299,8 +301,8 @@ void FunctionCall::GenerateIR(ir::ContextInfo &ctx) {
 
     opn1 = ctx.opn_;
     if (s && s->is_array_ && nullptr == opn1.offset_) {
-      ir::Opn *offset = new ir::Opn(ir::Opn::Type::Imm, 0, ctx.scope_id_);
-      opn1 = ir::Opn(ir::Opn::Type::Array, opn1.name_, ctx.scope_id_, offset);
+      ir::Opn *offset = new ir::Opn(ir::Opn::Type::Imm, 0, opn1.scope_id_);
+      opn1 = ir::Opn(ir::Opn::Type::Array, opn1.name_, opn1.scope_id_, offset);
     }
 
     param_list.push_back(ir::IR(ir::IR::OpKind::PARAM, opn1));
@@ -568,7 +570,8 @@ void AssignStatement::GenerateIR(ir::ContextInfo &ctx) {
   CHECK_OPN_INT("leftvalue");
 
   ir::Opn &lhs_opn = ctx.opn_;
-  ir::SymbolTableItem *symbol = ir::FindSymbol(ctx.scope_id_, lhs_opn.name_);
+  ir::SymbolTableItem *symbol = nullptr;
+  ir::FindSymbol(ctx.scope_id_, lhs_opn.name_, symbol);
 
   // const check
   if (nullptr != symbol && symbol->is_const_) {

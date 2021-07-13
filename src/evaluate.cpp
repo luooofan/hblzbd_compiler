@@ -9,8 +9,8 @@ void Number::Evaluate(ir::ContextInfo& ctx) {
 }
 
 void Identifier::Evaluate(ir::ContextInfo& ctx) {
-  ir::SymbolTableItem* s;
-  s = ir::FindSymbol(ctx.scope_id_, name_);
+  ir::SymbolTableItem* s = nullptr;
+  int scope_id = ir::FindSymbol(ctx.scope_id_, name_, s);
   if (!s) {
     ir::SemanticError(line_no_, name_ + ": undefined variable");
   }
@@ -19,11 +19,11 @@ void Identifier::Evaluate(ir::ContextInfo& ctx) {
     ir::SemanticError(line_no_, name_ + ": not const type");
   }
 
-  ctx.opn_ = ir::Opn(ir::Opn::Type::Imm, s->initval_[0], ctx.scope_id_);
+  ctx.opn_ = ir::Opn(ir::Opn::Type::Imm, s->initval_[0], scope_id);
 }
 void ArrayIdentifier::Evaluate(ir::ContextInfo& ctx) {
-  ir::SymbolTableItem* s;
-  s = ir::FindSymbol(ctx.scope_id_, name_.name_);
+  ir::SymbolTableItem* s = nullptr;
+  int scope_id = ir::FindSymbol(ctx.scope_id_, name_.name_, s);
   if (!s) {
     ir::SemanticError(line_no_, name_.name_ + ": undefined variable");
   }
@@ -44,7 +44,7 @@ void ArrayIdentifier::Evaluate(ir::ContextInfo& ctx) {
     }
   }
 
-  ctx.opn_ = ir::Opn(ir::Opn::Type::Imm, s->initval_[index / 4], ctx.scope_id_);
+  ctx.opn_ = ir::Opn(ir::Opn::Type::Imm, s->initval_[index / 4], scope_id);
 }
 void ConditionExpression::Evaluate(ir::ContextInfo& ctx) {
   ir::RuntimeError("条件表达式不实现Evaluate函数");

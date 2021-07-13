@@ -58,14 +58,14 @@ Module* ConstructModule() {
 
   // add library function to label2func
   // not add them to module
-  label2func.insert({"getint", new Function("getint", 0)});
-  label2func.insert({"getch", new Function("getch", 0)});
-  label2func.insert({"getarray", new Function("getarray", 0)});
-  label2func.insert({"putint", new Function("putint", 0)});
-  label2func.insert({"putch", new Function("putch", 0)});
-  label2func.insert({"putarray", new Function("putarray", 0)});
-  label2func.insert({"starttime", new Function("starttime", 0)});
-  label2func.insert({"stoptime", new Function("stoptime", 0)});
+  label2func.insert({"getint", new Function("getint", 0, 0)});
+  label2func.insert({"getch", new Function("getch", 0, 0)});
+  label2func.insert({"getarray", new Function("getarray", 0, 0)});
+  label2func.insert({"putint", new Function("putint", 1, 0)});
+  label2func.insert({"putch", new Function("putch", 1, 0)});
+  label2func.insert({"putarray", new Function("putarray", 1, 0)});
+  label2func.insert({"starttime", new Function("starttime", 0, 0)});
+  label2func.insert({"stoptime", new Function("stoptime", 0, 0)});
 
   Module* module = new Module(gScopes[0]);
 
@@ -77,8 +77,9 @@ Module* ConstructModule() {
       label2bb.insert({label_name, bb});
       if (ir.opn1_.type_ == Opn::Type::Func) {
         // is a function begin
-        Function* func = new Function(
-            label_name, (*ir::gFuncTable.find(label_name)).second.size_);
+        auto& func_item = (*ir::gFuncTable.find(label_name)).second;
+        Function* func = new Function(label_name, func_item.shape_list_.size(),
+                                      func_item.size_);
         func->bb_list_.push_back(bb);
         label2func.insert({label_name, func});
         module->func_list_.push_back(func);

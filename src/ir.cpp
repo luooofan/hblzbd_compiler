@@ -77,7 +77,8 @@ void Scope::Print() {
   }
 }
 
-SymbolTableItem *FindSymbol(int scope_id, std::string name) {
+int FindSymbol(int scope_id, std::string name,
+               SymbolTableItem *&res_symbol_item) {
   while (-1 != scope_id) {
     auto &current_scope = gScopes[scope_id];
     auto &current_symbol_table = current_scope.symbol_table_;
@@ -85,10 +86,12 @@ SymbolTableItem *FindSymbol(int scope_id, std::string name) {
     if (symbol_iter == current_symbol_table.end()) {
       scope_id = current_scope.parent_scope_id_;
     } else {
-      return &((*symbol_iter).second);
+      res_symbol_item = &((*symbol_iter).second);
+      return scope_id;
     }
   }
-  return nullptr;
+  res_symbol_item = nullptr;
+  return -1;
 };
 
 std::string NewTemp() {

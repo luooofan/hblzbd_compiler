@@ -19,6 +19,7 @@ class SymbolTableItem {
                               // 数组则转换为一维数组存储
   SymbolTableItem(bool is_array, bool is_const, int offset)
       : is_array_(is_array), is_const_(is_const), offset_(offset) {}
+  SymbolTableItem() {}
   void Print();
 };
 
@@ -29,7 +30,7 @@ class FuncTableItem {
   std::vector<std::vector<int>> shape_list_;
   // TODO: 如何处理库函数的size
   FuncTableItem(int ret_type) : ret_type_(ret_type), size_(0) {}
-  // FuncTableItem() {}
+  FuncTableItem() {}
   void Print();
 };
 
@@ -51,7 +52,8 @@ class Scope {
   void Print();
 };
 
-SymbolTableItem *FindSymbol(int scope_id, std::string name);
+int FindSymbol(int scope_id, std::string name,
+               SymbolTableItem *&res_symbol_item);
 
 using Scopes = std::vector<Scope>;
 using FuncTable = std::unordered_map<std::string, FuncTableItem>;

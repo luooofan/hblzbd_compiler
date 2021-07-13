@@ -147,6 +147,7 @@ class Instruction {
   Cond cond_;
   bool IsAL() { return cond_ == Cond::AL; }
   Instruction(Cond cond) : cond_(cond) {}
+  Instruction() : cond_(Cond::AL) {}
   virtual ~Instruction() = default;
   virtual void EmitCode(std::ostream& outfile = std::clog) = 0;
 };
@@ -237,20 +238,23 @@ class Branch : public Instruction {
 class LdrStr : public Instruction {
  public:
   enum class OpKind { LDR, STR };
-  enum class Type { Pre, Norm, Post };
+  enum class Type { Pre, Norm, Post, PCrel };
   OpKind opkind_;
   Type type_;
-  Reg* rt_;
+  Reg* rd_;
   Reg* rn_;           // Base
   Operand2* offset_;  // can be a imm, a reg, or a scaled reg(imm_shift)
-  LdrStr(OpKind opkind, Type type, Cond cond, Reg* rt, Reg* rn,
+  std::string label_;
+  LdrStr(OpKind opkind, Type type, Cond cond, Reg* rd, Reg* rn,
          Operand2* offset)
       : Instruction(cond),
         opkind_(opkind),
         type_(type),
-        rt_(rt),
+        rd_(rd),
         rn_(rn),
         offset_(offset) {}
+  LdrStr(Reg* rd, std::string label)
+      : opkind_(OpKind::LDR), type_(Type::PCrel), rd_(rd), label_(label) {}
   virtual ~LdrStr();
   virtual void EmitCode(std::ostream& outfile = std::clog);
 };
@@ -292,12 +296,13 @@ class Function {
   std::string func_name_;
   std::vector<BasicBlock*> bb_list_;
   int stack_size_;
+  int arg_num_;
 
   // optional
   // Function*
   std::vector<Function*> call_func_list_;
-  Function(std::string func_name, int stack_size)
-      : func_name_(func_name), stack_size_(stack_size) {}
+  Function(std::string func_name, int arg_num, int stack_size)
+      : func_name_(func_name), arg_num_(arg_num), stack_size_(stack_size) {}
   //   void Print();
   bool IsLeaf() { return call_func_list_.empty(); }
   void EmitCode(std::ostream& outfile = std::clog);
