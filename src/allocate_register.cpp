@@ -65,7 +65,8 @@ std::pair<std::vector<RegId>, std::vector<RegId>> GetDefUse(Instruction *inst) {
       // ret
       assert(0);  // 暂时禁用 bx lr
       use.push_back(static_cast<RegId>(ArmReg::r0));
-    } else if (ir::gFuncTable.find(label) != ir::gFuncTable.end()) {
+    } else if (ir::gFuncTable.find(label) != ir::gFuncTable.end() ||
+               label == "__aeabi_idivmod" || label == "__aeabi_idiv") {
       // TODO: 这里用到了ir 之后优化掉 可能需要一个func_name到Function*的map
       // call
       int callee_param_num = ir::gFuncTable[label].shape_list_.size();
