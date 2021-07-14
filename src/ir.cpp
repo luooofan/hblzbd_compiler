@@ -101,7 +101,7 @@ std::string NewTemp() {
 
 std::string NewLabel() {
   static int i = 0;
-  return "label-" + std::to_string(i++);
+  return ".label" + std::to_string(i++);
 }
 
 IR::OpKind GetOpKind(int op, bool reverse) {

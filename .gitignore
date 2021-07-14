@@ -20,3 +20,5 @@ src/ast_*
 .vscode/
 arm_code.s
 official_test/
+*.s
+temp*
