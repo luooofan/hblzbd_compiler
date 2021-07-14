@@ -197,9 +197,10 @@ void LivenessAnalysis(Function *f) {
       std::unordered_set<RegId> new_out;
       // out[s]=U(succ:i)in[i]
       // 对每一个后继基本块
+      // std::cout<<bb->succ_.size()<<std::endl;
       for (auto succ : bb->succ_) {
         //   if(succ){
-        new_out.insert(succ->livein_.begin(), succ->liveout_.end());
+        new_out.insert(succ->livein_.begin(), succ->livein_.end());
         //   }
       }
 

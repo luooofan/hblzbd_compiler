@@ -59,7 +59,7 @@ Module* GenerateAsm(ir::Module* module) {
         armbb->pred_.push_back(bb_map[pred]);
       }
       for (auto succ : bb->succ_) {
-        armbb->pred_.push_back(bb_map[succ]);
+        armbb->succ_.push_back(bb_map[succ]);
       }
     }
 
