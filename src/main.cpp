@@ -47,6 +47,7 @@ int main(int argc, char **argv) {
     ir_module->Print();
 
     arm::Module *arm_module = arm::GenerateAsm(ir_module);
+    arm_module->EmitCode(std::cout);
 
     arm::allocate_register(arm_module);
 

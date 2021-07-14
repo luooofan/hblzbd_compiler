@@ -81,9 +81,9 @@ std::pair<std::vector<RegId>, std::vector<RegId>> GetDefUse(Instruction *inst) {
     }
   } else if (auto src_inst = dynamic_cast<LdrStr *>(inst)) {
     if (src_inst->opkind_ == LdrStr::OpKind::LDR) {
-      use.push_back(src_inst->rd_->reg_id_);
-    } else {
       def.push_back(src_inst->rd_->reg_id_);
+    } else {
+      use.push_back(src_inst->rd_->reg_id_);
     }
     if (src_inst->type_ != LdrStr::Type::PCrel) {
       use.push_back(src_inst->rn_->reg_id_);
@@ -136,9 +136,9 @@ std::pair<Reg *, std::vector<Reg *>> GetDefUsePtr(Instruction *inst) {
   } else if (auto src_inst = dynamic_cast<Branch *>(inst)) {
   } else if (auto src_inst = dynamic_cast<LdrStr *>(inst)) {
     if (src_inst->opkind_ == LdrStr::OpKind::LDR) {
-      use.push_back(src_inst->rd_);
-    } else {
       def = (src_inst->rd_);
+    } else {
+      use.push_back(src_inst->rd_);
     }
     if (src_inst->type_ != LdrStr::Type::PCrel) {
       use.push_back(src_inst->rn_);
