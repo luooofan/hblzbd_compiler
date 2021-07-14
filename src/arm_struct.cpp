@@ -942,12 +942,32 @@ void BasicBlock::EmitCode(std::ostream& outfile) {
   if (this->HasLabel()) {
     outfile << *this->label_ << ":" << std::endl;
   }
-  outfile << "\t@ BasicBlock Begin." << std::endl;
+  outfile << "  @ BasicBlock Begin." << std::endl;
+  outfile << "  @ liveuse: ";
+  for (auto liveuse : this->liveuse_) {
+    outfile << liveuse << " ";
+  }
+  outfile << std::endl;
+  outfile << "  @ def: ";
+  for (auto def : this->def_) {
+    outfile << def << " ";
+  }
+  outfile << std::endl;
+  outfile << "  @ livein: ";
+  for (auto livein : this->livein_) {
+    outfile << livein << " ";
+  }
+  outfile << std::endl;
+  outfile << "  @ liveout: ";
+  for (auto liveout : this->liveout_) {
+    outfile << liveout << " ";
+  }
+  outfile << std::endl;
   for (auto inst : this->inst_list_) {
     inst->EmitCode(outfile);
     // std::clog << "print 1 inst successfully." << std::endl;
   }
-  outfile << "\t@ BasicBlock End." << std::endl;
+  outfile << "  @ BasicBlock End." << std::endl;
 }
 
 void Function::EmitCode(std::ostream& outfile) {
@@ -956,7 +976,7 @@ void Function::EmitCode(std::ostream& outfile) {
   outfile << func_name_ << ":" << std::endl;
   outfile << "@ call_func: " << std::endl;
   for (auto func : call_func_list_) {
-    outfile << "\t@ " << func->func_name_ << std::endl;
+    outfile << "  @ " << func->func_name_ << std::endl;
   }
   outfile << "@ Function Begin." << std::endl;
   for (auto bb : bb_list_) {

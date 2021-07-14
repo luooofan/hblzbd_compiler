@@ -1,6 +1,8 @@
 // Reference: https://developer.arm.com/documentation/100076/0200
 #ifndef __ARM_STRUCT_H__
 #define __ARM_STRUCT_H__
+#include <unordered_set>
+
 #include "../include/ir_struct.h"
 
 namespace arm {
@@ -181,7 +183,7 @@ class BinaryInst : public Instruction {
   OpCode opcode_;
   bool has_s_;  // only mean if opcode has char 'S'. don't mean the
                 // instruction whether updates CPSR or not.
-  Reg* rd_;
+  Reg* rd_;     // Note: rd may nullptr
   Reg* rn_;
   Operand2* op2_;
 
@@ -281,6 +283,12 @@ class BasicBlock {
   // pred succ
   std::vector<BasicBlock*> pred_;
   std::vector<BasicBlock*> succ_;
+  // used for reg alloc
+  std::unordered_set<int> def_;  // 基本块的def 可看作是def中去掉liveuse
+  std::unordered_set<int> liveuse_;  // 基本块的use 可看作是活跃的use
+  std::unordered_set<int> livein_;
+  std::unordered_set<int> liveout_;
+
   // in out data stream
   BasicBlock() : label_(nullptr) {}
   BasicBlock(std::string* label) : label_(label) {}
@@ -297,6 +305,7 @@ class Function {
   std::vector<BasicBlock*> bb_list_;
   int stack_size_;
   int arg_num_;
+  int virtual_max = 0;
 
   // optional
   // Function*

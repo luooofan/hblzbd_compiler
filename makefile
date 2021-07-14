@@ -1,4 +1,4 @@
-mycompiler:./src/parser.cpp ./src/scanner.c ./src/ast.cpp ./src/main.cpp ./src/generate_ir.cpp ./src/ir.cpp ./src/evaluate.cpp ./src/ir_struct.cpp ./src/arm_struct.cpp
+mycompiler:./src/parser.cpp ./src/scanner.c ./src/ast.cpp ./src/main.cpp ./src/generate_ir.cpp ./src/ir.cpp ./src/evaluate.cpp ./src/ir_struct.cpp ./src/arm_struct.cpp ./src/allocate_register.cpp
 	g++ -std=c++17 -o $@ $^
 
 ./src/parser.cpp: ./src/parser.y

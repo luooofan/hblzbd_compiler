@@ -1,5 +1,6 @@
 #include <fstream>
 
+#include "../include/allocate_register.h"
 #include "../include/arm_struct.h"
 #include "../include/ast.h"
 #include "../include/ir.h"
@@ -45,6 +46,9 @@ int main(int argc, char **argv) {
     ir_module->Print();
 
     arm::Module *arm_module = arm::GenerateAsm(ir_module);
+
+    arm::allocate_register(arm_module);
+
     std::ofstream outfile;
     outfile.open("./arm_code.s");
     std::cout << "EmitCode Begin" << std::endl;
