@@ -962,21 +962,31 @@ void BasicBlock::EmitCode(std::ostream& outfile) {
     outfile << *this->label_ << ":" << std::endl;
   }
   outfile << "  @ BasicBlock Begin." << std::endl;
+  outfile << "  @ pred: ";
+  for (auto pred : this->pred_) {
+    outfile << (nullptr!=(*pred).label_?(*((*pred).label_)):("Unamed")) << " ";
+  }
+  // outfile << std::endl;
+  outfile << "  @ succ: ";
+  for (auto succ : this->succ_) {
+    outfile << (nullptr!=(*succ).label_?(*((*succ).label_)):("Unamed")) << " ";
+  }
+  // outfile << std::endl;
   outfile << "  @ liveuse: ";
   for (auto liveuse : this->liveuse_) {
     outfile << liveuse << " ";
   }
-  outfile << std::endl;
+  // outfile << std::endl;
   outfile << "  @ def: ";
   for (auto def : this->def_) {
     outfile << def << " ";
   }
-  outfile << std::endl;
+  // outfile << std::endl;
   outfile << "  @ livein: ";
   for (auto livein : this->livein_) {
     outfile << livein << " ";
   }
-  outfile << std::endl;
+  // outfile << std::endl;
   outfile << "  @ liveout: ";
   for (auto liveout : this->liveout_) {
     outfile << liveout << " ";
