@@ -373,18 +373,22 @@ void allocate_register(Module *m) {
       };
 
       // 根据冲突图中的结点度数填三张worklist
-      auto mk_worklist = [&degree, &spill_worklist, &freeze_worklist,
+      auto mk_worklist = [&degree, &spill_worklist, &freeze_worklist, &func,
                           &simplify_worklist, &K, &move_related]() {
         // degree中存着全部使用的寄存器 这里不应该把precolored寄存器放进去
-        for (auto &dgpair : degree) {
-          RegId reg = dgpair.first;
-          if (dgpair.first < 16) continue;
-          if (dgpair.second >= K) {
-            spill_worklist.insert(reg);
-          } else if (move_related(reg)) {
-            freeze_worklist.insert(reg);
+        for (RegId i = 16; i < func->virtual_max; ++i) {
+          // degree中可能没有
+          auto iter = degree.find(i);
+          if (iter == degree.end()) {
+            simplify_worklist.insert(i);
           } else {
-            simplify_worklist.insert(reg);
+            if (degree[i] >= K) {
+              spill_worklist.insert(i);
+            } else if (move_related(i)) {
+              freeze_worklist.insert(i);
+            } else {
+              simplify_worklist.insert(i);
+            }
           }
         }
       };

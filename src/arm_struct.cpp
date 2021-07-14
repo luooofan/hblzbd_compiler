@@ -816,6 +816,8 @@ Module* GenerateAsm(ir::Module* module) {
     // epilogue: NOTE: 中间代码保证了函数执行流最后一定有一条return语句
     // auto last_bb = bb_map[func->bb_list_.back()];
     // add_epilogue(last_bb);
+
+    armfunc->virtual_max = virtual_reg_id;
   }
 
   // maintain call_func_list

@@ -305,7 +305,7 @@ class Function {
   std::vector<BasicBlock*> bb_list_;
   int stack_size_;
   int arg_num_;
-  int virtual_max = 0;
+  int virtual_max = 16;  // rx x+1
 
   // optional
   // Function*

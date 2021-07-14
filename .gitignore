@@ -19,3 +19,4 @@ src/ast_*
 # *_struct.*
 .vscode/
 arm_code.s
+official_test/
