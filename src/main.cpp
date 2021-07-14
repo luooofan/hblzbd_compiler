@@ -1,3 +1,4 @@
+#include <cstring>
 #include <fstream>
 
 #include "../include/allocate_register.h"
@@ -50,7 +51,13 @@ int main(int argc, char **argv) {
     arm::allocate_register(arm_module);
 
     std::ofstream outfile;
-    outfile.open("./arm_code.s");
+    int len = strlen(in);
+    std::string file_name = std::string(in, in + len - 1);
+
+    // file_name[file_name.size() - 1] = '\0';
+    // outfile.open("./arm_code.s");
+    std::cout << file_name << std::endl;
+    outfile.open(file_name);
     std::cout << "EmitCode Begin" << std::endl;
     arm_module->EmitCode(outfile);
     std::cout << "EmitCode End" << std::endl;

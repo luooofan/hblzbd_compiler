@@ -107,8 +107,12 @@ Module* GenerateAsm(ir::Module* module) {
       }
     }
 
+    // 全局 局部 中间变量的占用寄存器(存放值)map
+    // 局部变量不需要存在var_map中 是无意义的 每次用到的时候都要ldr str
     std::unordered_map<std::string, std::unordered_map<int, Reg*>>
         var_map;  // varname, scope_id, reg
+    // 全局变量的地址寄存器map
+    std::unordered_map<std::string, Reg*> glo_addr_map;
 
     // 要为每一个ret语句添加epilogue
     auto add_epilogue = [&func](BasicBlock* armbb) {
@@ -122,7 +126,6 @@ Module* GenerateAsm(ir::Module* module) {
       armbb->inst_list_.push_back(static_cast<Instruction*>(pop_inst));
     };
 
-    // TODO: 立即数处理
     for (auto bb : func->bb_list_) {
       // every ir basicblock
       auto armbb = bb_map[bb];
@@ -167,8 +170,28 @@ Module* GenerateAsm(ir::Module* module) {
         return new Operand2(vreg);
       };
 
+      auto load_global_opn2reg = [&var_map, &new_virtual_reg, &armbb,
+                                  &glo_addr_map](ir::Opn* opn) {
+        // 如果是全局变量并且没在glo_addr_map里找到就ldr
+        if (opn->scope_id_ == 0) {
+          Reg* rglo = nullptr;
+          const auto& iter = glo_addr_map.find(opn->name_);
+          if (iter != glo_addr_map.end()) {
+            rglo = (*iter).second;
+          }
+          if (nullptr == rglo) {
+            rglo = new_virtual_reg();
+            glo_addr_map[opn->name_] = rglo;
+            // 把全局量基址ldr到某寄存器中
+            armbb->inst_list_.push_back(
+                static_cast<Instruction*>(new LdrStr(rglo, opn->name_)));
+          }
+        }
+      };
+
       auto resolve_opn2operand2 = [&sp_vreg, &armbb, &var_map, &new_virtual_reg,
-                                   &resolve_imm2operand2](ir::Opn* opn) {
+                                   &resolve_imm2operand2, &load_global_opn2reg,
+                                   &glo_addr_map](ir::Opn* opn) {
         // 如果是立即数 返回立即数类型的Operand2
         // 如果是变量 需要判断是否为中间变量
         //  是中间变量则先查varmap 没找到则生成一个新的reg类型的Op2 记录 返回
@@ -176,37 +199,36 @@ Module* GenerateAsm(ir::Module* module) {
         // 如果是数组 先找基址 要先ldr到一个新的vreg中 不记录 返回
         if (opn->type_ == ir::Opn::Type::Imm) {
           return resolve_imm2operand2(opn->imm_num_);
-          return new Operand2(opn->imm_num_);
+          // return new Operand2(opn->imm_num_);
         } else if (opn->type_ == ir::Opn::Type::Array) {
           // Array 找到基址 如果存在rx中 (ldr, rv, rx, offset)
           // 如果没找到 则(add, rbase, vsp, offset)记录(ldr, rv, rbase, offset)
           // 返回一个rv的op2
+
           Reg* rbase = nullptr;
-          const auto& iter = var_map.find(opn->name_);
-          if (iter != var_map.end()) {
-            const auto& iter2 = (*iter).second.find(opn->scope_id_);
-            if (iter2 != (*iter).second.end()) {
-              rbase = ((*iter2).second);
-            }
-          }
-          Reg* vreg = nullptr;
-          if (nullptr != rbase) {
-            vreg = new_virtual_reg();
+          Reg* vreg = new_virtual_reg();
+          if (0 == opn->scope_id_) {
+            // 全局数组 地址量即其基址量
+            load_global_opn2reg(opn);
+            rbase = glo_addr_map[opn->name_];
           } else {
-            rbase = new_virtual_reg();
-            var_map[opn->name_][opn->scope_id_] = rbase;
-            vreg = new_virtual_reg();
-            if (opn->scope_id_ != 0) {
+            const auto& iter = var_map.find(opn->name_);
+            if (iter != var_map.end()) {
+              const auto& iter2 = (*iter).second.find(opn->scope_id_);
+              if (iter2 != (*iter).second.end()) {
+                rbase = ((*iter2).second);
+              }
+            }
+            if (nullptr == rbase) {
+              rbase = new_virtual_reg();
+              var_map[opn->name_][opn->scope_id_] = rbase;
               auto& symbol =
                   ir::gScopes[opn->scope_id_].symbol_table_[opn->name_];
+              // add vbase, vsp, offset
               armbb->inst_list_.push_back(
                   static_cast<Instruction*>(new BinaryInst(
                       BinaryInst::OpCode::ADD, false, Cond::AL, rbase, sp_vreg,
                       new Operand2(symbol.offset_))));
-            } else {
-              // 全局数组量
-              armbb->inst_list_.push_back(
-                  static_cast<Instruction*>(new LdrStr(rbase, opn->name_)));
             }
           }
           armbb->inst_list_.push_back(static_cast<Instruction*>(
@@ -214,7 +236,9 @@ Module* GenerateAsm(ir::Module* module) {
                          vreg, rbase, new Operand2(opn->offset_->imm_num_))));
           return new Operand2(vreg);
         } else {
+          // 如果是全局变量 找有没有内容寄存器 如果没有 生成一个新的
           if (opn->scope_id_ == 0) {
+            load_global_opn2reg(opn);
             const auto& iter = var_map.find(opn->name_);
             if (iter != var_map.end()) {
               const auto& iter2 = (*iter).second.find(opn->scope_id_);
@@ -224,14 +248,16 @@ Module* GenerateAsm(ir::Module* module) {
             }
             Reg* vreg = new_virtual_reg();
             var_map[opn->name_][opn->scope_id_] = vreg;
-            // 全局变量
-            armbb->inst_list_.push_back(
-                static_cast<Instruction*>(new LdrStr(vreg, opn->name_)));
+            // 把基址reg中的内容ldr到vreg中
+            armbb->inst_list_.push_back(static_cast<Instruction*>(
+                new LdrStr(LdrStr::OpKind::LDR, LdrStr::Type::Norm, Cond::AL,
+                           vreg, glo_addr_map[opn->name_], new Operand2(0))));
             return new Operand2(vreg);
           }
           // Var offset为-1或者以temp-开头表示中间变量
           auto& symbol = ir::gScopes[opn->scope_id_].symbol_table_[opn->name_];
           if (symbol.offset_ == -1) {
+            // 中间变量找 没找到就生成新的
             const auto& iter = var_map.find(opn->name_);
             if (iter != var_map.end()) {
               const auto& iter2 = (*iter).second.find(opn->scope_id_);
@@ -243,7 +269,7 @@ Module* GenerateAsm(ir::Module* module) {
             var_map[opn->name_][opn->scope_id_] = vreg;
             return new Operand2(vreg);
           } else {
-            // 非中间变量 ldr rd, [sp, #offset]
+            // 局部变量 一定生成一条ldr语句 ldr rd, [sp, #offset]
             auto vreg = new_virtual_reg();
             auto offset = new Operand2(symbol.offset_);
             armbb->inst_list_.push_back({static_cast<Instruction*>(
@@ -255,7 +281,8 @@ Module* GenerateAsm(ir::Module* module) {
       };
 
       auto resolve_opn2reg = [&sp_vreg, &armbb, &var_map, &new_virtual_reg,
-                              &resolve_opn2operand2](ir::Opn* opn) {
+                              &resolve_opn2operand2, &load_global_opn2reg,
+                              &glo_addr_map](ir::Opn* opn) {
         // 如果是立即数 先move到一个vreg中 返回这个vreg
         // 如果是变量 需要判断是否为中间变量
         //  是中间变量则先查varmap 如果没有的话生成一个新的vreg 记录 返回
@@ -273,31 +300,28 @@ Module* GenerateAsm(ir::Module* module) {
           // 如果没找到 则(add, rbase, vsp, offset)记录(ldr, rv, rbase, offset)
           // 返回rv
           Reg* rbase = nullptr;
-          const auto& iter = var_map.find(opn->name_);
-          if (iter != var_map.end()) {
-            const auto& iter2 = (*iter).second.find(opn->scope_id_);
-            if (iter2 != (*iter).second.end()) {
-              rbase = ((*iter2).second);
-            }
-          }
-          Reg* vreg = nullptr;
-          if (nullptr != rbase) {
-            vreg = new_virtual_reg();
+          Reg* vreg = new_virtual_reg();
+          if (0 == opn->scope_id_) {
+            // 全局数组 地址量即其基址量
+            load_global_opn2reg(opn);
+            rbase = glo_addr_map[opn->name_];
           } else {
-            rbase = new_virtual_reg();
-            var_map[opn->name_][opn->scope_id_] = rbase;
-            vreg = new_virtual_reg();
-            if (opn->scope_id_ != 0) {
+            const auto& iter = var_map.find(opn->name_);
+            if (iter != var_map.end()) {
+              const auto& iter2 = (*iter).second.find(opn->scope_id_);
+              if (iter2 != (*iter).second.end()) {
+                rbase = ((*iter2).second);
+              }
+            }
+            if (nullptr == rbase) {
+              rbase = new_virtual_reg();
+              var_map[opn->name_][opn->scope_id_] = rbase;
               auto& symbol =
                   ir::gScopes[opn->scope_id_].symbol_table_[opn->name_];
               armbb->inst_list_.push_back(
                   static_cast<Instruction*>(new BinaryInst(
                       BinaryInst::OpCode::ADD, false, Cond::AL, rbase, sp_vreg,
                       new Operand2(symbol.offset_))));
-            } else {
-              // 全局数组量
-              armbb->inst_list_.push_back(
-                  static_cast<Instruction*>(new LdrStr(rbase, opn->name_)));
             }
           }
           armbb->inst_list_.push_back(static_cast<Instruction*>(
@@ -305,7 +329,9 @@ Module* GenerateAsm(ir::Module* module) {
                          vreg, rbase, new Operand2(opn->offset_->imm_num_))));
           return vreg;
         } else {
+          // 如果是全局变量 在varmap里找 没找到的话ldr vreg, glo_addr
           if (opn->scope_id_ == 0) {
+            load_global_opn2reg(opn);
             const auto& iter = var_map.find(opn->name_);
             if (iter != var_map.end()) {
               const auto& iter2 = (*iter).second.find(opn->scope_id_);
@@ -315,14 +341,14 @@ Module* GenerateAsm(ir::Module* module) {
             }
             Reg* vreg = new_virtual_reg();
             var_map[opn->name_][opn->scope_id_] = vreg;
-            // 全局变量
-            armbb->inst_list_.push_back(
-                static_cast<Instruction*>(new LdrStr(vreg, opn->name_)));
+            armbb->inst_list_.push_back(static_cast<Instruction*>(
+                new LdrStr(LdrStr::OpKind::LDR, LdrStr::Type::Norm, Cond::AL,
+                           vreg, glo_addr_map[opn->name_], new Operand2(0))));
             return vreg;
           }
-          // Var offset为-1或者以temp-开头表示中间变量
           auto& symbol = ir::gScopes[opn->scope_id_].symbol_table_[opn->name_];
           if (symbol.offset_ == -1) {
+            // 如果是中间变量 找到返回 没找到生成并绑定
             const auto& iter = var_map.find(opn->name_);
             if (iter != var_map.end()) {
               const auto& iter2 = (*iter).second.find(opn->scope_id_);
@@ -334,8 +360,7 @@ Module* GenerateAsm(ir::Module* module) {
             var_map[opn->name_][opn->scope_id_] = vreg;
             return vreg;
           } else {
-            // 非中间变量 ldr rd, [sp, #offset]
-            // TODO: 如何存储sp
+            // 局部变量 一定生成一条ldr语句 ldr rd, [sp, #offset]
             auto vreg = new_virtual_reg();
             auto offset = new Operand2(symbol.offset_);
             armbb->inst_list_.push_back({static_cast<Instruction*>(
@@ -346,31 +371,11 @@ Module* GenerateAsm(ir::Module* module) {
         }
       };
 
-      auto load_global_opn2reg = [&var_map, &new_virtual_reg,
-                                  &armbb](ir::Opn* opn) {
-        // 如果是全局变量并且没在varmap里找到就ldr 然后再str
-        if (opn->scope_id_ == 0) {
-          Reg* rglo = nullptr;
-          const auto& iter = var_map.find(opn->name_);
-          if (iter != var_map.end()) {
-            const auto& iter2 = (*iter).second.find(opn->scope_id_);
-            if (iter2 != (*iter).second.end()) {
-              rglo = (*iter2).second;
-            }
-          }
-          if (nullptr == rglo) {
-            rglo = new_virtual_reg();
-            var_map[opn->name_][opn->scope_id_] = rglo;
-            armbb->inst_list_.push_back(
-                static_cast<Instruction*>(new LdrStr(rglo, opn->name_)));
-          }
-        }
-      };
-
       auto resolve_resopn2rdreg_with_biinst =
-          [&var_map, &armbb, &sp_vreg, &new_virtual_reg, &load_global_opn2reg](
-              ir::Opn* opn, BinaryInst::OpCode opcode, Reg* rn, Operand2* op2) {
-            // 只能是Var类型 或者Array？
+          [&var_map, &armbb, &sp_vreg, &new_virtual_reg, &load_global_opn2reg,
+           &glo_addr_map](ir::Opn* opn, BinaryInst::OpCode opcode, Reg* rn,
+                          Operand2* op2) {
+            // 只能是Var类型 Assign不调用此函数
             assert(opn->type_ == ir::Opn::Type::Var);
             load_global_opn2reg(opn);
             // Var offset为-1或者以temp-开头表示中间变量
@@ -395,9 +400,9 @@ Module* GenerateAsm(ir::Module* module) {
                 new BinaryInst(opcode, false, Cond::AL, rd, rn, op2)));
             // 否则还要生成一条str指令
             if (opn->scope_id_ == 0) {
-              armbb->inst_list_.push_back(static_cast<Instruction*>(new LdrStr(
-                  LdrStr::OpKind::STR, LdrStr::Type::Norm, Cond::AL, rd,
-                  var_map[opn->name_][opn->scope_id_], new Operand2(0))));
+              armbb->inst_list_.push_back(static_cast<Instruction*>(
+                  new LdrStr(LdrStr::OpKind::STR, LdrStr::Type::Norm, Cond::AL,
+                             rd, glo_addr_map[opn->name_], new Operand2(0))));
             } else if (-1 != symbol.offset_) {
               armbb->inst_list_.push_back(static_cast<Instruction*>(
                   new LdrStr(LdrStr::OpKind::STR, LdrStr::Type::Norm, Cond::AL,
@@ -567,7 +572,7 @@ Module* GenerateAsm(ir::Module* module) {
             if (0 == ir.res_.scope_id_) {
               armbb->inst_list_.push_back(static_cast<Instruction*>(new LdrStr(
                   LdrStr::OpKind::STR, LdrStr::Type::Norm, Cond::AL, rd,
-                  var_map[ir.res_.name_][ir.res_.scope_id_], new Operand2(0))));
+                  glo_addr_map[ir.res_.name_], new Operand2(0))));
             } else if (-1 != symbol.offset_) {
               armbb->inst_list_.push_back(static_cast<Instruction*>(
                   new LdrStr(LdrStr::OpKind::STR, LdrStr::Type::Norm, Cond::AL,
@@ -671,37 +676,47 @@ Module* GenerateAsm(ir::Module* module) {
             // 但是只有assign语句的rd可能是Array类型
             assert(ir.opn2_.type_ == ir::Opn::Type::Null);
             Operand2* op2 = resolve_opn2operand2(&(ir.opn1_));
+            // 使res如果是全局变量的话 一定有基址寄存器
             load_global_opn2reg(&(ir.res_));
             if (ir.res_.type_ == ir::Opn::Type::Array) {
-              Reg* rd = nullptr;
+              Reg* rd = new_virtual_reg();
               // mov,rd(new vreg),op2
-              rd = new_virtual_reg();
               armbb->inst_list_.push_back(static_cast<Instruction*>(
                   new Move(false, Cond::AL, rd, op2)));
               // 先找有没有rbase 没有就用一条ldr指令加载到rbase里并记录
               // 有了rbase之后 str rd, rbase, offset
               Reg* rbase = nullptr;
-              const auto& iter = var_map.find(ir.res_.name_);
-              if (iter != var_map.end()) {
-                const auto& iter2 = (*iter).second.find(ir.res_.scope_id_);
-                if (iter2 != (*iter).second.end()) {
-                  rbase = ((*iter2).second);
+              if (0 == ir.res_.scope_id_) {
+                load_global_opn2reg(&(ir.res_));
+                rbase = glo_addr_map[ir.res_.name_];
+              } else {
+                const auto& iter = var_map.find(ir.res_.name_);
+                if (iter != var_map.end()) {
+                  const auto& iter2 = (*iter).second.find(ir.res_.scope_id_);
+                  if (iter2 != (*iter).second.end()) {
+                    rbase = ((*iter2).second);
+                  }
                 }
-              }
-              if (nullptr == rbase) {
-                rbase = new_virtual_reg();
-                var_map[ir.res_.name_][ir.res_.scope_id_] = rbase;
-                auto& symbol =
-                    ir::gScopes[ir.res_.scope_id_].symbol_table_[ir.res_.name_];
-                armbb->inst_list_.push_back(
-                    static_cast<Instruction*>(new BinaryInst(
-                        BinaryInst::OpCode::ADD, false, Cond::AL, rbase,
-                        sp_vreg, new Operand2(symbol.offset_))));
+                if (nullptr == rbase) {
+                  rbase = new_virtual_reg();
+                  var_map[ir.res_.name_][ir.res_.scope_id_] = rbase;
+                  auto& symbol = ir::gScopes[ir.res_.scope_id_]
+                                     .symbol_table_[ir.res_.name_];
+                  armbb->inst_list_.push_back(
+                      static_cast<Instruction*>(new BinaryInst(
+                          BinaryInst::OpCode::ADD, false, Cond::AL, rbase,
+                          sp_vreg, new Operand2(symbol.offset_))));
+                }
               }
               armbb->inst_list_.push_back(static_cast<Instruction*>(new LdrStr(
                   LdrStr::OpKind::STR, LdrStr::Type::Norm, Cond::AL, rd, rbase,
                   new Operand2(ir.res_.offset_->imm_num_))));
             } else {
+              // 把一个op2 mov到某变量中
+              // 如果是中间变量 直接mov到这个变量所在的寄存器中即可
+              // 如果是局部变量 mov到这个变量所在的寄存器 然后str回内存
+              // 如果是全局变量 mov到这个变量所在的寄存器 然后str回内存
+
               // Var offset为-1或者以temp-开头表示中间变量
               auto& symbol =
                   ir::gScopes[ir.res_.scope_id_].symbol_table_[ir.res_.name_];
@@ -717,6 +732,8 @@ Module* GenerateAsm(ir::Module* module) {
                 }
               }
               if (nullptr == rd) {
+                // 如果没有找到说明之前没有用过这个变量
+                // 以后rd就代表该变量占用的寄存器 用于存储其内容
                 rd = new_virtual_reg();
                 var_map[ir.res_.name_][ir.res_.scope_id_] = rd;
               }
@@ -725,12 +742,15 @@ Module* GenerateAsm(ir::Module* module) {
                   new Move(false, Cond::AL, rd, op2)));
               // 否则还要生成一条str指令
               if (0 == ir.res_.scope_id_) {
+                // 全局变量基址一定有 在glo_addr_map中
+                // std::cout << "global" << std::endl;
                 armbb->inst_list_.push_back(
                     static_cast<Instruction*>(new LdrStr(
                         LdrStr::OpKind::STR, LdrStr::Type::Norm, Cond::AL, rd,
-                        var_map[ir.res_.name_][ir.res_.scope_id_],
-                        new Operand2(0))));
+                        glo_addr_map[ir.res_.name_], new Operand2(0))));
               } else if (-1 != symbol.offset_) {
+                // 局部变量一定在符号表中存着某个合理的偏移
+                // std::cout << "local" << std::endl;
                 armbb->inst_list_.push_back(
                     static_cast<Instruction*>(new LdrStr(
                         LdrStr::OpKind::STR, LdrStr::Type::Norm, Cond::AL, rd,
