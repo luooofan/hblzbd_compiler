@@ -527,11 +527,27 @@ Module* GenerateAsm(ir::Module* module) {
           case ir::IR::OpKind::DIV: {
             // if has imm, add mov inst
             // may can use __aeabi_idiv. r0
-            auto rm = resolve_opn2reg(&(ir.opn1_));
-            auto rs = resolve_opn2reg(&(ir.opn2_));
-            auto op2 = new Operand2(rs);
-            resolve_resopn2rdreg_with_biinst(&(ir.res_),
-                                             BinaryInst::OpCode::SDIV, rm, op2);
+            // auto rm = resolve_opn2reg(&(ir.opn1_));
+            // auto rs = resolve_opn2reg(&(ir.opn2_));
+            // auto op2 = new Operand2(rs);
+            // resolve_resopn2rdreg_with_biinst(&(ir.res_),
+            //                                  BinaryInst::OpCode::SDIV, rm,
+            //                                  op2);
+            auto rm = resolve_opn2operand2(&(ir.opn1_));
+            auto rn = resolve_opn2operand2(&(ir.opn2_));
+            // mov r1, rn
+            armbb->inst_list_.push_back(static_cast<Instruction*>(
+                new Move(false, Cond::AL, new Reg(ArmReg::r1), rn)));
+            // mov r0, rm
+            armbb->inst_list_.push_back(static_cast<Instruction*>(
+                new Move(false, Cond::AL, new Reg(ArmReg::r0), rm)));
+            // call __aeabi_idiv
+            armbb->inst_list_.push_back(static_cast<Instruction*>(
+                new Branch(true, false, Cond::AL, "__aeabi_idiv")));
+            //
+            auto rd = resolve_opn2reg(&(ir.res_));
+            armbb->inst_list_.push_back(static_cast<Instruction*>(new Move(
+                false, Cond::AL, rd, new Operand2(new Reg(ArmReg::r0)))));
             break;
           }
           case ir::IR::OpKind::MOD: {
