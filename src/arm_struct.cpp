@@ -245,18 +245,11 @@ Module* GenerateAsm(ir::Module* module) {
                          vreg, rbase, new Operand2(opn->offset_->imm_num_))));
           return new Operand2(vreg);
         } else {
-          // 如果是全局变量 找有没有内容寄存器 如果没有 生成一个新的
+          // 如果是全局变量 一定生成一条ldr
           if (opn->scope_id_ == 0) {
             load_global_opn2reg(opn);
-            const auto& iter = var_map.find(opn->name_);
-            if (iter != var_map.end()) {
-              const auto& iter2 = (*iter).second.find(opn->scope_id_);
-              if (iter2 != (*iter).second.end()) {
-                return new Operand2((*iter2).second);
-              }
-            }
             Reg* vreg = new_virtual_reg();
-            var_map[opn->name_][opn->scope_id_] = vreg;
+            // var_map[opn->name_][opn->scope_id_] = vreg;
             // 把基址reg中的内容ldr到vreg中
             armbb->inst_list_.push_back(static_cast<Instruction*>(
                 new LdrStr(LdrStr::OpKind::LDR, LdrStr::Type::Norm, Cond::AL,
@@ -339,18 +332,11 @@ Module* GenerateAsm(ir::Module* module) {
                          vreg, rbase, new Operand2(opn->offset_->imm_num_))));
           return vreg;
         } else {
-          // 如果是全局变量 在varmap里找 没找到的话ldr vreg, glo_addr
+          // 如果是全局变量 一定有一条ldr
           if (opn->scope_id_ == 0) {
             load_global_opn2reg(opn);
-            const auto& iter = var_map.find(opn->name_);
-            if (iter != var_map.end()) {
-              const auto& iter2 = (*iter).second.find(opn->scope_id_);
-              if (iter2 != (*iter).second.end()) {
-                return (*iter2).second;
-              }
-            }
             Reg* vreg = new_virtual_reg();
-            var_map[opn->name_][opn->scope_id_] = vreg;
+            // var_map[opn->name_][opn->scope_id_] = vreg;
             armbb->inst_list_.push_back(static_cast<Instruction*>(
                 new LdrStr(LdrStr::OpKind::LDR, LdrStr::Type::Norm, Cond::AL,
                            vreg, glo_addr_map[opn->name_], new Operand2(0))));
