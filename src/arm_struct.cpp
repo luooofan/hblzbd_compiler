@@ -620,9 +620,10 @@ Module* GenerateAsm(ir::Module* module) {
                                  new Reg(ArmReg::sp), new Reg(ArmReg::sp),
                                  new Operand2((param_num - 4) * 4))));
             }
+
             int param_start = start - 1 - param_num;
             for (int i = param_num - 1; i >= 0; --i) {
-              auto& param_ir = ir::gIRList[param_start + i];
+              auto& param_ir = ir::gIRList[param_start + param_num - i - 1];
               if (i < 4) {
                 auto op2 = resolve_opn2operand2(&(param_ir.opn1_));
                 // r0-r3. MOV rx, op2
