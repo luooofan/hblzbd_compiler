@@ -778,9 +778,9 @@ Module* GenerateAsm(ir::Module* module) {
       }
     }
 
-    // 补epilogue TODO: 语义分析中未检查函数执行流最后是否为ret 这里暂时补一个
-    auto last_bb = bb_map[func->bb_list_.back()];
-    add_epilogue(last_bb);
+    // epilogue: NOTE: 中间代码保证了函数执行流最后一定有一条return语句
+    // auto last_bb = bb_map[func->bb_list_.back()];
+    // add_epilogue(last_bb);
   }
 
   // maintain call_func_list
