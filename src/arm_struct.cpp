@@ -641,12 +641,16 @@ Module* GenerateAsm(ir::Module* module) {
             break;
           }
           case ir::IR::OpKind::RET: {
+            auto rd = new Reg(ArmReg::r0);
+            Operand2* op2 = nullptr;
             if (ir.opn1_.type_ != ir::Opn::Type::Null) {
-              auto rd = new Reg(ArmReg::r0);
-              auto op2 = resolve_opn2operand2(&(ir.opn1_));
-              armbb->inst_list_.push_back(static_cast<Instruction*>(
-                  new Move(false, Cond::AL, rd, op2)));
+              op2 = resolve_opn2operand2(&(ir.opn1_));
+            } else {
+              // NOTE: ret void时 应视为给r0赋某值 保证活跃分析正确
+              op2 = new Operand2(0);
             }
+            armbb->inst_list_.push_back(
+                static_cast<Instruction*>(new Move(false, Cond::AL, rd, op2)));
             add_epilogue(armbb);
             // armbb->inst_list_.push_back(static_cast<Instruction*>(
             //     new Branch(false, true, Cond::AL, "lr")));
