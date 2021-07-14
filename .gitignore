@@ -18,3 +18,4 @@ src/main2.cpp
 *_struct.*
 .vscode/
 arm_code.s
+official_test/
