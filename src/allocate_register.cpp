@@ -780,7 +780,7 @@ void allocate_register(Module *m) {
       assign_colors();
       if (spilled_nodes.empty()) {
         done = true;
-      } else {
+      } else { // TODO: 实际溢出
         std::cout << "actual spill" << std::endl;
         // rewrite program
         for (auto &n : spilled_nodes) {
@@ -871,7 +871,9 @@ void allocate_register(Module *m) {
         done = false;
       }
     }
-    // 每一个函数确定了之后 添加一些push pop指令进去
+    // TODO: 每一个函数确定了之后 添加push pop指令
+    // TODO: 删除自己到自己的mov语句
+    // TODO: 地址偏移立即数过大处理
   }
 }
 

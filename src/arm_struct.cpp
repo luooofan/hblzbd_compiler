@@ -1064,7 +1064,8 @@ void Function::EmitCode(std::ostream& outfile) {
 }
 
 void Module::EmitCode(std::ostream& outfile) {
-  // outfile << ".arch armv7" << std::endl;
+  outfile << ".arch armv7ve" << std::endl;
+  outfile << ".arm" << std::endl;
   auto& global_symtab = global_scope_.symbol_table_;
   if (!global_symtab.empty()) {
     outfile << ".section .data" << std::endl;
@@ -1080,7 +1081,8 @@ void Module::EmitCode(std::ostream& outfile) {
       outfile << std::endl;
     }
   }
-  outfile << ".section .text" << std::endl << std::endl;
+  outfile << ".section .text" << std::endl;
+	// outfile << ".syntax unified" << std::endl << std::endl;
   for (auto func : func_list_) {
     func->EmitCode(outfile);
   }

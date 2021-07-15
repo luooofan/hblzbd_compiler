@@ -22,3 +22,5 @@ arm_code.s
 official_test/
 *.s
 temp*
+libsysy*
+*.c
