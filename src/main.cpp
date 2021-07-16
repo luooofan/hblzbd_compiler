@@ -2,6 +2,7 @@
 #include <fstream>
 
 #include "../include/allocate_register.h"
+#include "../include/arm.h"
 #include "../include/arm_struct.h"
 #include "../include/ast.h"
 #include "../include/ir.h"
@@ -46,7 +47,7 @@ int main(int argc, char **argv) {
     std::cout << "BasicBlocks:" << std::endl;
     ir_module->Print();
 
-    arm::Module *arm_module = arm::GenerateAsm(ir_module);
+    arm::Module *arm_module = arm::GenerateArm(ir_module);
     arm_module->EmitCode(std::cout);
 
     arm::allocate_register(arm_module);

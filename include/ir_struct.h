@@ -6,17 +6,17 @@
 #include "../include/ir.h"
 
 namespace ir {
-class BasicBlock {
- public:
-  // all irs
-  int start_;  // close
-  int end_;    // open
-  // pred succ
-  std::vector<BasicBlock*> pred_;
-  std::vector<BasicBlock*> succ_;
-  // in out data stream
 
-  BasicBlock(int start) : start_(start), end_(-1) {}
+class BasicBlock;
+class Function;
+
+class Module {
+ public:
+  // global declaration
+  Scope& global_scope_;
+  // all functions
+  std::vector<Function*> func_list_;
+  Module(Scope& global_scope) : global_scope_(global_scope) {}
   void Print();
 };
 
@@ -36,13 +36,17 @@ class Function {
   void Print();
 };
 
-class Module {
+class BasicBlock {
  public:
-  // global declaration
-  Scope& global_scope_;
-  // all functions
-  std::vector<Function*> func_list_;
-  Module(Scope& global_scope) : global_scope_(global_scope) {}
+  // all irs
+  int start_;  // close
+  int end_;    // open
+  // pred succ
+  std::vector<BasicBlock*> pred_;
+  std::vector<BasicBlock*> succ_;
+  // in out data stream
+
+  BasicBlock(int start) : start_(start), end_(-1) {}
   void Print();
 };
 
