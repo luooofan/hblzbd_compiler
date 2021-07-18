@@ -56,6 +56,4 @@ class ArmBasicBlock : public BasicBlock {
   void EmitCode(std::ostream& out = std::cout);
 };
 
-ArmModule* GenerateArm(IRModule* module);
-
 #endif

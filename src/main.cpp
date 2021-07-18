@@ -1,8 +1,10 @@
 #include <cstring>
 #include <fstream>
 
+#include "../include/Pass/allocate_register.h"
+#include "../include/Pass/arm_liveness_analysis.h"
+#include "../include/Pass/generate_arm.h"
 #include "../include/Pass/pass_manager.h"
-#include "../include/allocate_register.h"
 #include "../include/arm.h"
 #include "../include/arm_struct.h"
 #include "../include/ast.h"
@@ -25,54 +27,58 @@ int main(int argc, char **argv) {
     freopen(in, "r", stdin);
   }
 
-  std::cout << "Start Parser()" << std::endl;
+  std::cout << "Start Parser:" << std::endl;
   yyset_lineno(1);
   yyparse();  // if success, ast_root is valid
 
-  if (nullptr != ast_root) {
-    std::cout << "PrintNode()" << std::endl;
-    ast_root->PrintNode(0, std::cout);
+  if (nullptr == ast_root) {
+  }
+  std::cout << "PrintNode:" << std::endl;
+  ast_root->PrintNode(0, std::cout);
 
-    std::cout << "Generate IR:" << std::endl;
-    ir::ContextInfo ctx;
-    ast_root->GenerateIR(ctx);
-    ir::PrintFuncTable();
-    ir::PrintScopes();
+  std::cout << "Generate IR:" << std::endl;
+  ir::ContextInfo ctx;
+  ast_root->GenerateIR(ctx);
 
-    std::cout << "IRList:" << std::endl;
-    for (auto &ir : ir::gIRList) {
-      ir.PrintIR();
-    }
+  yylex_destroy();
+  delete ast_root;
 
-    IRModule *ir_module = ConstructModule();
-    ir_module->EmitCode(std::cout);
+  ir::PrintFuncTable();
+  ir::PrintScopes();
 
-    // PassManager passman(ir_module);
-    // passman.AddPass<>(false);
-    // passman.run(false, std::cout);
+  std::cout << "IRList:" << std::endl;
+  for (auto &ir : ir::gIRList) {
+    ir.PrintIR();
+  }
 
-    ArmModule *arm_module = GenerateArm(ir_module);
-    arm_module->EmitCode(std::cout);
+  // it represents IRModule before GenerateArm Pass
+  // and ArmModule after GenerateArm Pass.
+  // the source space will be released when running GenerateArm Pass.
+  Module *module_ptr = static_cast<Module *>(ConstructModule(std::string(in)));
+  module_ptr->EmitCode(std::cout);
+  Module **module_ptr_addr = &module_ptr;
 
-    allocate_register(arm_module);
+  PassManager pm(module_ptr_addr);
+  pm.AddPass<GenerateArm>(false);
+  pm.AddPass<RegAlloc>(false);
+  pm.Run(true, std::cout);
 
+  assert(typeid(*module_ptr) == typeid(ArmModule));
+
+  {
     std::ofstream outfile;
     int len = strlen(in);
     std::string file_name = std::string(in, in + len - 1);
-
-    // file_name[file_name.size() - 1] = '\0';
-    // outfile.open("./arm_code.s");
-    std::cout << file_name << std::endl;
     outfile.open(file_name);
-    std::cout << "EmitCode Begin" << std::endl;
-    arm_module->EmitCode(outfile);
-    std::cout << "EmitCode End" << std::endl;
+    std::cout << "Emitting code to file: " << file_name << std::endl;
+    module_ptr->EmitCode(outfile);
+    std::cout << "EmitCode finish." << std::endl;
     outfile.close();
   }
 
-  yylex_destroy();
-
-  delete ast_root;
+  // release the arm module space.
+  delete module_ptr;
+  module_ptr = nullptr;
 
   return 0;
 }

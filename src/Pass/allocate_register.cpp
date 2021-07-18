@@ -1,243 +1,48 @@
-#include "../include/allocate_register.h"
-
-#include <algorithm>
-#include <cassert>
-#include <map>
-#include <set>
-#include <stack>
-#include <unordered_map>
-#include <unordered_set>
-
-#include "../include/arm_struct.h"
+#include "../../include/Pass/allocate_register.h"
+// GetUseDef GetUseDefPtr
+#include "../../include/Pass/arm_liveness_analysis.h"
 using namespace arm;
+
 #define IS_PRECOLORED(i) (i < 16)
 
-using RegId = int;
-// 工作表 一个工作表是一些寄存器RegId的集合
-using WorkList = std::unordered_set<RegId>;
-// using RegSet = ...
-// 邻接表
-using AdjList = std::unordered_map<RegId, std::unordered_set<RegId>>;
-// using Reg2AdjList = ...
-// 冲突边的偶数对集
-using AdjSet = std::set<std::pair<RegId, RegId>>;
-// 结点的度数
-using Degree = std::unordered_map<RegId, int>;
-
-// mov指令集
-using MovSet = std::unordered_set<Move *>;
-// 一个reg相关的mov指令
-using MovList = std::unordered_map<RegId, MovSet>;
-// using Reg2MovList = ...
-
-std::pair<std::vector<RegId>, std::vector<RegId>> GetDefUse(Instruction *inst) {
-  std::vector<RegId> def;
-  std::vector<RegId> use;
-
-  auto process_op2 = [&use](Operand2 *op2) {
-    if (op2->is_imm_) return;
-    use.push_back(op2->reg_->reg_id_);
-    if (nullptr != op2->shift_ && !op2->shift_->is_imm_) {
-      use.push_back(op2->shift_->shift_reg_->reg_id_);
-    }
-    return;
-  };
-
-  if (auto src_inst = dynamic_cast<BinaryInst *>(inst)) {
-    if (nullptr != src_inst->rd_) {
-      def.push_back(src_inst->rd_->reg_id_);
-    }
-    use.push_back(src_inst->rn_->reg_id_);
-    process_op2(src_inst->op2_);
-  } else if (auto src_inst = dynamic_cast<Move *>(inst)) {
-    def.push_back(src_inst->rd_->reg_id_);
-    process_op2(src_inst->op2_);
-  } else if (auto src_inst = dynamic_cast<Branch *>(inst)) {
-    // call可先视为对前面已经定义的参数寄存器的使用
-    // 再视作对调用者保护的寄存器的定义 不管之后这些寄存器有没有被使用
-    // caller save regs: r0-r3, lr, ip
-    // ret可视为对r0的使用 不能视为对lr的一次使用
-    // 如果b后面是个函数label就是call 如果b后面是lr就是ret
-    auto &label = src_inst->label_;
-    if (label == "lr") {
-      // ret
-      assert(0);  // 暂时禁用 bx lr
-      use.push_back(static_cast<RegId>(ArmReg::r0));
-    } else if (ir::gFuncTable.find(label) != ir::gFuncTable.end() ||
-               label == "__aeabi_idivmod" || label == "__aeabi_idiv") {
-      // TODO: 这里用到了ir 之后优化掉 可能需要一个func_name到Function*的map
-      // call
-      int callee_param_num = ir::gFuncTable[label].shape_list_.size();
-      for (RegId i = 0; i < std::min(callee_param_num, 4); ++i) {
-        use.push_back(i);
-      }
-      for (RegId i = 0; i < 4; ++i) {
-        def.push_back(i);
-      }
-      def.push_back(static_cast<RegId>(ArmReg::ip));
-      def.push_back(static_cast<RegId>(ArmReg::lr));
-    }
-  } else if (auto src_inst = dynamic_cast<LdrStr *>(inst)) {
-    if (src_inst->opkind_ == LdrStr::OpKind::LDR) {
-      def.push_back(src_inst->rd_->reg_id_);
-    } else {
-      use.push_back(src_inst->rd_->reg_id_);
-    }
-    if (src_inst->type_ != LdrStr::Type::PCrel) {
-      use.push_back(src_inst->rn_->reg_id_);
-      process_op2(src_inst->offset_);
-    }
-  } else if (auto src_inst = dynamic_cast<PushPop *>(inst)) {
-    if (src_inst->opkind_ == PushPop::OpKind::PUSH) {
-      for (auto reg : src_inst->reg_list_) {
-        use.push_back(reg->reg_id_);
-      }
-    } else {
-      for (auto reg : src_inst->reg_list_) {
-        if (reg->reg_id_ == static_cast<RegId>(ArmReg::lr)) {
-          // 此时作为ret语句 视为对r0的使用以及对lr的定义
-          use.push_back(static_cast<RegId>(ArmReg::r0));
-        }
-        def.push_back(reg->reg_id_);
-      }
-    }
-  } else {
-    // 未实现其他指令
-    assert(0);
+void dbg_print_worklist(RegAlloc::WorkList &wl) {
+  for (auto item : wl) {
+    std::cout << item << " ";
   }
-
-  return {def, use};
+  std::cout << std::endl;
 }
-
-std::pair<Reg *, std::vector<Reg *>> GetDefUsePtr(Instruction *inst) {
-  Reg *def;
-  std::vector<Reg *> use;
-
-  auto process_op2 = [&use](Operand2 *op2) {
-    if (op2->is_imm_) return;
-    use.push_back(op2->reg_);
-    if (nullptr != op2->shift_ && !op2->shift_->is_imm_) {
-      use.push_back(op2->shift_->shift_reg_);
-    }
-    return;
-  };
-
-  if (auto src_inst = dynamic_cast<BinaryInst *>(inst)) {
-    if (nullptr != src_inst->rd_) {
-      def = (src_inst->rd_);
-    }
-    use.push_back(src_inst->rn_);
-    process_op2(src_inst->op2_);
-  } else if (auto src_inst = dynamic_cast<Move *>(inst)) {
-    def = (src_inst->rd_);
-    process_op2(src_inst->op2_);
-  } else if (auto src_inst = dynamic_cast<Branch *>(inst)) {
-  } else if (auto src_inst = dynamic_cast<LdrStr *>(inst)) {
-    if (src_inst->opkind_ == LdrStr::OpKind::LDR) {
-      def = (src_inst->rd_);
-    } else {
-      use.push_back(src_inst->rd_);
-    }
-    if (src_inst->type_ != LdrStr::Type::PCrel) {
-      use.push_back(src_inst->rn_);
-      process_op2(src_inst->offset_);
-    }
-  } else if (auto src_inst = dynamic_cast<PushPop *>(inst)) {
-    if (src_inst->opkind_ == PushPop::OpKind::PUSH) {
-      for (auto reg : src_inst->reg_list_) {
-        use.push_back(reg);
-      }
-    } else {
-      for (auto reg : src_inst->reg_list_) {
-        def = (reg);
-      }
-    }
-  } else {
-    // 未实现其他指令
-    assert(0);
-  }
-
-  return {def, use};
-}
-
-void LivenessAnalysis(ArmFunction *f) {
-  for (auto bb : f->bb_list_) {
-    // NOTE: 发生实际溢出时会重新分析 需要先清空
-    bb->livein_.clear();
-    bb->liveout_.clear();
-    bb->def_.clear();
-    bb->use_.clear();
-    // 对于每一条指令 取def和use并记录到basicblock中 加快数据流分析
-    for (auto inst : bb->inst_list_) {
-      auto [def, use] = GetDefUse(inst);
-      for (auto &u : use) {
-        // liveuse not use. if in def, not liveuse
-        if (bb->def_.find(u) == bb->def_.end()) {
-          bb->use_.insert(u);
-        }
-      }
-      for (auto &d : def) {
-        if (bb->use_.find(d) == bb->use_.end()) {
-          bb->def_.insert(d);
-        }
-      }
-    }
-    // liveuse是入口活跃的那些use
-    // def是非入口活跃use的那些def
-    bb->livein_ = bb->use_;
-  }
-
-  // 为每一个basicblock计算livein和liveout
-  bool changed = true;
-  while (changed) {
-    changed = false;
-    for (auto bb : f->bb_list_) {
-      std::unordered_set<RegId> new_out;
-      // out[s]=U(succ:i)in[i]
-      // 对每一个后继基本块
-      // std::cout<<bb->succ_.size()<<std::endl;
-      for (auto succ : bb->succ_) {
-        //   if(succ){
-        new_out.insert(succ->livein_.begin(), succ->livein_.end());
-        //   }
-      }
-
-      if (new_out != bb->liveout_) {
-        // 还未到达不动点
-        changed = true;
-        bb->liveout_ = new_out;
-        // in[s]=use[s]U(out[s]-def[s]) 可增量添加
-        for (auto s : bb->liveout_) {
-          if (bb->def_.find(s) == bb->def_.end()) {
-            bb->livein_.insert(s);  // 重复元素插入无副作用
-          }
-        }
-      }
-    }  // for every bb
-  }    // while end
-}
-
 // 利用adj_list返回一个结点的所有有效邻接点
 // 无效邻接点为选择栈中的结点和已合并的结点
 // called adjacent in paper.
-WorkList ValidAdjacentSet(RegId reg, AdjList &adj_list,
-                          std::vector<RegId> &select_stack,
-                          WorkList &coalesced_nodes) {
+RegAlloc::WorkList RegAlloc::ValidAdjacentSet(RegId reg, AdjList &adj_list, std::vector<RegId> &select_stack,
+                                              WorkList &coalesced_nodes) {
   WorkList valid_adjacent = adj_list[reg];
-  for (auto adj_node : valid_adjacent) {
-    if (std::find(select_stack.begin(), select_stack.end(), adj_node) !=
-            select_stack.end() ||
-        coalesced_nodes.find(adj_node) != coalesced_nodes.end()) {
-      // NOTE 应该仍然有效
-      valid_adjacent.erase(adj_node);
+  // std::cout << valid_adjacent.size() << std::endl;
+  for (auto iter = valid_adjacent.begin(); iter != valid_adjacent.end();) {
+    // std::cout << *iter << std::endl;
+    // NOTE: erase
+    if (std::find(select_stack.begin(), select_stack.end(), *iter) == select_stack.end() &&
+        coalesced_nodes.find(*iter) == coalesced_nodes.end()) {
+      ++iter;
+    } else {
+      iter = valid_adjacent.erase(iter);
     }
+    // dbg_print_worklist(valid_adjacent);
   }
   return valid_adjacent;
 };
 
+void RegAlloc::Run() {
+  auto m = dynamic_cast<ArmModule *>(*(this->m_));
+  assert(nullptr != m);
+  this->AllocateRegister(m);
+}
+
 // iterated register coalescing
-void allocate_register(ArmModule *m) {
+void RegAlloc::AllocateRegister(ArmModule *m) {
+  int i = 0;
   for (auto func : m->func_list_) {
+    std::cout << "第" << i++ << "个函数: " << func->name_ << std::endl;
     bool done = false;
     while (!done) {
       // K color
@@ -249,8 +54,8 @@ void allocate_register(ArmModule *m) {
       Degree degree;
 
       WorkList simplify_worklist;  // 低度数的mov无关的结点集合 可简化
-      WorkList freeze_worklist;  // 低度数的mov有关的结点集合 可冻结
-      WorkList spill_worklist;  // 高度数的结点结合 可能溢出
+      WorkList freeze_worklist;    // 低度数的mov有关的结点集合 可冻结
+      WorkList spill_worklist;     // 高度数的结点结合 可能溢出
       // 需要在选择栈中查找元素 所以用vector
       std::vector<RegId> select_stack;
 
@@ -271,7 +76,7 @@ void allocate_register(ArmModule *m) {
       // (现在或将来)可用于合并的mov指令集合
       MovSet worklist_moves;  // 一开始mov指令都放在这里
       MovSet active_moves;    // 里面放的是暂时无法合并的mov指令
-                            // 如果有合并的可能后会加到worklist moves中
+                              // 如果有合并的可能后会加到worklist moves中
 
       // 处理过程
       // livenessanalysis() 活跃分析
@@ -308,13 +113,10 @@ void allocate_register(ArmModule *m) {
         for (auto bb : func->bb_list_) {
           // live-out[B] also is live-out[B-last-inst]
           auto live = bb->liveout_;
-          for (auto inst_iter = bb->inst_list_.rbegin();
-               inst_iter != bb->inst_list_.rend(); ++inst_iter) {
+          for (auto inst_iter = bb->inst_list_.rbegin(); inst_iter != bb->inst_list_.rend(); ++inst_iter) {
             auto [def, use] = GetDefUse(*inst_iter);
             if (auto src_inst = dynamic_cast<Move *>(*inst_iter)) {
-              if (!src_inst->op2_->is_imm_ &&
-                  nullptr == src_inst->op2_->shift_ &&
-                  src_inst->cond_ == Cond::AL) {
+              if (!src_inst->op2_->is_imm_ && nullptr == src_inst->op2_->shift_ && src_inst->cond_ == Cond::AL) {
                 RegId op2_regid = src_inst->op2_->reg_->reg_id_;
                 // 从live中删除op2
                 // ????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
@@ -354,27 +156,28 @@ void allocate_register(ArmModule *m) {
       // 根据move_list返回有效的mov指令集合
       // 有效的mov指令都在active moves和worklist moves中
       // called node_moves in paper.
-      auto valid_mov_set = [&move_list, &active_moves,
-                            &worklist_moves](RegId reg) {
+      auto valid_mov_set = [&move_list, &active_moves, &worklist_moves](RegId reg) {
         MovSet res = move_list[reg];
-        for (auto mov : res) {
-          if (active_moves.find(mov) == active_moves.end() &&
-              worklist_moves.find(mov) == worklist_moves.end()) {
-            // NOTE: 应该成功删除
-            res.erase(mov);
+        for (auto iter = res.begin(); iter != res.end();) {
+          if (active_moves.find(*iter) == active_moves.end() && worklist_moves.find(*iter) == worklist_moves.end()) {
+            iter = res.erase(iter);
+          } else {
+            ++iter;
           }
         }
+        // for (auto mov : res) {
+        //   if (active_moves.find(mov) == active_moves.end() && worklist_moves.find(mov) == worklist_moves.end()) {
+        //     res.erase(mov);
+        //   }
+        // }
         return res;
       };
 
       // 如果该reg的有效mov指令集不空 则是mov-related
-      auto move_related = [&valid_mov_set](RegId reg) {
-        return !valid_mov_set(reg).empty();
-      };
+      auto move_related = [&valid_mov_set](RegId reg) { return !valid_mov_set(reg).empty(); };
 
       // 根据冲突图中的结点度数填三张worklist
-      auto mk_worklist = [&degree, &spill_worklist, &freeze_worklist, &func,
-                          &simplify_worklist, &K, &move_related]() {
+      auto mk_worklist = [&degree, &spill_worklist, &freeze_worklist, &func, &simplify_worklist, &K, &move_related]() {
         // degree中存着全部使用的寄存器 这里不应该把precolored寄存器放进去
         for (RegId i = 16; i < func->virtual_reg_max; ++i) {
           // degree中可能没有
@@ -404,8 +207,8 @@ void allocate_register(ArmModule *m) {
             worklist_moves.insert(m);
           }
         }
-        auto &&adj_regs =
-            ValidAdjacentSet(reg, adj_list, select_stack, colored_nodes);
+
+        auto &&adj_regs = ValidAdjacentSet(reg, adj_list, select_stack, colored_nodes);
         for (auto adj_reg : adj_regs) {
           for (auto m : valid_mov_set(adj_reg)) {
             if (active_moves.find(m) != active_moves.end()) {
@@ -418,8 +221,7 @@ void allocate_register(ArmModule *m) {
 
       // degree更新时 可能带来了简化与合并的机会
       // spill_worklist---reg-->simplify/freeze_worklist
-      auto decrement_degree = [&spill_worklist, &simplify_worklist,
-                               &freeze_worklist, &degree, &move_related,
+      auto decrement_degree = [&spill_worklist, &simplify_worklist, &freeze_worklist, &degree, &move_related,
                                &enable_moves](RegId reg) {
         --degree[reg];
         // degree可能从K变为了K-1 增加了简化与合并的机会
@@ -438,16 +240,15 @@ void allocate_register(ArmModule *m) {
 
       // 逻辑上从冲突图中删除某节点
       // 实际上是simplify_worklist---reg-->select_stack以及邻接点degree的更新
-      auto simplify = [&decrement_degree, &simplify_worklist, &select_stack,
-                       &adj_list, &coalesced_nodes]() {
+      auto simplify = [&decrement_degree, &simplify_worklist, &select_stack, this, &adj_list, &coalesced_nodes]() {
         // if (simplify_worklist.empty()) return;
         RegId reg = *simplify_worklist.begin();
         simplify_worklist.erase(reg);
         select_stack.push_back(reg);
         // NOTE 不能实际删除边 之后着色的时候要使用
         // 所有邻接结点的度数-1
-        auto &&valid_adj_set =
-            ValidAdjacentSet(reg, adj_list, select_stack, coalesced_nodes);
+        auto &&valid_adj_set = this->ValidAdjacentSet(reg, adj_list, select_stack, coalesced_nodes);
+        std::cout << valid_adj_set.size() << std::endl;
         for (auto &m : valid_adj_set) {
           decrement_degree(m);
         }
@@ -455,8 +256,7 @@ void allocate_register(ArmModule *m) {
 
       // 拿到这些结点被合并到的那一个结点 TODO: 并查集
       auto get_alias = [&alias, &coalesced_nodes](RegId reg) {
-        while (std::find(coalesced_nodes.begin(), coalesced_nodes.end(), reg) !=
-               coalesced_nodes.end()) {
+        while (std::find(coalesced_nodes.begin(), coalesced_nodes.end(), reg) != coalesced_nodes.end()) {
           reg = alias[reg];
         }
         return reg;
@@ -467,10 +267,8 @@ void allocate_register(ArmModule *m) {
       // called conservative() in paper.
       auto briggs_coalesce_test = [&](RegId a, RegId b) {
         // NOTE:
-        auto &&adj_a =
-            ValidAdjacentSet(a, adj_list, select_stack, coalesced_nodes);
-        auto &&adj_b =
-            ValidAdjacentSet(b, adj_list, select_stack, coalesced_nodes);
+        auto &&adj_a = ValidAdjacentSet(a, adj_list, select_stack, coalesced_nodes);
+        auto &&adj_b = ValidAdjacentSet(b, adj_list, select_stack, coalesced_nodes);
         int cnt = 0;
         // 把b的邻接点都连到a上
         int deg = degree[a];
@@ -494,11 +292,9 @@ void allocate_register(ArmModule *m) {
       // called ok() in paper.
       auto george_coalesce_test = [&](RegId a, RegId b) {
         assert(IS_PRECOLORED(b));
-        auto &&valid_adj_regs =
-            ValidAdjacentSet(a, adj_list, select_stack, coalesced_nodes);
+        auto &&valid_adj_regs = ValidAdjacentSet(a, adj_list, select_stack, coalesced_nodes);
         for (auto adj_reg : valid_adj_regs) {
-          if (degree[adj_reg] < K || IS_PRECOLORED(adj_reg) ||
-              adj_set.find({adj_reg, b}) != adj_set.end()) {
+          if (degree[adj_reg] < K || IS_PRECOLORED(adj_reg) || adj_set.find({adj_reg, b}) != adj_set.end()) {
             continue;
           } else {
             return false;
@@ -535,15 +331,13 @@ void allocate_register(ArmModule *m) {
         for (auto n : move_list[b]) {
           m.insert(n);
         }
-        for (auto t :
-             ValidAdjacentSet(b, adj_list, select_stack, coalesced_nodes)) {
+        for (auto t : ValidAdjacentSet(b, adj_list, select_stack, coalesced_nodes)) {
           add_edge(t, a);
           decrement_degree(t);
         }
 
         // 合并后可能原来度数<K现在>=K 需要移动
-        if (degree[a] >= K &&
-            freeze_worklist.find(a) != freeze_worklist.end()) {
+        if (degree[a] >= K && freeze_worklist.find(a) != freeze_worklist.end()) {
           freeze_worklist.erase(a);
           spill_worklist.insert(a);
         }
@@ -586,8 +380,7 @@ void allocate_register(ArmModule *m) {
         }
 
         // 此时要么u precolored 要么都是virtual register
-        if ((IS_PRECOLORED(u) && george_coalesce_test(v, u)) ||
-            (!IS_PRECOLORED(u) && briggs_coalesce_test(u, v))) {
+        if ((IS_PRECOLORED(u) && george_coalesce_test(v, u)) || (!IS_PRECOLORED(u) && briggs_coalesce_test(u, v))) {
           coalesced_moves.insert(m);
           // 执行合并操作v->u 修改相应的数据结构
           combine(u, v);
@@ -601,6 +394,7 @@ void allocate_register(ArmModule *m) {
 
       auto freeze_moves = [&](RegId reg) {
         // 把和reg有关的 本来可能合并的mov指令冻结
+        // 有效的mov指令一定放在active或worklist movs中
         for (auto m : valid_mov_set(reg)) {
           if (active_moves.find(m) != active_moves.end()) {
             active_moves.erase(m);
@@ -609,8 +403,7 @@ void allocate_register(ArmModule *m) {
           }
           frozen_moves.insert(m);
 
-          auto v =
-              m->rd_->reg_id_ == reg ? m->op2_->reg_->reg_id_ : m->rd_->reg_id_;
+          auto v = m->rd_->reg_id_ == reg ? m->op2_->reg_->reg_id_ : m->rd_->reg_id_;
           // 结点可能变为mov无关
           if (!move_related(v) && degree[v] < K) {
             freeze_worklist.erase(v);
@@ -632,9 +425,8 @@ void allocate_register(ArmModule *m) {
 
       // TODO: 溢出代价计算
       auto select_spill = [&]() {
-        RegId reg = *std::max_element(
-            spill_worklist.begin(), spill_worklist.end(),
-            [&](auto a, auto b) { return degree[a] < degree[b]; });
+        RegId reg = *std::max_element(spill_worklist.begin(), spill_worklist.end(),
+                                      [&](auto a, auto b) { return degree[a] < degree[b]; });
         simplify_worklist.insert(reg);
         freeze_moves(reg);
         spill_worklist.erase(reg);
@@ -650,11 +442,11 @@ void allocate_register(ArmModule *m) {
         auto lr = static_cast<RegId>(ArmReg::lr);
         colored.insert({lr, lr});
 
-        std::cout << "选择栈中有" << select_stack.size() << "个结点"
-                  << std::endl;
+        // std::cout << "选择栈中有" << select_stack.size() << "个结点"
+        //           << std::endl;
         while (!select_stack.empty()) {
           auto vreg = select_stack.back();
-          std::cout << "现在为" << vreg << "分配寄存器:" << std::endl;
+          // std::cout << "现在为" << vreg << "分配寄存器:" << std::endl;
           select_stack.pop_back();
           std::unordered_set<RegId> ok_colors;
 
@@ -671,7 +463,7 @@ void allocate_register(ArmModule *m) {
             ok_colors.insert(i);
           }
           ok_colors.insert(static_cast<RegId>(ArmReg::lr));
-          dbg_print_ok_colors("填好之后");
+          // dbg_print_ok_colors("填好之后");
 
           // 再删
           for (auto adj_reg : adj_list[vreg]) {
@@ -685,7 +477,7 @@ void allocate_register(ArmModule *m) {
               //   std::cout << "erase:" << colored[real_reg] << std::endl;
             }
           }
-          dbg_print_ok_colors("删完之后");
+          // dbg_print_ok_colors("删完之后");
 
           // 最后分配
           if (ok_colors.empty()) {
@@ -695,7 +487,7 @@ void allocate_register(ArmModule *m) {
             // 可分配
             auto color = *std::min_element(ok_colors.begin(), ok_colors.end());
             colored[vreg] = color;
-            std::cout << "给" << vreg << "结点分配了" << color << std::endl;
+            // std::cout << "给" << vreg << "结点分配了" << color << std::endl;
           }
         }
 
@@ -711,12 +503,12 @@ void allocate_register(ArmModule *m) {
         }
 
         // DEBUG PRINT
-        for (auto &[before, after] : colored) {
-          auto colored =
-              std::to_string(before) + " => " + std::to_string(after);
-          //   dbg(colored);
-          std::cout << colored << std::endl;
-        }
+        // for (auto &[before, after] : colored) {
+        //   auto colored =
+        //       std::to_string(before) + " => " + std::to_string(after);
+        //   //   dbg(colored);
+        //   std::cout << colored << std::endl;
+        // }
 
         // modify_armcode
         // replace usage of virtual registers
@@ -738,7 +530,7 @@ void allocate_register(ArmModule *m) {
         }
       };
 
-      LivenessAnalysis(func);
+      ArmLivenessAnalysis::Run4Func(func);
 
       // 机器寄存器预着色 每一个机器寄存器都不可简化 不可溢出
       // 把这些寄存器的degree初始化为极大
@@ -754,31 +546,48 @@ void allocate_register(ArmModule *m) {
         std::cout << std::endl;
       };
 
+      std::cout << "Build Start:" << std::endl;
       build();
+      std::cout << "End." << std::endl;
+      std::cout << "MK_WL Start:" << std::endl;
       mk_worklist();
+      std::cout << "End." << std::endl;
       do {
         if (!simplify_worklist.empty()) {
+          std::cout << "Simplify Start:" << std::endl;
           //   std::cout << "可简化的结点如下:" << std::endl;
-          dbg_print_worklist(simplify_worklist, "可简化的结点如下:");
+          // dbg_print_worklist(simplify_worklist, "可简化的结点如下:");
           simplify();
+          std::cout << "End." << std::endl;
         }
         if (!worklist_moves.empty()) {
+          std::cout << "Coalesce Start:" << std::endl;
           coalesce();
+          std::cout << "End." << std::endl;
         }
         if (!freeze_worklist.empty()) {
-          dbg_print_worklist(simplify_worklist, "可冻结的结点如下:");
+          // dbg_print_worklist(simplify_worklist, "可冻结的结点如下:");
+          std::cout << "Freeze Start:" << std::endl;
           freeze();
+          std::cout << "End." << std::endl;
         }
         if (!spill_worklist.empty()) {
-          dbg_print_worklist(simplify_worklist, "可能溢出的结点如下:");
+          std::cout << "SelectSpill Start:" << std::endl;
+          // dbg_print_worklist(simplify_worklist, "可能溢出的结点如下:");
           select_spill();
+          std::cout << "End." << std::endl;
         }
-      } while (!simplify_worklist.empty() || !worklist_moves.empty() ||
-               !freeze_worklist.empty() || !spill_worklist.empty());
+      } while (!simplify_worklist.empty() || !worklist_moves.empty() || !freeze_worklist.empty() ||
+               !spill_worklist.empty());
+      std::cout << "Coloring Start:" << std::endl;
       assign_colors();
+      std::cout << "End." << std::endl;
       if (spilled_nodes.empty()) {
         done = true;
       } else {  // TODO: 实际溢出
+        done = true;
+        continue;
+
         std::cout << "actual spill" << std::endl;
         // rewrite program
         for (auto &n : spilled_nodes) {

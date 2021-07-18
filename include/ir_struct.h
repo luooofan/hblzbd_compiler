@@ -46,6 +46,6 @@ class IRBasicBlock : public BasicBlock {
   void EmitCode(std::ostream& out = std::cout);
 };
 
-IRModule* ConstructModule();
+IRModule* ConstructModule(const std::string& module_name);
 
 #endif

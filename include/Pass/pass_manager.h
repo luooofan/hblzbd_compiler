@@ -6,14 +6,14 @@
 #include "../general_struct.h"
 class Pass {
  protected:
-  Module* m_;
+  Module** m_;
   std::string name_;
   bool emit_ = false;
 
  public:
-  Pass(Module* m) : m_(m) {}
+  Pass(Module** m) : m_(m) {}
 
-  virtual void run() = 0;
+  virtual void Run() = 0;
   void SetName(std::string name) { name_ = name; }
   std::string GetName() { return name_; }
   void SetEmit(bool emit) { emit_ = emit; }
@@ -22,21 +22,21 @@ class Pass {
 
 class Analysis : public Pass {
  public:
-  Analysis(Module* m) : Pass(m) {}
+  Analysis(Module** m) : Pass(m) {}
 };
 
 class Transform : public Pass {
  public:
-  Transform(Module* m) : Pass(m) {}
+  Transform(Module** m) : Pass(m) {}
 };
 
 class PassManager {
  private:
   std::vector<Pass*> passes_;
-  Module* m_;
+  Module** m_;
 
  public:
-  PassManager(Module* m) : m_(m) {}
+  PassManager(Module** m) : m_(m) {}
 
   template <typename PassTy>
   void AddPass(bool emit = false) {
@@ -52,13 +52,15 @@ class PassManager {
     }
   }
 
-  void run(bool emit = false, std::ostream& out = std::cout) {
+  void Run(bool emit = false, std::ostream& out = std::cout) {
     for (auto pass : this->passes_) {
-      pass->run();
+      out << ">>>>>>>>>>>> Start pass " << pass->GetName() << " <<<<<<<<<<<<"
+          << std::endl;
+      pass->Run();
+      out << ">>>>>>>>>>>> After pass " << pass->GetName() << " <<<<<<<<<<<<"
+          << std::endl;
       if (emit || pass->IsEmit()) {
-        out << ">>>>>>>>>>>> After pass " << pass->GetName() << " <<<<<<<<<<<<"
-            << std::endl;
-        m_->EmitCode(out);
+        (*m_)->EmitCode(out);
       }
     }
   }

@@ -1,7 +1,7 @@
 #include "../include/ir_struct.h"
 using namespace ir;
 
-IRModule* ConstructModule() {
+IRModule* ConstructModule(const std::string& module_name) {
   // Construct BasicBlocks Functions and Module from gIRList
 
   // 基本块的首指令
