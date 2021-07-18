@@ -2,30 +2,30 @@
 
 #include "../include/arm.h"
 #include "../include/arm_struct.h"
+using namespace arm;
 
-namespace arm {
-
-Module* GenerateArm(ir::Module* module) {
+ArmModule* GenerateArm(IRModule* module) {
   // 由ir module直接构建arm的bb func 和 module
   // 构建的过程中可以把ir中的label语句删掉
   // 可能会出现一些空的bb
-  Module* armmodule = new Module(module->global_scope_);
-  std::unordered_map<ir::Function*, Function*> func_map;
+  ArmModule* armmodule = new ArmModule(module->global_scope_);
+  // 实际上是IRFunc到ArmFunc的映射
+  std::unordered_map<IRFunction*, ArmFunction*> func_map;
 
-  auto div_func = new Function("__aeabi_idiv", 2, 0);
-  auto mod_func = new Function("__aeabi_idivmod", 2, 0);
+  auto div_func = new ArmFunction("__aeabi_idiv", 2, 0);
+  auto mod_func = new ArmFunction("__aeabi_idivmod", 2, 0);
 
   for (auto func : module->func_list_) {
     // every ir func
-    Function* armfunc =
-        new Function(func->func_name_, func->arg_num_, func->stack_size_);
+    ArmFunction* armfunc =
+        new ArmFunction(func->name_, func->arg_num_, func->stack_size_);
     func_map.insert({func, armfunc});
     armmodule->func_list_.push_back(armfunc);
 
     // create armbb according to irbb
-    std::unordered_map<ir::BasicBlock*, BasicBlock*> bb_map;
+    std::unordered_map<IRBasicBlock*, ArmBasicBlock*> bb_map;
     for (auto bb : func->bb_list_) {
-      BasicBlock* armbb = new BasicBlock();
+      ArmBasicBlock* armbb = new ArmBasicBlock();
       bb_map.insert({bb, armbb});
       armfunc->bb_list_.push_back(armbb);
     }
@@ -45,7 +45,8 @@ Module* GenerateArm(ir::Module* module) {
       return new Reg(virtual_reg_id++);
     };
 
-    auto resolve_imm2operand2 = [&new_virtual_reg](BasicBlock* armbb, int imm) {
+    auto resolve_imm2operand2 = [&new_virtual_reg](ArmBasicBlock* armbb,
+                                                   int imm) {
       int encoding = imm;
       for (int ror = 0; ror < 32; ror += 2) {
         if (!(encoding & ~0xFFu)) {
@@ -115,7 +116,7 @@ Module* GenerateArm(ir::Module* module) {
 
     // 要为每一个ret语句添加epilogue
     auto add_epilogue = [&stack_size,
-                         &resolve_imm2operand2](BasicBlock* armbb) {
+                         &resolve_imm2operand2](ArmBasicBlock* armbb) {
       // add sp, sp, #stack_size
       if (0 != stack_size) {
         armbb->inst_list_.push_back(static_cast<Instruction*>(new BinaryInst(
@@ -827,7 +828,7 @@ Module* GenerateArm(ir::Module* module) {
     // auto last_bb = bb_map[func->bb_list_.back()];
     // add_epilogue(last_bb);
 
-    armfunc->virtual_max = virtual_reg_id;
+    armfunc->virtual_reg_max = virtual_reg_id;
   }
 
   // maintain call_func_list
@@ -837,8 +838,8 @@ Module* GenerateArm(ir::Module* module) {
       auto iter = func_map.find(callee);
       if (iter == func_map.end()) {
         // buildin system library function
-        armfunc->call_func_list_.push_back(new Function(
-            callee->func_name_, callee->arg_num_, callee->stack_size_));
+        armfunc->call_func_list_.push_back(new ArmFunction(
+            callee->name_, callee->arg_num_, callee->stack_size_));
       } else {
         armfunc->call_func_list_.push_back((*iter).second);
       }
@@ -852,4 +853,3 @@ Module* GenerateArm(ir::Module* module) {
 
   return armmodule;
 }
-}  // namespace arm

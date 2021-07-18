@@ -1,8 +1,7 @@
 #include "../include/ir_struct.h"
+using namespace ir;
 
-namespace ir {
-
-Module* ConstructModule() {
+IRModule* ConstructModule() {
   // Construct BasicBlocks Functions and Module from gIRList
 
   // 基本块的首指令
@@ -15,33 +14,33 @@ Module* ConstructModule() {
   // TODO: 假设函数之间的基本块是毫无关系的
 
   // 先遍历一遍IR 把所有func和有label的BB创建完成 创建两个map
-  std::unordered_map<std::string, BasicBlock*> label2bb;
-  std::unordered_map<std::string, Function*> label2func;
+  std::unordered_map<std::string, IRBasicBlock*> label2bb;
+  std::unordered_map<std::string, IRFunction*> label2func;
 
   // add library function to label2func
   // not add them to module
-  label2func.insert({"getint", new Function("getint", 0, 0)});
-  label2func.insert({"getch", new Function("getch", 0, 0)});
-  label2func.insert({"getarray", new Function("getarray", 0, 0)});
-  label2func.insert({"putint", new Function("putint", 1, 0)});
-  label2func.insert({"putch", new Function("putch", 1, 0)});
-  label2func.insert({"putarray", new Function("putarray", 1, 0)});
-  label2func.insert({"starttime", new Function("starttime", 0, 0)});
-  label2func.insert({"stoptime", new Function("stoptime", 0, 0)});
+  label2func.insert({"getint", new IRFunction("getint", 0, 0)});
+  label2func.insert({"getch", new IRFunction("getch", 0, 0)});
+  label2func.insert({"getarray", new IRFunction("getarray", 0, 0)});
+  label2func.insert({"putint", new IRFunction("putint", 1, 0)});
+  label2func.insert({"putch", new IRFunction("putch", 1, 0)});
+  label2func.insert({"putarray", new IRFunction("putarray", 1, 0)});
+  label2func.insert({"starttime", new IRFunction("starttime", 0, 0)});
+  label2func.insert({"stoptime", new IRFunction("stoptime", 0, 0)});
 
-  Module* module = new Module(gScopes[0]);
+  IRModule* module = new IRModule(gScopes[0]);
 
   for (int i = 0; i < gIRList.size(); ++i) {
     auto& ir = gIRList[i];
     if (ir.op_ == IR::OpKind::LABEL) {
       auto& label_name = ir.opn1_.name_;
-      BasicBlock* bb = new BasicBlock(i);
+      IRBasicBlock* bb = new IRBasicBlock(i);
       label2bb.insert({label_name, bb});
       if (ir.opn1_.type_ == Opn::Type::Func) {
         // is a function begin
         auto& func_item = (*ir::gFuncTable.find(label_name)).second;
-        Function* func = new Function(label_name, func_item.shape_list_.size(),
-                                      func_item.size_);
+        IRFunction* func = new IRFunction(
+            label_name, func_item.shape_list_.size(), func_item.size_);
         func->bb_list_.push_back(bb);
         label2func.insert({label_name, func});
         module->func_list_.push_back(func);
@@ -50,9 +49,9 @@ Module* ConstructModule() {
   }
   // 此时module的所有func已经放好 func的第一个基本块已经放好
   bool is_leader = false;
-  Function* curr_func = nullptr;
-  BasicBlock* pre_bb = nullptr;
-  BasicBlock* curr_bb = nullptr;
+  IRFunction* curr_func = nullptr;
+  IRBasicBlock* pre_bb = nullptr;
+  IRBasicBlock* curr_bb = nullptr;
   for (int i = 0; i < gIRList.size(); ++i) {
     auto& ir = gIRList[i];
     if (ir.op_ == IR::OpKind::LABEL) {
@@ -74,7 +73,7 @@ Module* ConstructModule() {
         }
       } else {
         // new BB
-        curr_bb = new BasicBlock(i);
+        curr_bb = new IRBasicBlock(i);
       }
       curr_func->bb_list_.push_back(curr_bb);
       // 维护前一个基本块的终点 维护两个基本块之间的关系
@@ -122,6 +121,4 @@ Module* ConstructModule() {
   curr_bb->end_ = gIRList.size();
 
   return module;
-}
-
 }

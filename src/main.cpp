@@ -1,6 +1,7 @@
 #include <cstring>
 #include <fstream>
 
+#include "../include/Pass/pass_manager.h"
 #include "../include/allocate_register.h"
 #include "../include/arm.h"
 #include "../include/arm_struct.h"
@@ -43,14 +44,17 @@ int main(int argc, char **argv) {
       ir.PrintIR();
     }
 
-    ir::Module *ir_module = ir::ConstructModule();
-    std::cout << "BasicBlocks:" << std::endl;
-    ir_module->Print();
+    IRModule *ir_module = ConstructModule();
+    ir_module->EmitCode(std::cout);
 
-    arm::Module *arm_module = arm::GenerateArm(ir_module);
+    // PassManager passman(ir_module);
+    // passman.AddPass<>(false);
+    // passman.run(false, std::cout);
+
+    ArmModule *arm_module = GenerateArm(ir_module);
     arm_module->EmitCode(std::cout);
 
-    arm::allocate_register(arm_module);
+    allocate_register(arm_module);
 
     std::ofstream outfile;
     int len = strlen(in);

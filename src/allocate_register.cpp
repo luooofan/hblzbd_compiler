@@ -9,10 +9,8 @@
 #include <unordered_set>
 
 #include "../include/arm_struct.h"
-
+using namespace arm;
 #define IS_PRECOLORED(i) (i < 16)
-
-namespace arm {
 
 using RegId = int;
 // 工作表 一个工作表是一些寄存器RegId的集合
@@ -162,31 +160,31 @@ std::pair<Reg *, std::vector<Reg *>> GetDefUsePtr(Instruction *inst) {
   return {def, use};
 }
 
-void LivenessAnalysis(Function *f) {
+void LivenessAnalysis(ArmFunction *f) {
   for (auto bb : f->bb_list_) {
     // NOTE: 发生实际溢出时会重新分析 需要先清空
     bb->livein_.clear();
     bb->liveout_.clear();
     bb->def_.clear();
-    bb->liveuse_.clear();
+    bb->use_.clear();
     // 对于每一条指令 取def和use并记录到basicblock中 加快数据流分析
     for (auto inst : bb->inst_list_) {
       auto [def, use] = GetDefUse(inst);
       for (auto &u : use) {
         // liveuse not use. if in def, not liveuse
         if (bb->def_.find(u) == bb->def_.end()) {
-          bb->liveuse_.insert(u);
+          bb->use_.insert(u);
         }
       }
       for (auto &d : def) {
-        if (bb->liveuse_.find(d) == bb->liveuse_.end()) {
+        if (bb->use_.find(d) == bb->use_.end()) {
           bb->def_.insert(d);
         }
       }
     }
     // liveuse是入口活跃的那些use
     // def是非入口活跃use的那些def
-    bb->livein_ = bb->liveuse_;
+    bb->livein_ = bb->use_;
   }
 
   // 为每一个basicblock计算livein和liveout
@@ -238,7 +236,7 @@ WorkList ValidAdjacentSet(RegId reg, AdjList &adj_list,
 };
 
 // iterated register coalescing
-void allocate_register(Module *m) {
+void allocate_register(ArmModule *m) {
   for (auto func : m->func_list_) {
     bool done = false;
     while (!done) {
@@ -378,7 +376,7 @@ void allocate_register(Module *m) {
       auto mk_worklist = [&degree, &spill_worklist, &freeze_worklist, &func,
                           &simplify_worklist, &K, &move_related]() {
         // degree中存着全部使用的寄存器 这里不应该把precolored寄存器放进去
-        for (RegId i = 16; i < func->virtual_max; ++i) {
+        for (RegId i = 16; i < func->virtual_reg_max; ++i) {
           // degree中可能没有
           auto iter = degree.find(i);
           if (iter == degree.end()) {
@@ -780,7 +778,7 @@ void allocate_register(Module *m) {
       assign_colors();
       if (spilled_nodes.empty()) {
         done = true;
-      } else { // TODO: 实际溢出
+      } else {  // TODO: 实际溢出
         std::cout << "actual spill" << std::endl;
         // rewrite program
         for (auto &n : spilled_nodes) {
@@ -795,8 +793,8 @@ void allocate_register(Module *m) {
             //   } else {
             //     auto mv_inst = new MIMove(access_inst);  // insert before
             //     access mv_inst->rhs = offset_imm; mv_inst->dst =
-            //     MachineOperand::V(f->virtual_max++); access_inst->offset =
-            //     mv_inst->dst;
+            //     MachineOperand::V(f->virtual_reg_max++); access_inst->offset
+            //     = mv_inst->dst;
             //   }
             // };
 
@@ -839,7 +837,7 @@ void allocate_register(Module *m) {
               if (def && def->reg_id_ == n) {
                 // store
                 if (vreg == -1) {
-                  vreg = func->virtual_max++;
+                  vreg = func->virtual_reg_max++;
                 }
                 def->reg_id_ = vreg;
                 last_def = orig_inst;
@@ -849,7 +847,7 @@ void allocate_register(Module *m) {
                 if (u->reg_id_ == n) {
                   // load
                   if (vreg == -1) {
-                    vreg = func->virtual_max++;
+                    vreg = func->virtual_reg_max++;
                   }
                   u->reg_id_ = vreg;
                   if (!first_use && !last_def) {
@@ -876,5 +874,3 @@ void allocate_register(Module *m) {
     // TODO: 地址偏移立即数过大处理
   }
 }
-
-}  // namespace arm

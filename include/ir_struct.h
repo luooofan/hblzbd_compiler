@@ -3,54 +3,49 @@
 #include <iostream>
 #include <string>
 
+#include "../include/general_struct.h"
 #include "../include/ir.h"
+class IRBasicBlock;
+class IRFunction;
 
-namespace ir {
-
-class BasicBlock;
-class Function;
-
-class Module {
+class IRModule : public Module {
  public:
-  // global declaration
-  Scope& global_scope_;
-  // all functions
-  std::vector<Function*> func_list_;
-  Module(Scope& global_scope) : global_scope_(global_scope) {}
-  void Print();
+  // functions: ordered
+  std::vector<IRFunction*> func_list_;
+
+ public:
+  IRModule(const std::string& name, ir::Scope& global_scope)
+      : Module(name, global_scope) {}
+  IRModule(ir::Scope& global_scope) : Module(global_scope) {}
+  void EmitCode(std::ostream& out = std::cout);
 };
 
-class Function {
+class IRFunction : public Function {
  public:
-  // all BasicBlocks
-  std::string func_name_;
-  std::vector<BasicBlock*> bb_list_;
-  int stack_size_;
-  int arg_num_;
+  // basicblocks: ordered
+  std::vector<IRBasicBlock*> bb_list_;
+  std::vector<IRFunction*> call_func_list_;
 
-  // optional
-  // Function*
-  std::vector<Function*> call_func_list_;
-  Function(std::string func_name, int arg_num, int stack_size)
-      : func_name_(func_name), arg_num_(arg_num), stack_size_(stack_size) {}
-  void Print();
+ public:
+  IRFunction(const std::string& name, int arg_num, int stack_size)
+      : Function(name, arg_num, stack_size) {}
+  bool IsLeaf() { return call_func_list_.empty(); }
+  void EmitCode(std::ostream& out = std::cout);
 };
 
-class BasicBlock {
+class IRBasicBlock : public BasicBlock {
  public:
   // all irs
   int start_;  // close
   int end_;    // open
-  // pred succ
-  std::vector<BasicBlock*> pred_;
-  std::vector<BasicBlock*> succ_;
-  // in out data stream
 
-  BasicBlock(int start) : start_(start), end_(-1) {}
-  void Print();
+  std::vector<IRBasicBlock*> pred_;
+  std::vector<IRBasicBlock*> succ_;
+
+  IRBasicBlock(int start) : start_(start), end_(-1) {}
+  void EmitCode(std::ostream& out = std::cout);
 };
 
-Module* ConstructModule();
+IRModule* ConstructModule();
 
-}  // namespace ir
 #endif

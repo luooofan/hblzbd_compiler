@@ -1,4 +1,2 @@
 #include "../include/arm_struct.h"
-namespace arm {
-void allocate_register(Module *m);
-}
+void allocate_register(ArmModule *m);

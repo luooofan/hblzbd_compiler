@@ -1,93 +1,104 @@
 #include "../include/arm_struct.h"
 
-#include <cassert>
 #include <iostream>
 #include <string>
-namespace arm {
 
-void Module::EmitCode(std::ostream& outfile) {
-  outfile << ".arch armv7ve" << std::endl;
-  outfile << ".arm" << std::endl;
-  auto& global_symtab = global_scope_.symbol_table_;
+#define GET_BB_LABEL_STR(bb_ptr) \
+  (nullptr != bb_ptr->label_ ? (*(bb_ptr->label_)) : ("UnamedBB"))
+
+void ArmModule::EmitCode(std::ostream& out) {
+  out << ".arch armv7ve" << std::endl;
+  out << ".arm" << std::endl;
+  out << "@ module: " << this->name_ << std::endl;
+  out << std::endl;
+
+  // .data
+  auto& global_symtab = this->global_scope_.symbol_table_;
   if (!global_symtab.empty()) {
-    outfile << ".section .data" << std::endl;
-    outfile << ".align 4" << std::endl << std::endl;
+    out << ".section .data" << std::endl;
+    out << ".align 4" << std::endl;
+    out << std::endl;
     // TODO: order?
     for (auto& symbol : global_symtab) {
-      outfile << ".global " << symbol.first << std::endl;
-      outfile << "\t.type " << symbol.first << ", %object" << std::endl;
-      outfile << symbol.first << ":" << std::endl;
+      out << ".global " << symbol.first << std::endl;
+      out << "\t.type " << symbol.first << ", %object" << std::endl;
+      out << symbol.first << ":" << std::endl;
       for (auto value : symbol.second.initval_) {
-        outfile << "\t.word " << std::to_string(value) << std::endl;
+        out << "\t.word " << std::to_string(value) << std::endl;
       }
-      outfile << std::endl;
+      out << std::endl;
     }
   }
-  outfile << ".section .text" << std::endl;
-  // outfile << ".syntax unified" << std::endl << std::endl;
-  for (auto func : func_list_) {
-    func->EmitCode(outfile);
+
+  // .text
+  out << ".section .text" << std::endl;
+  out << std::endl;
+  // out << ".syntax unified" << std::endl << std::endl;
+  for (auto func : this->func_list_) {
+    func->EmitCode(out);
+    out << std::endl;
   }
 }
 
-void Function::EmitCode(std::ostream& outfile) {
-  outfile << ".global " << func_name_ << std::endl;
-  outfile << "\t.type " << func_name_ << ", %function" << std::endl;
-  outfile << func_name_ << ":" << std::endl;
-  outfile << "@ call_func: " << std::endl;
-  for (auto func : call_func_list_) {
-    outfile << "  @ " << func->func_name_ << std::endl;
+void ArmFunction::EmitCode(std::ostream& out) {
+  out << ".global " << this->name_ << std::endl;
+  out << "\t.type " << this->name_ << ", %function" << std::endl;
+  out << this->name_ << ":" << std::endl;
+  out << "@ call_func: ";
+  for (auto func : this->call_func_list_) {
+    out << func->name_ << " ";
   }
-  outfile << "@ Function Begin." << std::endl;
+  // out << std::endl;
+  out << "@ arg_num: " << this->arg_num_ << " ";        // << std::endl;
+  out << "@ stack_size: " << this->stack_size_ << " ";  // << std::endl;
+  out << "@ virtual_reg_max: " << this->virtual_reg_max << " ";
+  out << std::endl;
+
+  out << "@ Function Begin:" << std::endl;
   for (auto bb : bb_list_) {
-    bb->EmitCode(outfile);
+    bb->EmitCode(out);
+    out << std::endl;
   }
-  outfile << "@ Function End." << std::endl;
-  outfile << std::endl;
+  out << "@ Function End." << std::endl;
 }
 
-void BasicBlock::EmitCode(std::ostream& outfile) {
+void ArmBasicBlock::EmitCode(std::ostream& out) {
   if (this->HasLabel()) {
-    outfile << *this->label_ << ":" << std::endl;
+    out << *this->label_ << ":" << std::endl;
   }
-  outfile << "  @ BasicBlock Begin." << std::endl;
-  outfile << "  @ pred: ";
+  out << "  @ BasicBlock Begin:" << std::endl;
+  out << "  @ pred: ";
   for (auto pred : this->pred_) {
-    outfile << (nullptr != (*pred).label_ ? (*((*pred).label_)) : ("Unamed"))
-            << " ";
+    out << GET_BB_LABEL_STR(pred) << " ";
   }
-  // outfile << std::endl;
-  outfile << "  @ succ: ";
+  // out << std::endl;
+  out << "  @ succ: ";
   for (auto succ : this->succ_) {
-    outfile << (nullptr != (*succ).label_ ? (*((*succ).label_)) : ("Unamed"))
-            << " ";
+    out << GET_BB_LABEL_STR(succ) << " ";
   }
-  // outfile << std::endl;
-  outfile << "  @ liveuse: ";
-  for (auto liveuse : this->liveuse_) {
-    outfile << liveuse << " ";
+  // out << std::endl;
+  out << "  @ use: ";
+  for (auto use : this->use_) {
+    out << "r" << use << " ";
   }
-  // outfile << std::endl;
-  outfile << "  @ def: ";
+  // out << std::endl;
+  out << "  @ def: ";
   for (auto def : this->def_) {
-    outfile << def << " ";
+    out << "r" << def << " ";
   }
-  // outfile << std::endl;
-  outfile << "  @ livein: ";
+  // out << std::endl;
+  out << "  @ livein: ";
   for (auto livein : this->livein_) {
-    outfile << livein << " ";
+    out << "r" << livein << " ";
   }
-  // outfile << std::endl;
-  outfile << "  @ liveout: ";
+  // out << std::endl;
+  out << "  @ liveout: ";
   for (auto liveout : this->liveout_) {
-    outfile << liveout << " ";
+    out << "r" << liveout << " ";
   }
-  outfile << std::endl;
+  out << std::endl;
   for (auto inst : this->inst_list_) {
-    inst->EmitCode(outfile);
-    // std::clog << "print 1 inst successfully." << std::endl;
+    inst->EmitCode(out);
   }
-  outfile << "  @ BasicBlock End." << std::endl;
+  out << "  @ BasicBlock End." << std::endl;
 }
-
-}  // namespace arm
