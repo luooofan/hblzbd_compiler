@@ -428,7 +428,10 @@ LAndExp: EqExp
     }
     ;
 
-LOrExp: LAndExp
+LOrExp: LAndExp {
+    // NOTE: ($1 || 0)
+    $$ = static_cast<ast::Expression*>(new ast::ConditionExpression(yyget_lineno(), OR, *$1, *(new ast::Number(yyget_lineno(), 0))));
+}
     | LOrExp OR LAndExp {
         $$=static_cast<ast::Expression*>(new ast::ConditionExpression(yyget_lineno(), $2,*$1,*$3));
     }

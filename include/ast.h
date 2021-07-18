@@ -95,6 +95,7 @@ class ArrayIdentifier : public LeftValue {
                          std::ostream& outfile = std::clog);
 };
 
+// NOTE: 存在unaryexp或bixep必须作为condexp的场景
 class ConditionExpression : public Expression {
  public:
   int op_;
@@ -108,6 +109,7 @@ class ConditionExpression : public Expression {
                          std::ostream& outfile = std::clog);
 };
 
+// NOTE: 没有unary必须作为biexp的场景
 class BinaryExpression : public Expression {
  public:
   int op_;
