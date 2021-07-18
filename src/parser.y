@@ -3,6 +3,7 @@
 #include "../include/ast.h"
 #include <cstdio>
 #include <cstdlib>
+#include <cassert>
 
 #define YYERROR_VERBOSE true
 #define YYDEBUG 1
@@ -321,22 +322,17 @@ AssignStmt: LVal ASSIGN Exp SEMI {
 
 IfStmt: IF LPAREN Cond RPAREN Stmt {
     $$=static_cast<ast::Statement*>(
-        new ast::IfElseStatement(yyget_lineno(), *(dynamic_cast<ast::ConditionExpression*>($3)),
-                                 *$5,
-                                 nullptr));
+        new ast::IfElseStatement(yyget_lineno(), (dynamic_cast<ast::ConditionExpression&>(*$3)), *$5, nullptr));
 }
     | IF LPAREN Cond RPAREN Stmt ELSE Stmt {
         $$=static_cast<ast::Statement*>(
-            new ast::IfElseStatement(yyget_lineno(), *(dynamic_cast<ast::ConditionExpression*>($3)),
-                                    *$5,
-                                    $7)
-        );
+            new ast::IfElseStatement(yyget_lineno(), (dynamic_cast<ast::ConditionExpression&>(*$3)), *$5, $7));
     }
     ;   
 
 WhileStmt: WHILE LPAREN Cond RPAREN Stmt {
     $$=static_cast<ast::Statement*>(
-        new ast::WhileStatement(yyget_lineno(), *(dynamic_cast<ast::ConditionExpression*>($3)),*$5)
+        new ast::WhileStatement(yyget_lineno(), (dynamic_cast<ast::ConditionExpression&>(*$3)), *$5)
     );
 }
     ;
