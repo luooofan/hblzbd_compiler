@@ -408,7 +408,8 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
           }
           case ir::IR::OpKind::MUL: {
             auto rn = ResolveOpn2Reg(armbb, &(ir.opn1_));
-            auto op2 = ResolveOpn2Operand2(armbb, &(ir.opn2_));
+            // NOTE: MUL的两个操作数必须全为寄存器 不能是立即数
+            auto op2 = new Operand2(ResolveOpn2Reg(armbb, &(ir.opn2_)));
             // ResolveResOpn2RdRegWithBiInst(armbb, &(ir.res_), BinaryInst::OpCode::MUL, rn, op2);
             auto f = std::bind(gen_bi_inst, BinaryInst::OpCode::MUL, std::placeholders::_1, rn, op2);
             this->ResolveResOpn2RdReg(armbb, &(ir.res_), f);
