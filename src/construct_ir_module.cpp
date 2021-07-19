@@ -28,7 +28,7 @@ IRModule* ConstructModule(const std::string& module_name) {
   label2func.insert({"starttime", new IRFunction("starttime", 0, 0)});
   label2func.insert({"stoptime", new IRFunction("stoptime", 0, 0)});
 
-  IRModule* module = new IRModule(gScopes[0]);
+  IRModule* module = new IRModule(module_name, gScopes[0]);
 
   for (int i = 0; i < gIRList.size(); ++i) {
     auto& ir = gIRList[i];
@@ -39,8 +39,7 @@ IRModule* ConstructModule(const std::string& module_name) {
       if (ir.opn1_.type_ == Opn::Type::Func) {
         // is a function begin
         auto& func_item = (*ir::gFuncTable.find(label_name)).second;
-        IRFunction* func = new IRFunction(
-            label_name, func_item.shape_list_.size(), func_item.size_);
+        IRFunction* func = new IRFunction(label_name, func_item.shape_list_.size(), func_item.size_);
         func->bb_list_.push_back(bb);
         label2func.insert({label_name, func});
         module->func_list_.push_back(func);

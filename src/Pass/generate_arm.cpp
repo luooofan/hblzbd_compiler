@@ -16,7 +16,7 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
   // 由ir module直接构建arm的bb func 和 module
   // 构建的过程中可以把ir中的label语句删掉
   // 可能会出现一些空的bb
-  ArmModule* armmodule = new ArmModule(module->global_scope_);
+  ArmModule* armmodule = new ArmModule(module->name_, module->global_scope_);
   // 实际上是IRFunc到ArmFunc的映射
   std::unordered_map<IRFunction*, ArmFunction*> func_map;
 
