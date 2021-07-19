@@ -122,9 +122,10 @@ Reg* GenerateArm::ResolveOpn2Reg(ArmBasicBlock* armbb, ir::Opn* opn) {
         rbase = NewVirtualReg();
         var_map[opn->name_][opn->scope_id_] = rbase;
         auto& symbol = ir::gScopes[opn->scope_id_].symbol_table_[opn->name_];
-        armbb->inst_list_.push_back(static_cast<Instruction*>(
-            new BinaryInst(BinaryInst::OpCode::ADD, false, Cond::AL, rbase, sp_vreg,
-                           ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - symbol.width_[0]))));
+        int diff = symbol.width_[0] == -1 ? 4 : symbol.width_[0];
+        armbb->inst_list_.push_back(
+            static_cast<Instruction*>(new BinaryInst(BinaryInst::OpCode::ADD, false, Cond::AL, rbase, sp_vreg,
+                                                     ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - diff))));
       }
     }
     armbb->inst_list_.push_back(static_cast<Instruction*>(new BinaryInst(
@@ -569,9 +570,10 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
                   rbase = NewVirtualReg();
                   var_map[ir.res_.name_][ir.res_.scope_id_] = rbase;
                   auto& symbol = ir::gScopes[ir.res_.scope_id_].symbol_table_[ir.res_.name_];
+                  int diff = symbol.width_[0] == -1 ? 4 : symbol.width_[0];
                   armbb->inst_list_.push_back(static_cast<Instruction*>(
                       new BinaryInst(BinaryInst::OpCode::ADD, false, Cond::AL, rbase, sp_vreg,
-                                     ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - symbol.width_[0]))));
+                                     ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - diff))));
                 }
               }
               armbb->inst_list_.push_back(
@@ -612,9 +614,10 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
                 rbase = NewVirtualReg();
                 var_map[opn->name_][opn->scope_id_] = rbase;
                 auto& symbol = ir::gScopes[opn->scope_id_].symbol_table_[opn->name_];
+                int diff = symbol.width_[0] == -1 ? 4 : symbol.width_[0];
                 armbb->inst_list_.push_back(static_cast<Instruction*>(
                     new BinaryInst(BinaryInst::OpCode::ADD, false, Cond::AL, rbase, sp_vreg,
-                                   ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - symbol.width_[0]))));
+                                   ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - diff))));
               }
             }
             // 找到rbase后 来一条ldr语句
