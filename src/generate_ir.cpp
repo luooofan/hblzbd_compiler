@@ -98,10 +98,6 @@ void ArrayIdentifier::GenerateIR(ir::ContextInfo &ctx) {
     return;
   }
 
-  // 设置当前arrayidentifier的维度
-  // eg. int a[2][3][4]; a[0]'s shape is [3,4].
-  ctx.shape_ = std::vector<int>(s->shape_.begin() + shape_list_.size(), s->shape_.end());
-
   // for(int i = 0; i < s->width_.size(); ++i)
   // {
   //   printf("width: %d\n", s->width_[i]);
@@ -129,8 +125,22 @@ void ArrayIdentifier::GenerateIR(ir::ContextInfo &ctx) {
       delete res;
     }
   }
+
+  // 设置当前arrayidentifier的维度
+  // eg. int a[2][3][4]; a[0]'s shape is [3,4].
+  ctx.shape_.clear();
+  ctx.shape_ = std::vector<int>(s->shape_.begin() + shape_list_.size(), s->shape_.end());
+  // std::cout << s->shape_.size() << " " << shape_list_.size() << " " << ctx.shape_.size() << std::endl;
+
   ir::Opn *offset = new ir::Opn(ctx.opn_);
   ctx.opn_ = ir::Opn(ir::Opn::Type::Array, name_.name_, scope_id, offset);
+  if (ctx.shape_.empty()) {  // 如果是int类型而不是int[] 则需要生成一条=[]ir以区分地址和取值
+    std::string res_var = ir::NewTemp();
+    ir::gScopes[scope_id].symbol_table_.insert({res_var, {false, false, -1}});
+    ir::Opn temp = ir::Opn(ir::Opn::Type::Var, res_var, scope_id);
+    ir::gIRList.push_back({ir::IR::OpKind::ASSIGN_OFFSET, ctx.opn_, temp});
+    ctx.opn_ = temp;
+  }
 }
 
 // TODO: var+0 0+var var-0 var*0 0*var var/0 var%0 var/1 var%1
@@ -272,8 +282,7 @@ void FunctionCall::GenerateIR(ir::ContextInfo &ctx) {
   for (int i = 0; i < args_.arg_list_.size(); ++i) {
     args_.arg_list_[i]->GenerateIR(ctx);
     if (ctx.shape_.size() != func_item.shape_list_[i].size()) {
-      // std::cerr << ctx.shape_.size() << ' '
-      // << func_item.shape_list_[i].size()                << std::endl;
+      // std::cerr << ctx.shape_.size() << ' ' << func_item.shape_list_[i].size() << std::endl;
       ir::SemanticError(line_no_, "函数调用参数类型不匹配");
       return;
     } else {

@@ -6,17 +6,13 @@
 #include "../include/ast.h"
 #include "parser.hpp"  // EQOP RELOP
 
-#define TYPE_STRING(type) \
-  ((type) == INT ? "int" : ((type) == VOID ? "void" : "undefined"))
-#define PRINT_IR(op_name)                                               \
-  printf("(%10s,%10s,%10s,%10s)", (op_name), this->opn1_.name_.c_str(), \
-         this->opn2_.name_.c_str(), this->res_.name_.c_str());          \
-  if (opn1_.type_ == Opn::Type::Array)                                  \
-    printf(" %s", opn1_.offset_->name_.c_str());                        \
-  if (opn2_.type_ == Opn::Type::Array)                                  \
-    printf(" %s", opn2_.offset_->name_.c_str());                        \
-  if (res_.type_ == Opn::Type::Array)                                   \
-    printf(" %s", res_.offset_->name_.c_str());                         \
+#define TYPE_STRING(type) ((type) == INT ? "int" : ((type) == VOID ? "void" : "undefined"))
+#define PRINT_IR(op_name)                                                                          \
+  printf("(%10s,%10s,%10s,%10s)", (op_name), this->opn1_.name_.c_str(), this->opn2_.name_.c_str(), \
+         this->res_.name_.c_str());                                                                \
+  if (opn1_.type_ == Opn::Type::Array) printf(" %s", opn1_.offset_->name_.c_str());                \
+  if (opn2_.type_ == Opn::Type::Array) printf(" %s", opn2_.offset_->name_.c_str());                \
+  if (res_.type_ == Opn::Type::Array) printf(" %s", res_.offset_->name_.c_str());                  \
   printf("\n");
 
 namespace ir {
@@ -43,8 +39,7 @@ void PrintFuncTable() {
 }
 
 void SymbolTableItem::Print() {
-  printf("%10s%10s%10d\n", (this->is_array_ ? "√" : "×"),
-         (this->is_const_ ? "√" : "×"), this->offset_);
+  printf("%10s%10s%10d\n", (this->is_array_ ? "√" : "×"), (this->is_const_ ? "√" : "×"), this->offset_);
   if (this->is_array_) {
     printf("%20s: ", "shape");
     for (const auto &shape : this->shape_) {
@@ -61,9 +56,7 @@ void SymbolTableItem::Print() {
   }
 }
 
-void FuncTableItem::Print() {
-  printf("%10s%10d\n", TYPE_STRING(this->ret_type_), this->size_);
-}
+void FuncTableItem::Print() { printf("%10s%10d\n", TYPE_STRING(this->ret_type_), this->size_); }
 
 void Scope::Print() {
   std::cout << "Scope:\n"
@@ -77,8 +70,7 @@ void Scope::Print() {
   }
 }
 
-int FindSymbol(int scope_id, std::string name,
-               SymbolTableItem *&res_symbol_item) {
+int FindSymbol(int scope_id, std::string name, SymbolTableItem *&res_symbol_item) {
   while (-1 != scope_id) {
     auto &current_scope = gScopes[scope_id];
     auto &current_symbol_table = current_scope.symbol_table_;
@@ -205,9 +197,9 @@ void IR::PrintIR() {
     // case IR::OpKind::OFFSET_ASSIGN:
     //   PRINT_IR("[]=");
     //   break;
-    // case IR::OpKind::ASSIGN_OFFSET:
-    //   PRINT_IR("=[]");
-    //   break;
+    case IR::OpKind::ASSIGN_OFFSET:
+      PRINT_IR("=[]");
+      break;
     default:
       printf("unimplemented\n");
       break;
@@ -215,8 +207,7 @@ void IR::PrintIR() {
 }
 
 void SemanticError(int line_no, const std::string &&error_msg) {
-  std::cerr << "语义错误 at line " << line_no << " : " << error_msg
-            << std::endl;
+  std::cerr << "语义错误 at line " << line_no << " : " << error_msg << std::endl;
   exit(1);
 }
 

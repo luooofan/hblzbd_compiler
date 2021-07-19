@@ -12,9 +12,9 @@ class SymbolTableItem {
  public:
   bool is_array_;
   bool is_const_;
-  int offset_;              // 函数栈中偏移(中间变量偏移为-1)
-  std::vector<int> shape_;  // int为空 否则表示数组的各个维度
-  std::vector<int> width_;  // int为空 否则表示数组的各个维度的宽度
+  int offset_;                // 函数栈中偏移(中间变量偏移为-1)
+  std::vector<int> shape_;    // int为空 否则表示数组的各个维度
+  std::vector<int> width_;    // int为空 否则表示数组的各个维度的宽度
   std::vector<int> initval_;  // 用于记录全局变量的初始值 int为一个值
                               // 数组则转换为一维数组存储
   SymbolTableItem(bool is_array, bool is_const, int offset)
@@ -40,20 +40,17 @@ class Scope {
   std::unordered_map<std::string, SymbolTableItem> symbol_table_;
   int scope_id_;         // 作用域id
   int parent_scope_id_;  // 父作用域id
-  int dynamic_offset_;  // 当前作用域符号表中最后一个有效项在函数栈中的偏移
+  int dynamic_offset_;   // 当前作用域符号表中最后一个有效项在函数栈中的偏移
   // 往符号表中插入中间变量时不改变该值
   // bool is_func_;
   bool IsFunc() { return parent_scope_id_ == 0 ? true : false; }
   // Scope() {}
   Scope(int scope_id, int parent_scope_id, int dynamic_offset)
-      : scope_id_(scope_id),
-        parent_scope_id_(parent_scope_id),
-        dynamic_offset_(dynamic_offset) {}
+      : scope_id_(scope_id), parent_scope_id_(parent_scope_id), dynamic_offset_(dynamic_offset) {}
   void Print();
 };
 
-int FindSymbol(int scope_id, std::string name,
-               SymbolTableItem *&res_symbol_item);
+int FindSymbol(int scope_id, std::string name, SymbolTableItem *&res_symbol_item);
 
 using Scopes = std::vector<Scope>;
 using FuncTable = std::unordered_map<std::string, FuncTableItem>;
@@ -71,18 +68,13 @@ class Opn {
   Type type_;
   int imm_num_;       // 立即数
   std::string name_;  //
-  int scope_id_;  // 标识所在作用域 -1表示全局作用域的父作用域
+  int scope_id_;      // 标识所在作用域 -1表示全局作用域的父作用域
   Opn *offset_;
   // Opn Type: IMM
   Opn(Type type, int imm_num, int scope_id)
-      : type_(type),
-        imm_num_(imm_num),
-        name_("#" + std::to_string(imm_num)),
-        scope_id_(scope_id),
-        offset_(nullptr) {}
+      : type_(type), imm_num_(imm_num), name_("#" + std::to_string(imm_num)), scope_id_(scope_id), offset_(nullptr) {}
   // Opn Type: Var or Label or Func
-  Opn(Type type, std::string name, int scope_id)
-      : type_(type), name_(name), scope_id_(scope_id), offset_(nullptr) {}
+  Opn(Type type, std::string name, int scope_id) : type_(type), name_(name), scope_id_(scope_id), offset_(nullptr) {}
   // Opn Type: Null
   Opn(Type type) : type_(type), name_("-"), offset_(nullptr) { scope_id_ = -1; }
   // Opn Type: Array
@@ -114,34 +106,15 @@ class IR {
     JGT,     // >
     JGE,     // >=
     VOID,    // useless
+    ASSIGN_OFFSET,  // =[] NOTE: 这个操作符不可省略 不可合并到assign中 因为数组地址和数组取值是不一样的
     // OFFSET_ASSIGN,  // []=
-    // ASSIGN_OFFSET,  // =[]
   };
   OpKind op_;
   Opn opn1_, opn2_, res_;
-  int offset_;  // only used for []instruction
-  IR(OpKind op, Opn opn1, Opn opn2, Opn res)
-      : op_(op), opn1_(opn1), opn2_(opn2), res_(res), offset_(0) {}
-  IR(OpKind op, Opn opn1, Opn res, int offset)
-      : op_(op),
-        opn1_(opn1),
-        opn2_({Opn::Type::Null}),
-        res_(res),
-        offset_(offset) {}
-  IR(OpKind op, Opn opn1, Opn res)
-      : op_(op), opn1_(opn1), opn2_({Opn::Type::Null}), res_(res), offset_(0) {}
-  IR(OpKind op, Opn opn1)
-      : op_(op),
-        opn1_(opn1),
-        opn2_({Opn::Type::Null}),
-        res_({Opn::Type::Null}),
-        offset_(0) {}
-  IR(OpKind op)
-      : op_(op),
-        opn1_({Opn::Type::Null}),
-        opn2_({Opn::Type::Null}),
-        res_({Opn::Type::Null}),
-        offset_(0) {}
+  IR(OpKind op, Opn opn1, Opn opn2, Opn res) : op_(op), opn1_(opn1), opn2_(opn2), res_(res) {}
+  IR(OpKind op, Opn opn1, Opn res) : op_(op), opn1_(opn1), opn2_({Opn::Type::Null}), res_(res) {}
+  IR(OpKind op, Opn opn1) : op_(op), opn1_(opn1), opn2_({Opn::Type::Null}), res_({Opn::Type::Null}) {}
+  IR(OpKind op) : op_(op), opn1_({Opn::Type::Null}), opn2_({Opn::Type::Null}), res_({Opn::Type::Null}) {}
   IR() {}
   void PrintIR();
 };
@@ -156,7 +129,7 @@ class ContextInfo {
   // Used for ArrayInitVal
   std::string array_name_;
   int array_offset_;
-  int brace_num_;  // 当前位置(array_offset_)有几个大括号
+  int brace_num_;                   // 当前位置(array_offset_)有几个大括号
   std::vector<int> dim_total_num_;  // a[2][3][4] -> 24,12,4,1
   // Used for Break Continue
   std::stack<std::string> break_label_;

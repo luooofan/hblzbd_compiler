@@ -102,9 +102,8 @@ Reg* GenerateArm::ResolveOpn2Reg(ArmBasicBlock* armbb, ir::Opn* opn) {
     armbb->inst_list_.push_back(static_cast<Instruction*>(new Move(false, Cond::AL, rd, op2)));
     return rd;
   } else if (opn->type_ == ir::Opn::Type::Array) {
-    // Array 找到基址 如果存在rx中 (ldr, rv, rx, offset)
-    // 如果没找到 则(add, rbase, vsp, offset)记录(ldr, rv, rbase, offset)
-    // 返回rv
+    // Array 返回一个存着地址的寄存器 先找基址 如果存在rx中 (add, rv, rx, offset)
+    // 如果没找到 则(add, rbase, vsp, offset) 记录 (add, rv, rbase, offset) 返回rv
     Reg* rbase = nullptr;
     Reg* vreg = NewVirtualReg();
     if (0 == opn->scope_id_) {
@@ -128,9 +127,11 @@ Reg* GenerateArm::ResolveOpn2Reg(ArmBasicBlock* armbb, ir::Opn* opn) {
                            ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - symbol.width_[0]))));
       }
     }
-    // offset可能并非立即数
-    armbb->inst_list_.push_back(static_cast<Instruction*>(new LdrStr(
-        LdrStr::OpKind::LDR, LdrStr::Type::Norm, Cond::AL, vreg, rbase, ResolveOpn2Operand2(armbb, opn->offset_))));
+    armbb->inst_list_.push_back(static_cast<Instruction*>(new BinaryInst(
+        BinaryInst::OpCode::ADD, false, Cond::AL, vreg, rbase, ResolveOpn2Operand2(armbb, opn->offset_))));
+    // offset可能并非立即数 不会导致死循环
+    // armbb->inst_list_.push_back(static_cast<Instruction*>(new LdrStr(
+    // LdrStr::OpKind::LDR, LdrStr::Type::Norm, Cond::AL, vreg, rbase, ResolveOpn2Operand2(armbb, opn->offset_))));
     return vreg;
   } else {
     // 如果是全局变量 一定有一条ldr
@@ -417,8 +418,10 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
             Reg* rn = nullptr;
             Operand2* op2 = nullptr;
             gen_rn_op2(&(ir.opn1_), &(ir.opn2_), rn, op2);
-            auto f = std::bind(gen_bi_inst, BinaryInst::OpCode::ADD, std::placeholders::_1, rn, op2);
-            this->ResolveResOpn2RdReg(armbb, &(ir.res_), f);
+            Reg* rd = ResolveOpn2Reg(armbb, &(ir.res_));
+            gen_bi_inst(BinaryInst::OpCode::ADD, rd, rn, op2);
+            // auto f = std::bind(gen_bi_inst, BinaryInst::OpCode::ADD, std::placeholders::_1, rn, op2);
+            // this->ResolveResOpn2RdReg(armbb, &(ir.res_), f);
             break;
           }
           case ir::IR::OpKind::SUB: {
@@ -426,16 +429,20 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
             Operand2* op2 = nullptr;
             bool is_opn1_imm = gen_rn_op2(&(ir.opn1_), &(ir.opn2_), rn, op2);
             BinaryInst::OpCode opcode = is_opn1_imm ? BinaryInst::OpCode::RSB : BinaryInst::OpCode::SUB;
-            auto f = std::bind(gen_bi_inst, opcode, std::placeholders::_1, rn, op2);
-            this->ResolveResOpn2RdReg(armbb, &(ir.res_), f);
+            Reg* rd = ResolveOpn2Reg(armbb, &(ir.res_));
+            gen_bi_inst(opcode, rd, rn, op2);
+            // auto f = std::bind(gen_bi_inst, opcode, std::placeholders::_1, rn, op2);
+            // this->ResolveResOpn2RdReg(armbb, &(ir.res_), f);
             break;
           }
           case ir::IR::OpKind::MUL: {
             auto rn = ResolveOpn2Reg(armbb, &(ir.opn1_));
             // NOTE: MUL的两个操作数必须全为寄存器 不能是立即数
             auto op2 = new Operand2(ResolveOpn2Reg(armbb, &(ir.opn2_)));
-            auto f = std::bind(gen_bi_inst, BinaryInst::OpCode::MUL, std::placeholders::_1, rn, op2);
-            this->ResolveResOpn2RdReg(armbb, &(ir.res_), f);
+            Reg* rd = ResolveOpn2Reg(armbb, &(ir.res_));
+            gen_bi_inst(BinaryInst::OpCode::MUL, rd, rn, op2);
+            // auto f = std::bind(gen_bi_inst, BinaryInst::OpCode::MUL, std::placeholders::_1, rn, op2);
+            // this->ResolveResOpn2RdReg(armbb, &(ir.res_), f);
             break;
           }
           case ir::IR::OpKind::DIV: {
@@ -485,15 +492,19 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
               armbb->inst_list_.push_back(static_cast<Instruction*>(new Move(false, Cond::EQ, rd, new Operand2(1))));
               armbb->inst_list_.push_back(static_cast<Instruction*>(new Move(false, Cond::NE, rd, new Operand2(0))));
             };
-            this->ResolveResOpn2RdReg(armbb, &(ir.res_), gen_not_armcode);
+            Reg* rd = ResolveOpn2Reg(armbb, &(ir.res_));
+            gen_not_armcode(rd);
+            // this->ResolveResOpn2RdReg(armbb, &(ir.res_), gen_not_armcode);
             break;
           }
           case ir::IR::OpKind::NEG: {
             // impl by RSB res, opn1, #0
             auto rn = ResolveOpn2Reg(armbb, &(ir.opn1_));
             auto op2 = new Operand2(0);
-            auto f = std::bind(gen_bi_inst, BinaryInst::OpCode::RSB, std::placeholders::_1, rn, op2);
-            this->ResolveResOpn2RdReg(armbb, &(ir.res_), f);
+            Reg* rd = ResolveOpn2Reg(armbb, &(ir.res_));
+            gen_bi_inst(BinaryInst::OpCode::RSB, rd, rn, op2);
+            // auto f = std::bind(gen_bi_inst, BinaryInst::OpCode::RSB, std::placeholders::_1, rn, op2);
+            // this->ResolveResOpn2RdReg(armbb, &(ir.res_), f);
             break;
           }
           case ir::IR::OpKind::LABEL: {  // 所有label语句都应该已经被跳过
@@ -576,6 +587,40 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
               };
               this->ResolveResOpn2RdReg(armbb, &(ir.res_), gen_mov_inst);
             }
+            break;
+          }
+          case ir::IR::OpKind::ASSIGN_OFFSET: {
+            // (=[], array, -, temp-res) res一定是中间变量
+            assert(ir.opn2_.type_ == ir::Opn::Type::Null);
+            Reg* rbase = nullptr;
+            Reg* vreg = NewVirtualReg();
+            var_map[ir.res_.name_][ir.res_.scope_id_] = vreg;
+            auto opn = &(ir.opn1_);
+            if (0 == opn->scope_id_) {
+              // 全局数组 地址量即其基址量
+              LoadGlobalOpn2Reg(armbb, opn);
+              rbase = glo_addr_map[opn->name_];
+            } else {
+              const auto& iter = var_map.find(opn->name_);
+              if (iter != var_map.end()) {
+                const auto& iter2 = (*iter).second.find(opn->scope_id_);
+                if (iter2 != (*iter).second.end()) {
+                  rbase = ((*iter2).second);
+                }
+              }
+              if (nullptr == rbase) {
+                rbase = NewVirtualReg();
+                var_map[opn->name_][opn->scope_id_] = rbase;
+                auto& symbol = ir::gScopes[opn->scope_id_].symbol_table_[opn->name_];
+                armbb->inst_list_.push_back(static_cast<Instruction*>(
+                    new BinaryInst(BinaryInst::OpCode::ADD, false, Cond::AL, rbase, sp_vreg,
+                                   ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - symbol.width_[0]))));
+              }
+            }
+            // 找到rbase后 来一条ldr语句
+            armbb->inst_list_.push_back(
+                static_cast<Instruction*>(new LdrStr(LdrStr::OpKind::LDR, LdrStr::Type::Norm, Cond::AL, vreg, rbase,
+                                                     ResolveOpn2Operand2(armbb, opn->offset_))));
             break;
           }
           case ir::IR::OpKind::JEQ:
