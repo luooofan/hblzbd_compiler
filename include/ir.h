@@ -141,6 +141,8 @@ class ContextInfo {
   std::string current_func_name_;
   // Used for Block
   bool has_aug_scope;  //函数形参也要加在block的作用域里
+  // Used for ArrayIdentifier []=
+  bool is_assigned_ = false;
 
   ContextInfo() : opn_({Opn::Type::Null}), scope_id_(0) {}
 };

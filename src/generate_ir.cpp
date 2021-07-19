@@ -46,6 +46,7 @@ void Root::GenerateIR(ir::ContextInfo &ctx) {
 
   // 初始化上下文信息中的当前作用域id
   ctx.scope_id_ = 0;
+  ctx.is_assigned_ = false;
 
   // 对每个compunit语义分析并生成IR
   for (const auto &ele : this->compunit_list_) {
@@ -69,6 +70,7 @@ void Number::GenerateIR(ir::ContextInfo &ctx) {
 
 // NOTE: 对于函数名的检查在FunctionCall完成 不调用此函数
 void Identifier::GenerateIR(ir::ContextInfo &ctx) {
+  ctx.is_assigned_ = false;
   ir::SymbolTableItem *s = nullptr;
   int scope_id = ir::FindSymbol(ctx.scope_id_, name_, s);
   if (!s) {
@@ -84,6 +86,8 @@ void Identifier::GenerateIR(ir::ContextInfo &ctx) {
 // 但如果是函数调用中使用数组则可以传递指针shape_list_维度小于符号表中的维度即可
 // 该检查交由caller来实现
 void ArrayIdentifier::GenerateIR(ir::ContextInfo &ctx) {
+  bool is_assigned = ctx.is_assigned_;
+  ctx.is_assigned_ = false;
   ir::SymbolTableItem *s = nullptr;
   int scope_id = ir::FindSymbol(ctx.scope_id_, name_.name_, s);
   if (!s) {
@@ -134,7 +138,8 @@ void ArrayIdentifier::GenerateIR(ir::ContextInfo &ctx) {
 
   ir::Opn *offset = new ir::Opn(ctx.opn_);
   ctx.opn_ = ir::Opn(ir::Opn::Type::Array, name_.name_, scope_id, offset);
-  if (ctx.shape_.empty()) {  // 如果是int类型而不是int[] 则需要生成一条=[]ir以区分地址和取值
+  if (!is_assigned && ctx.shape_.empty()) {
+    // 如果是int类型而不是int[] 则需要生成一条=[]ir以区分地址和取值
     std::string res_var = ir::NewTemp();
     int scope_id = ctx.scope_id_;
     ir::gScopes[scope_id].symbol_table_.insert({res_var, {false, false, -1}});
@@ -560,7 +565,9 @@ void AssignStatement::GenerateIR(ir::ContextInfo &ctx) {
   CHECK_OPN_INT("rhs exp");
   ir::Opn rhs_opn = ctx.opn_;
 
+  ctx.is_assigned_ = true;
   this->lhs_.GenerateIR(ctx);
+  ctx.is_assigned_ = false;
   CHECK_OPN_INT("leftvalue");
 
   ir::Opn &lhs_opn = ctx.opn_;
