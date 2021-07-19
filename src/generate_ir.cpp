@@ -136,6 +136,7 @@ void ArrayIdentifier::GenerateIR(ir::ContextInfo &ctx) {
   ctx.opn_ = ir::Opn(ir::Opn::Type::Array, name_.name_, scope_id, offset);
   if (ctx.shape_.empty()) {  // 如果是int类型而不是int[] 则需要生成一条=[]ir以区分地址和取值
     std::string res_var = ir::NewTemp();
+    int scope_id = ctx.scope_id_;
     ir::gScopes[scope_id].symbol_table_.insert({res_var, {false, false, -1}});
     ir::Opn temp = ir::Opn(ir::Opn::Type::Var, res_var, scope_id);
     ir::gIRList.push_back({ir::IR::OpKind::ASSIGN_OFFSET, ctx.opn_, temp});
