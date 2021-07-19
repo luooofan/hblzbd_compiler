@@ -128,9 +128,9 @@ Reg* GenerateArm::ResolveOpn2Reg(ArmBasicBlock* armbb, ir::Opn* opn) {
                            ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - symbol.width_[0]))));
       }
     }
-    armbb->inst_list_.push_back(
-        static_cast<Instruction*>(new LdrStr(LdrStr::OpKind::LDR, LdrStr::Type::Norm, Cond::AL, vreg, rbase,
-                                             ResolveImm2Operand2(armbb, opn->offset_->imm_num_))));
+    // offset可能并非立即数
+    armbb->inst_list_.push_back(static_cast<Instruction*>(new LdrStr(
+        LdrStr::OpKind::LDR, LdrStr::Type::Norm, Cond::AL, vreg, rbase, ResolveOpn2Operand2(armbb, opn->offset_))));
     return vreg;
   } else {
     // 如果是全局变量 一定有一条ldr
