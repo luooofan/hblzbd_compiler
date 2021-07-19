@@ -33,7 +33,7 @@ int main(int argc, char **argv) {
   yylex_destroy();
 
   if (nullptr == ast_root) {
-    return;
+    return 1;
   }
   std::cout << "PrintNode:" << std::endl;
   ast_root->PrintNode(0, std::cout);
@@ -57,7 +57,7 @@ int main(int argc, char **argv) {
   // the source space will be released when running GenerateArm Pass.
   Module *module_ptr = static_cast<Module *>(ConstructModule(std::string(in)));
   module_ptr->EmitCode(std::cout);
-  Module **module_ptr_addr = &module_ptr;
+  Module **const module_ptr_addr = &module_ptr;
 
   PassManager pm(module_ptr_addr);
   pm.AddPass<GenerateArm>(false);
