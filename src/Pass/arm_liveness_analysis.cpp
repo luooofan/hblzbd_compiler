@@ -35,8 +35,8 @@ std::pair<std::vector<RegId>, std::vector<RegId>> GetDefUse(Instruction *inst) {
       // ret
       assert(0);  // 暂时禁用 bx lr
       use.push_back(static_cast<RegId>(ArmReg::r0));
-    } else if (ir::gFuncTable.find(label) != ir::gFuncTable.end() ||
-               label == "__aeabi_idivmod" || label == "__aeabi_idiv") {
+    } else if (ir::gFuncTable.find(label) != ir::gFuncTable.end() || label == "__aeabi_idivmod" ||
+               label == "__aeabi_idiv") {
       // TODO: 这里用到了ir 之后优化掉 可能需要一个func_name到Function*的map
       // call
       int callee_param_num = ir::gFuncTable[label].shape_list_.size();
@@ -66,15 +66,14 @@ std::pair<std::vector<RegId>, std::vector<RegId>> GetDefUse(Instruction *inst) {
       }
     } else {
       for (auto reg : src_inst->reg_list_) {
-        if (reg->reg_id_ == static_cast<RegId>(ArmReg::lr)) {
-          // 此时作为ret语句 视为对r0的使用以及对lr的定义
-          use.push_back(static_cast<RegId>(ArmReg::r0));
-        }
+        // if (reg->reg_id_ == static_cast<RegId>(ArmReg::pc)) {
+        //   // 此时作为ret语句 视为对r0的使用以及对pc的定义
+        //   use.push_back(static_cast<RegId>(ArmReg::r0));
+        // }
         def.push_back(reg->reg_id_);
       }
     }
-  } else {
-    // 未实现其他指令
+  } else {  // 未实现其他指令
     assert(0);
   }
 
