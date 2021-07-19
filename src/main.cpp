@@ -30,8 +30,10 @@ int main(int argc, char **argv) {
   std::cout << "Start Parser:" << std::endl;
   yyset_lineno(1);
   yyparse();  // if success, ast_root is valid
+  yylex_destroy();
 
   if (nullptr == ast_root) {
+    return;
   }
   std::cout << "PrintNode:" << std::endl;
   ast_root->PrintNode(0, std::cout);
@@ -40,7 +42,6 @@ int main(int argc, char **argv) {
   ir::ContextInfo ctx;
   ast_root->GenerateIR(ctx);
 
-  yylex_destroy();
   delete ast_root;
 
   ir::PrintFuncTable();
