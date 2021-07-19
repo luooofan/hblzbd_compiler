@@ -122,10 +122,16 @@ Reg* GenerateArm::ResolveOpn2Reg(ArmBasicBlock* armbb, ir::Opn* opn) {
         rbase = NewVirtualReg();
         var_map[opn->name_][opn->scope_id_] = rbase;
         auto& symbol = ir::gScopes[opn->scope_id_].symbol_table_[opn->name_];
-        int diff = symbol.width_[0] == -1 ? 4 : symbol.width_[0];
-        armbb->inst_list_.push_back(
-            static_cast<Instruction*>(new BinaryInst(BinaryInst::OpCode::ADD, false, Cond::AL, rbase, sp_vreg,
-                                                     ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - diff))));
+        if (symbol.width_[0] != -1) {
+          armbb->inst_list_.push_back(static_cast<Instruction*>(
+              new BinaryInst(BinaryInst::OpCode::ADD, false, Cond::AL, rbase, sp_vreg,
+                             ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - symbol.width_[0]))));
+        } else {
+          // 等于-1说明是int array参数 所以要ldr
+          armbb->inst_list_.push_back(
+              static_cast<Instruction*>(new LdrStr(LdrStr::OpKind::LDR, LdrStr::Type::Norm, Cond::AL, rbase, sp_vreg,
+                                                   ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - 4))));
+        }
       }
     }
     armbb->inst_list_.push_back(static_cast<Instruction*>(new BinaryInst(
@@ -570,10 +576,16 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
                   rbase = NewVirtualReg();
                   var_map[ir.res_.name_][ir.res_.scope_id_] = rbase;
                   auto& symbol = ir::gScopes[ir.res_.scope_id_].symbol_table_[ir.res_.name_];
-                  int diff = symbol.width_[0] == -1 ? 4 : symbol.width_[0];
-                  armbb->inst_list_.push_back(static_cast<Instruction*>(
-                      new BinaryInst(BinaryInst::OpCode::ADD, false, Cond::AL, rbase, sp_vreg,
-                                     ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - diff))));
+                  if (symbol.width_[0] != -1) {
+                    armbb->inst_list_.push_back(static_cast<Instruction*>(
+                        new BinaryInst(BinaryInst::OpCode::ADD, false, Cond::AL, rbase, sp_vreg,
+                                       ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - symbol.width_[0]))));
+                  } else {
+                    // 等于-1说明是int array参数 所以要ldr
+                    armbb->inst_list_.push_back(static_cast<Instruction*>(
+                        new LdrStr(LdrStr::OpKind::LDR, LdrStr::Type::Norm, Cond::AL, rbase, sp_vreg,
+                                   ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - 4))));
+                  }
                 }
               }
               armbb->inst_list_.push_back(
@@ -614,10 +626,16 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
                 rbase = NewVirtualReg();
                 var_map[opn->name_][opn->scope_id_] = rbase;
                 auto& symbol = ir::gScopes[opn->scope_id_].symbol_table_[opn->name_];
-                int diff = symbol.width_[0] == -1 ? 4 : symbol.width_[0];
-                armbb->inst_list_.push_back(static_cast<Instruction*>(
-                    new BinaryInst(BinaryInst::OpCode::ADD, false, Cond::AL, rbase, sp_vreg,
-                                   ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - diff))));
+                if (symbol.width_[0] != -1) {
+                  armbb->inst_list_.push_back(static_cast<Instruction*>(
+                      new BinaryInst(BinaryInst::OpCode::ADD, false, Cond::AL, rbase, sp_vreg,
+                                     ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - symbol.width_[0]))));
+                } else {
+                  // 等于-1说明是int array参数 所以要ldr
+                  armbb->inst_list_.push_back(static_cast<Instruction*>(
+                      new LdrStr(LdrStr::OpKind::LDR, LdrStr::Type::Norm, Cond::AL, rbase, sp_vreg,
+                                 ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - 4))));
+                }
               }
             }
             // 找到rbase后 来一条ldr语句
