@@ -14,12 +14,10 @@
   { ir::Opn::Type::Label, label_name, ctx.scope_id_ }
 #define FUNC_OPN(label_name) \
   { ir::Opn::Type::Func, label_name, ctx.scope_id_ }
-#define OPN_IS_NOT_INT \
-  (!ctx.shape_.empty() && ctx.opn_.type_ == ir::Opn::Type::Null)
-#define CHECK_OPN_INT(locstr)                                            \
-  if (OPN_IS_NOT_INT) {                                                  \
-    ir::SemanticError(this->line_no_,                                    \
-                      ctx.opn_.name_ + ": " + locstr + " type not int"); \
+#define OPN_IS_NOT_INT (!ctx.shape_.empty() && ctx.opn_.type_ == ir::Opn::Type::Null)
+#define CHECK_OPN_INT(locstr)                                                            \
+  if (OPN_IS_NOT_INT) {                                                                  \
+    ir::SemanticError(this->line_no_, ctx.opn_.name_ + ": " + locstr + " type not int"); \
   }
 
 namespace ast {
@@ -96,15 +94,13 @@ void ArrayIdentifier::GenerateIR(ir::ContextInfo &ctx) {
   // 结点中存的shape(可能比应有的shape的size小)比符号表中存的shape的size大
   // eg. int a[2][3]; a[1][3][4]=1; 使用数组时维度错误
   if (shape_list_.size() > s->shape_.size()) {
-    ir::SemanticError(line_no_,
-                      name_.name_ + ": the dimension of array is not correct");
+    ir::SemanticError(line_no_, name_.name_ + ": the dimension of array is not correct");
     return;
   }
 
   // 设置当前arrayidentifier的维度
   // eg. int a[2][3][4]; a[0]'s shape is [3,4].
-  ctx.shape_ =
-      std::vector<int>(s->shape_.begin() + shape_list_.size(), s->shape_.end());
+  ctx.shape_ = std::vector<int>(s->shape_.begin() + shape_list_.size(), s->shape_.end());
 
   // for(int i = 0; i < s->width_.size(); ++i)
   // {
@@ -117,16 +113,14 @@ void ArrayIdentifier::GenerateIR(ir::ContextInfo &ctx) {
     BinaryExpression *mul_exp;
     // 计算数组取值的偏移
     if (shape_list_.size() > 0) {
-      res = new BinaryExpression(line_no_, MUL, shape_list_[0],
-                                 *(new Number(line_no_, s->width_[1])));
+      res = new BinaryExpression(line_no_, MUL, shape_list_[0], *(new Number(line_no_, s->width_[1])));
     }
     for (int i = 1; i < shape_list_.size(); ++i) {
       //构造一个二元表达式
       Number *width = new Number(line_no_, s->width_[i + 1]);
       // printf("width: %d\n", s->width_[i + 1]);
       mul_exp = new BinaryExpression(line_no_, MUL, shape_list_[i], *width);
-      add_exp = new BinaryExpression(
-          line_no_, ADD, std::shared_ptr<Expression>(res), *mul_exp);
+      add_exp = new BinaryExpression(line_no_, ADD, std::shared_ptr<Expression>(res), *mul_exp);
       res = add_exp;
     }
     if (nullptr != res) {
@@ -199,8 +193,7 @@ void BinaryExpression::GenerateIR(ir::ContextInfo &ctx) {
     }
     std::string res_temp_var = ir::NewTemp();
     // NOTE: 中间变量栈偏移-1 并且不维护scope的dynamic offset
-    ir::gScopes[ctx.scope_id_].symbol_table_.insert(
-        {res_temp_var, {false, false, -1}});
+    ir::gScopes[ctx.scope_id_].symbol_table_.insert({res_temp_var, {false, false, -1}});
 
     ir::Opn temp = ir::Opn(ir::Opn::Type::Var, res_temp_var, ctx.scope_id_);
     ctx.opn_ = temp;
@@ -252,8 +245,7 @@ void UnaryExpression::GenerateIR(ir::ContextInfo &ctx) {
     std::string rhs_temp_var = ir::NewTemp();
 
     // NOTE: 中间变量栈偏移-1 并且不维护scope的dynamic offset
-    ir::gScopes[ctx.scope_id_].symbol_table_.insert(
-        {rhs_temp_var, {false, false, -1}});
+    ir::gScopes[ctx.scope_id_].symbol_table_.insert({rhs_temp_var, {false, false, -1}});
 
     ir::Opn temp = ir::Opn(ir::Opn::Type::Var, rhs_temp_var, ctx.scope_id_);
     ctx.opn_ = temp;
@@ -263,7 +255,6 @@ void UnaryExpression::GenerateIR(ir::ContextInfo &ctx) {
 
 void FunctionCall::GenerateIR(ir::ContextInfo &ctx) {
   ir::Opn opn1, opn2;
-  std::vector<ir::IR> param_list;
   auto func_item_iter = ir::gFuncTable.find(name_.name_);
   if (func_item_iter == ir::gFuncTable.end()) {
     ir::SemanticError(line_no_, "调用的函数不存在");
@@ -275,8 +266,10 @@ void FunctionCall::GenerateIR(ir::ContextInfo &ctx) {
     return;
   }
 
-  // NOTE: 倒着走
-  for (int i = args_.arg_list_.size() - 1; i >= 0; --i) {
+  std::stack<ir::IR> param_list;
+  // NOTE: 正着走
+  // for (int i = args_.arg_list_.size() - 1; i >= 0; --i) {
+  for (int i = 0; i < args_.arg_list_.size(); ++i) {
     args_.arg_list_[i]->GenerateIR(ctx);
     if (ctx.shape_.size() != func_item.shape_list_[i].size()) {
       // std::cerr << ctx.shape_.size() << ' '
@@ -305,18 +298,20 @@ void FunctionCall::GenerateIR(ir::ContextInfo &ctx) {
       opn1 = ir::Opn(ir::Opn::Type::Array, opn1.name_, opn1.scope_id_, offset);
     }
 
-    param_list.push_back(ir::IR(ir::IR::OpKind::PARAM, opn1));
+    param_list.push(ir::IR(ir::IR::OpKind::PARAM, opn1));
   }
 
-  for (auto &param : param_list) {
-    ir::gIRList.push_back(param);
+  // NOTE: 倒着写Param语句
+  while (!param_list.empty()) {
+    ir::gIRList.push_back(param_list.top());
+    param_list.pop();
   }
 
   opn1 = ir::Opn(ir::Opn::Type::Func, name_.name_, ctx.scope_id_);
-  opn2 =
-      ir::Opn(ir::Opn::Type::Imm, func_item.shape_list_.size(), ctx.scope_id_);
+  opn2 = ir::Opn(ir::Opn::Type::Imm, func_item.shape_list_.size(), ctx.scope_id_);
 
   ir::IR ir;
+  // 当call调用的函数返回INT时 生成(call, func, arg-num, temp) 返回VOID时 (call, func, arg-num, -/NULL)
   if (func_item.ret_type_ == INT) {
     auto scope_id = ctx.scope_id_;
 
@@ -350,8 +345,7 @@ void VariableDefine::GenerateIR(ir::ContextInfo &ctx) {
     scope.dynamic_offset_ += ir::kIntWidth;
     delete tmp;
   } else {
-    ir::SemanticError(this->line_no_,
-                      this->name_.name_ + ": variable redefined");
+    ir::SemanticError(this->line_no_, this->name_.name_ + ": variable redefined");
   }
 }
 
@@ -379,8 +373,7 @@ void VariableDefineWithInit::GenerateIR(ir::ContextInfo &ctx) {
     symbol_table.insert({this->name_.name_, *tmp});
     delete tmp;
   } else {
-    ir::SemanticError(this->line_no_,
-                      this->name_.name_ + ": variable redefined");
+    ir::SemanticError(this->line_no_, this->name_.name_ + ": variable redefined");
   }
 }
 
@@ -399,8 +392,7 @@ void ArrayDefine::GenerateIR(ir::ContextInfo &ctx) {
     tmp->width_.resize(tmp->shape_.size() + 1);
     // NOTE: 数组的width比shape多一项 最后一项存InitWidth 4
     tmp->width_[tmp->width_.size() - 1] = ir::kIntWidth;
-    for (int i = tmp->width_.size() - 2; i >= 0; i--)
-      tmp->width_[i] = tmp->width_[i + 1] * tmp->shape_[i];
+    for (int i = tmp->width_.size() - 2; i >= 0; i--) tmp->width_[i] = tmp->width_[i + 1] * tmp->shape_[i];
     scope.dynamic_offset_ += tmp->width_[0];
     // 全局数组量需要展开数组并填初值0
     if (ctx.scope_id_ == 0) {
@@ -411,8 +403,7 @@ void ArrayDefine::GenerateIR(ir::ContextInfo &ctx) {
     symbol_table.insert({name_.name_.name_, *tmp});
     delete tmp;
   } else {
-    ir::SemanticError(this->line_no_,
-                      this->name_.name_.name_ + ": variable redefined");
+    ir::SemanticError(this->line_no_, this->name_.name_.name_ + ": variable redefined");
   }
 }
 
@@ -423,8 +414,7 @@ void ArrayDefineWithInit::GenerateIR(ir::ContextInfo &ctx) {
   // NOTE: 只需在当前作用域查找即可 找到则重定义
   const auto &array_iter = symbol_table.find(name);
   if (array_iter == symbol_table.end()) {
-    ir::SymbolTableItem symbol_item(true, this->is_const_,
-                                    scope.dynamic_offset_);
+    ir::SymbolTableItem symbol_item(true, this->is_const_, scope.dynamic_offset_);
     // 填shape
     for (const auto &shape : this->name_.shape_list_) {
       shape->Evaluate(ctx);
@@ -437,8 +427,7 @@ void ArrayDefineWithInit::GenerateIR(ir::ContextInfo &ctx) {
     std::stack<int> temp_width;
     int width = ir::kIntWidth;
     temp_width.push(width);
-    for (auto reiter = symbol_item.shape_.rbegin();
-         reiter != symbol_item.shape_.rend(); ++reiter) {
+    for (auto reiter = symbol_item.shape_.rbegin(); reiter != symbol_item.shape_.rend(); ++reiter) {
       width *= *reiter;
       temp_width.push(width);
     }
@@ -472,8 +461,7 @@ void ArrayDefineWithInit::GenerateIR(ir::ContextInfo &ctx) {
       this->value_.GenerateIR(ctx);
     }
   } else {
-    ir::SemanticError(this->line_no_,
-                      this->name_.name_.name_ + ": variable redefined");
+    ir::SemanticError(this->line_no_, this->name_.name_.name_ + ": variable redefined");
   }
 }
 
@@ -498,20 +486,16 @@ void FunctionDefine::GenerateIR(ir::ContextInfo &ctx) {
       if (Identifier *ident = dynamic_cast<Identifier *>(&arg->name_)) {
         const auto &var_iter = symbol_table.find(ident->name_);
         if (var_iter == symbol_table.end()) {
-          symbol_table.insert(
-              {ident->name_, {false, false, scope.dynamic_offset_}});
+          symbol_table.insert({ident->name_, {false, false, scope.dynamic_offset_}});
           scope.dynamic_offset_ += ir::kIntWidth;
         } else {
-          ir::SemanticError(this->line_no_,
-                            ident->name_ + ": variable redefined");
+          ir::SemanticError(this->line_no_, ident->name_ + ": variable redefined");
         }
         tmp->shape_list_.push_back(std::vector<int>());
-      } else if (ArrayIdentifier *arrident =
-                     dynamic_cast<ArrayIdentifier *>(&arg->name_)) {
+      } else if (ArrayIdentifier *arrident = dynamic_cast<ArrayIdentifier *>(&arg->name_)) {
         const auto &var_iter = symbol_table.find(arrident->name_.name_);
         if (var_iter == symbol_table.end()) {
-          auto tmp1 =
-              new ir::SymbolTableItem(true, false, scope.dynamic_offset_);
+          auto tmp1 = new ir::SymbolTableItem(true, false, scope.dynamic_offset_);
           // NOTE: 参数中的数组视为一个基址指针
           scope.dynamic_offset_ += ir::kIntWidth;
           // 计算shape和width shape:-1 2 3  width:? 24 12 4
@@ -522,15 +506,13 @@ void FunctionDefine::GenerateIR(ir::ContextInfo &ctx) {
           }
           tmp1->width_.resize(tmp1->shape_.size() + 1);
           tmp1->width_[tmp1->width_.size() - 1] = ir::kIntWidth;
-          for (int i = tmp1->width_.size() - 2; i > 0; i--)
-            tmp1->width_[i] = tmp1->width_[i + 1] * tmp1->shape_[i];
+          for (int i = tmp1->width_.size() - 2; i > 0; i--) tmp1->width_[i] = tmp1->width_[i + 1] * tmp1->shape_[i];
           tmp1->width_[0] = -1;  // useless
           symbol_table.insert({arrident->name_.name_, *tmp1});
           tmp->shape_list_.push_back(tmp1->shape_);
           delete tmp1;
         } else {
-          ir::SemanticError(this->line_no_,
-                            arrident->name_.name_ + ": variable redefined");
+          ir::SemanticError(this->line_no_, arrident->name_.name_ + ": variable redefined");
         }
       }
       // std::cout<<"haha"<<ctx.shape_.size()<<'\n';
@@ -543,10 +525,8 @@ void FunctionDefine::GenerateIR(ir::ContextInfo &ctx) {
     this->body_.GenerateIR(ctx);
 
     if (return_type_ == INT && ctx.has_return == false) {
-      ir::SemanticError(
-          this->line_no_,
-          this->name_.name_ +
-              ": function's return type is INT,but does not return anything");
+      ir::SemanticError(this->line_no_,
+                        this->name_.name_ + ": function's return type is INT,but does not return anything");
     }
     // 保证函数执行流最后会有一条ret语句 方便汇编生成
     if (return_type_ == VOID && ctx.has_return == false) {
@@ -560,8 +540,7 @@ void FunctionDefine::GenerateIR(ir::ContextInfo &ctx) {
     // Set current_scope_id
     ctx.scope_id_ = 0;
   } else {
-    ir::SemanticError(this->line_no_,
-                      this->name_.name_ + ": function redefined");
+    ir::SemanticError(this->line_no_, this->name_.name_ + ": function redefined");
   }
 }
 
@@ -580,8 +559,7 @@ void AssignStatement::GenerateIR(ir::ContextInfo &ctx) {
 
   // const check
   if (nullptr != symbol && symbol->is_const_) {
-    ir::SemanticError(this->line_no_,
-                      lhs_opn.name_ + ": constant can't be assigned");
+    ir::SemanticError(this->line_no_, lhs_opn.name_ + ": constant can't be assigned");
     return;
   }
 
@@ -648,9 +626,7 @@ void BreakStatement::GenerateIR(ir::ContextInfo &ctx) {
     ir::SemanticError(this->line_no_, "'break' not in while loop");
   } else {
     // genir (goto,breaklabel,-,-)
-    ir::gIRList.push_back(
-        {ir::IR::OpKind::GOTO,
-         {ir::Opn::Type::Label, ctx.break_label_.top(), ctx.scope_id_}});
+    ir::gIRList.push_back({ir::IR::OpKind::GOTO, {ir::Opn::Type::Label, ctx.break_label_.top(), ctx.scope_id_}});
   }
 }
 
@@ -660,9 +636,7 @@ void ContinueStatement::GenerateIR(ir::ContextInfo &ctx) {
     ir::SemanticError(this->line_no_, "'continue' not in while loop");
   } else {
     // genir (goto,continuelabel,-,-)
-    ir::gIRList.push_back(
-        {ir::IR::OpKind::GOTO,
-         {ir::Opn::Type::Label, ctx.continue_label_.top(), ctx.scope_id_}});
+    ir::gIRList.push_back({ir::IR::OpKind::GOTO, {ir::Opn::Type::Label, ctx.continue_label_.top(), ctx.scope_id_}});
   }
 }
 
@@ -681,14 +655,12 @@ void ReturnStatement::GenerateIR(ir::ContextInfo &ctx) {
         // genir (ret,-,-,-)
         ir::gIRList.push_back({ir::IR::OpKind::RET});
       } else {
-        ir::SemanticError(this->line_no_,
-                          "function ret type should be VOID: " + func_name);
+        ir::SemanticError(this->line_no_, "function ret type should be VOID: " + func_name);
       }
     } else {
       // return exp(int);
       if (nullptr == this->value_) {
-        ir::SemanticError(this->line_no_,
-                          "function ret type should be INT: " + func_name);
+        ir::SemanticError(this->line_no_, "function ret type should be INT: " + func_name);
         return;
       }
       this->value_->GenerateIR(ctx);
@@ -696,8 +668,7 @@ void ReturnStatement::GenerateIR(ir::ContextInfo &ctx) {
         // genir (ret,opn,-,-)
         ir::gIRList.push_back({ir::IR::OpKind::RET, ctx.opn_});
       } else {
-        ir::SemanticError(this->line_no_,
-                          "function ret type should be INT: " + func_name);
+        ir::SemanticError(this->line_no_, "function ret type should be INT: " + func_name);
       }
     }
     ctx.has_return = true;
@@ -707,25 +678,21 @@ void ReturnStatement::GenerateIR(ir::ContextInfo &ctx) {
 
 void VoidStatement::GenerateIR(ir::ContextInfo &ctx) {}
 
-void EvalStatement::GenerateIR(ir::ContextInfo &ctx) {
-  this->value_.GenerateIR(ctx);
-}
+void EvalStatement::GenerateIR(ir::ContextInfo &ctx) { this->value_.GenerateIR(ctx); }
 
 void Block::GenerateIR(ir::ContextInfo &ctx) {
   int parent_scope_id = ctx.scope_id_;
   if (!ctx.has_aug_scope) {
     // new scope
     ctx.scope_id_ = ir::gScopes.size();
-    ir::gScopes.push_back({ctx.scope_id_, parent_scope_id,
-                           ir::gScopes[parent_scope_id].dynamic_offset_});
+    ir::gScopes.push_back({ctx.scope_id_, parent_scope_id, ir::gScopes[parent_scope_id].dynamic_offset_});
   }
   ctx.has_aug_scope = false;
   for (const auto &stmt : this->statement_list_) {
     stmt->GenerateIR(ctx);
   }
   if (0 != parent_scope_id) {
-    ir::gScopes[parent_scope_id].dynamic_offset_ =
-        ir::gScopes[ctx.scope_id_].dynamic_offset_;
+    ir::gScopes[parent_scope_id].dynamic_offset_ = ir::gScopes[ctx.scope_id_].dynamic_offset_;
   }
   // src scope
   ctx.scope_id_ = parent_scope_id;
@@ -742,12 +709,10 @@ void ArrayInitVal::GenerateIR(ir::ContextInfo &ctx) {
     this->value_->GenerateIR(ctx);
     CHECK_OPN_INT("exp")
     // genir([]=,expvalue,-,arrayname offset)
-    ir::gIRList.push_back(
-        {ir::IR::OpKind::/*OFFSET_*/ ASSIGN,
-         ctx.opn_,
-         {ir::Opn::Type::Array, ctx.array_name_, ctx.scope_id_,
-          new ir::Opn(ir::Opn::Type::Imm, ctx.array_offset_ * 4,
-                      ctx.scope_id_)}});
+    ir::gIRList.push_back({ir::IR::OpKind::/*OFFSET_*/ ASSIGN,
+                           ctx.opn_,
+                           {ir::Opn::Type::Array, ctx.array_name_, ctx.scope_id_,
+                            new ir::Opn(ir::Opn::Type::Imm, ctx.array_offset_ * 4, ctx.scope_id_)}});
 
     ctx.array_offset_ += 1;
   } else {
@@ -782,11 +747,10 @@ void ArrayInitVal::GenerateIR(ir::ContextInfo &ctx) {
       // 补0补到finaloffset
       while (offset < final_offset) {
         // genir([]=,0,-,arrayname offset)
-        ir::gIRList.push_back(
-            {ir::IR::OpKind::/*OFFSET_*/ ASSIGN,
-             IMM_0_OPN,
-             {ir::Opn::Type::Array, ctx.array_name_, ctx.scope_id_,
-              new ir::Opn(ir::Opn::Type::Imm, (offset++ * 4), ctx.scope_id_)}});
+        ir::gIRList.push_back({ir::IR::OpKind::/*OFFSET_*/ ASSIGN,
+                               IMM_0_OPN,
+                               {ir::Opn::Type::Array, ctx.array_name_, ctx.scope_id_,
+                                new ir::Opn(ir::Opn::Type::Imm, (offset++ * 4), ctx.scope_id_)}});
       }
       if (offset > final_offset) {
         ir::SemanticError(this->line_no_, "初始值设定项值太多");
@@ -829,8 +793,7 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
   ir::Opn true_label_opn = LABEL_OPN(true_label);
   ir::Opn false_label_opn = LABEL_OPN(false_label);
 
-  auto gen_tlfl_ir = [&ctx](const std::string &tl, const std::string &fl,
-                            Expression &hs) {
+  auto gen_tlfl_ir = [&ctx](const std::string &tl, const std::string &fl, Expression &hs) {
     ctx.true_label_.push(tl);
     ctx.false_label_.push(fl);
     hs.GenerateIR(ctx);
@@ -871,12 +834,10 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
           gen_ir(this->rhs_);
 
           // genir(label,newfalselabel,-,-)
-          ir::gIRList.push_back(
-              {ir::IR::OpKind::LABEL, LABEL_OPN(new_false_label)});
+          ir::gIRList.push_back({ir::IR::OpKind::LABEL, LABEL_OPN(new_false_label)});
         } else {
           // ERROR
-          ir::RuntimeError(
-              "both true_label and false_label are 'null' in case1-ADD");
+          ir::RuntimeError("both true_label and false_label are 'null' in case1-ADD");
         }
         break;
       }
@@ -890,8 +851,7 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
           gen_ir(this->rhs_);
 
           // genir(label,newtruelabel,-,-)
-          ir::gIRList.push_back(
-              {ir::IR::OpKind::LABEL, LABEL_OPN(new_true_label)});
+          ir::gIRList.push_back({ir::IR::OpKind::LABEL, LABEL_OPN(new_true_label)});
         } else if ("null" != true_label && "null" == false_label) {
           // truelabel:src falselabel:null
           gen_ir(this->lhs_);
@@ -906,8 +866,7 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
           gen_ir(this->rhs_);
         } else {
           // ERROR
-          ir::RuntimeError(
-              "both true_label and false_label are 'null' in case1-OR");
+          ir::RuntimeError("both true_label and false_label are 'null' in case1-OR");
         }
         break;
       }
@@ -950,19 +909,16 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
 
         if ("null" != false_label) {
           // genir(jreverseop,lhstempvar,rhstempvar,falselabel)
-          ir::gIRList.push_back({ir::GetOpKind(this->op_, true), lhs_opn,
-                                 rhs_opn, false_label_opn});
+          ir::gIRList.push_back({ir::GetOpKind(this->op_, true), lhs_opn, rhs_opn, false_label_opn});
           if ("null" != true_label) {
             // genir(goto,truelabel)
             ir::gIRList.push_back({ir::IR::OpKind::GOTO, true_label_opn});
           }
         } else if ("null" != true_label) {
           // genir(jop,lhstempvar,rhstempvar,truelabel)
-          ir::gIRList.push_back({ir::GetOpKind(this->op_, false), lhs_opn,
-                                 rhs_opn, true_label_opn});
+          ir::gIRList.push_back({ir::GetOpKind(this->op_, false), lhs_opn, rhs_opn, true_label_opn});
         } else {
-          ir::RuntimeError(
-              "both true_label and false_label are 'null' in case1-Default");
+          ir::RuntimeError("both true_label and false_label are 'null' in case1-Default");
         }
         break;
       }
@@ -985,8 +941,7 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
             }
           } else {
             // genir(jeq,rhs,0,falselabel)
-            ir::gIRList.push_back(
-                {ir::IR::OpKind::JEQ, rhs_opn, IMM_0_OPN, false_label_opn});
+            ir::gIRList.push_back({ir::IR::OpKind::JEQ, rhs_opn, IMM_0_OPN, false_label_opn});
           }
 
           if ("null" != true_label) {
@@ -1009,15 +964,12 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
             }
           } else {
             // genir(jne,rhs,0,truelabel)
-            ir::gIRList.push_back(
-                {ir::IR::OpKind::JNE, rhs_opn, IMM_0_OPN, true_label_opn});
+            ir::gIRList.push_back({ir::IR::OpKind::JNE, rhs_opn, IMM_0_OPN, true_label_opn});
           }
           // genir(label,newfalselabel,-,-)
-          ir::gIRList.push_back(
-              {ir::IR::OpKind::LABEL, LABEL_OPN(new_false_label)});
+          ir::gIRList.push_back({ir::IR::OpKind::LABEL, LABEL_OPN(new_false_label)});
         } else {
-          ir::RuntimeError(
-              "both true_label and false_label are 'null' in case2-ADD");
+          ir::RuntimeError("both true_label and false_label are 'null' in case2-ADD");
         }
         break;
       }
@@ -1038,13 +990,11 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
             }
           } else {
             // genir(jeq,rhs,0,falselabel)
-            ir::gIRList.push_back(
-                {ir::IR::OpKind::JEQ, rhs_opn, IMM_0_OPN, false_label_opn});
+            ir::gIRList.push_back({ir::IR::OpKind::JEQ, rhs_opn, IMM_0_OPN, false_label_opn});
           }
 
           // genir(label,newtruelabel,-,-)
-          ir::gIRList.push_back(
-              {ir::IR::OpKind::LABEL, LABEL_OPN(new_true_label)});
+          ir::gIRList.push_back({ir::IR::OpKind::LABEL, LABEL_OPN(new_true_label)});
         } else if ("null" != true_label && "null" == false_label) {
           // truelabel:src falselabel:null
           gen_ir(this->lhs_);
@@ -1060,8 +1010,7 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
             }
           } else {
             // genir(jne,rhs,0,truelabel)
-            ir::gIRList.push_back(
-                {ir::IR::OpKind::JNE, rhs_opn, IMM_0_OPN, true_label_opn});
+            ir::gIRList.push_back({ir::IR::OpKind::JNE, rhs_opn, IMM_0_OPN, true_label_opn});
           }
         } else if ("null" != true_label && "null" != false_label) {
           // truelabel:src falselabel:null
@@ -1078,16 +1027,14 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
             }
           } else {
             // genir(jeq,rhs,0,falselabel)
-            ir::gIRList.push_back(
-                {ir::IR::OpKind::JEQ, rhs_opn, IMM_0_OPN, false_label_opn});
+            ir::gIRList.push_back({ir::IR::OpKind::JEQ, rhs_opn, IMM_0_OPN, false_label_opn});
           }
 
           // genir(goto,truelabel)
           ir::gIRList.push_back({ir::IR::OpKind::GOTO, true_label_opn});
         } else {
           // ERROR
-          ir::RuntimeError(
-              "both true_label and false_label are 'null' in case2-OR");
+          ir::RuntimeError("both true_label and false_label are 'null' in case2-OR");
         }
         break;
       }
@@ -1115,19 +1062,16 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
 
         if ("null" != false_label) {
           // genir(jreverseop,lhstempvar,rhs,falselabel)
-          ir::gIRList.push_back({ir::GetOpKind(this->op_, true), lhs_opn,
-                                 ctx.opn_, false_label_opn});
+          ir::gIRList.push_back({ir::GetOpKind(this->op_, true), lhs_opn, ctx.opn_, false_label_opn});
           if ("null" != true_label) {
             // genir(goto,truelabel)
             ir::gIRList.push_back({ir::IR::OpKind::GOTO, true_label_opn});
           }
         } else if ("null" != true_label) {
           // genir(jop,lhstempvar,rhstempvar,truelabel)
-          ir::gIRList.push_back({ir::GetOpKind(this->op_, false), lhs_opn,
-                                 ctx.opn_, true_label_opn});
+          ir::gIRList.push_back({ir::GetOpKind(this->op_, false), lhs_opn, ctx.opn_, true_label_opn});
         } else {
-          ir::RuntimeError(
-              "both true_label and false_label are 'null' in case2-Default");
+          ir::RuntimeError("both true_label and false_label are 'null' in case2-Default");
         }
         break;
       }
@@ -1148,8 +1092,7 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
             }
           } else {
             // genir(jeq,lhs,0,falselabel)
-            ir::gIRList.push_back(
-                {ir::IR::OpKind::JEQ, lhs_opn, IMM_0_OPN, false_label_opn});
+            ir::gIRList.push_back({ir::IR::OpKind::JEQ, lhs_opn, IMM_0_OPN, false_label_opn});
           }
 
           // tl:src fl:src
@@ -1159,24 +1102,20 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
           if (lhs_opn.type_ == ir::Opn::Type::Imm) {
             if (lhs_opn.imm_num_ == 0) {
               // genir(goto,newflaselabel)
-              ir::gIRList.push_back(
-                  {ir::IR::OpKind::GOTO, LABEL_OPN(new_false_label)});
+              ir::gIRList.push_back({ir::IR::OpKind::GOTO, LABEL_OPN(new_false_label)});
             }
           } else {
             // genir(jeq,lhs,0,newfalselabel)
-            ir::gIRList.push_back({ir::IR::OpKind::JEQ, lhs_opn, IMM_0_OPN,
-                                   LABEL_OPN(new_false_label)});
+            ir::gIRList.push_back({ir::IR::OpKind::JEQ, lhs_opn, IMM_0_OPN, LABEL_OPN(new_false_label)});
           }
 
           // tl:src fl:src
           gen_ir(this->rhs_);
 
           // genir(label,newfalselabel,-,-)
-          ir::gIRList.push_back(
-              {ir::IR::OpKind::LABEL, LABEL_OPN(new_false_label)});
+          ir::gIRList.push_back({ir::IR::OpKind::LABEL, LABEL_OPN(new_false_label)});
         } else {
-          ir::RuntimeError(
-              "both true_label and false_label are 'null' in case3-ADD");
+          ir::RuntimeError("both true_label and false_label are 'null' in case3-ADD");
         }
         break;
       }
@@ -1187,20 +1126,17 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
             if (lhs_opn.type_ == ir::Opn::Type::Imm) {
               if (lhs_opn.imm_num_ != 0) {
                 // genir(goto,newtruelabel)
-                ir::gIRList.push_back(
-                    {ir::IR::OpKind::GOTO, LABEL_OPN(new_true_label)});
+                ir::gIRList.push_back({ir::IR::OpKind::GOTO, LABEL_OPN(new_true_label)});
               }
             } else {
               // genir(jne,lhs,0,newtruelabel)
-              ir::gIRList.push_back({ir::IR::OpKind::JNE, lhs_opn, IMM_0_OPN,
-                                     LABEL_OPN(new_true_label)});
+              ir::gIRList.push_back({ir::IR::OpKind::JNE, lhs_opn, IMM_0_OPN, LABEL_OPN(new_true_label)});
             }
             // tl:null fl:src
             gen_ir(this->rhs_);
 
             // genir(label,newtruelabel,-,-)
-            ir::gIRList.push_back(
-                {ir::IR::OpKind::LABEL, LABEL_OPN(new_true_label)});
+            ir::gIRList.push_back({ir::IR::OpKind::LABEL, LABEL_OPN(new_true_label)});
           } else {
             if (lhs_opn.type_ == ir::Opn::Type::Imm) {
               if (lhs_opn.imm_num_ != 0) {
@@ -1209,8 +1145,7 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
               }
             } else {
               // genir(jne,lhs,0,truelabel)
-              ir::gIRList.push_back(
-                  {ir::IR::OpKind::JNE, lhs_opn, IMM_0_OPN, true_label_opn});
+              ir::gIRList.push_back({ir::IR::OpKind::JNE, lhs_opn, IMM_0_OPN, true_label_opn});
             }
             // tl:src fl:src
             gen_ir(this->rhs_);
@@ -1223,14 +1158,12 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
             }
           } else {
             // genir(jne,lhs,0,truelabel)
-            ir::gIRList.push_back(
-                {ir::IR::OpKind::JNE, lhs_opn, IMM_0_OPN, true_label_opn});
+            ir::gIRList.push_back({ir::IR::OpKind::JNE, lhs_opn, IMM_0_OPN, true_label_opn});
           }
           // tl:src fl:src&null
           gen_ir(this->rhs_);
         } else {
-          ir::RuntimeError(
-              "both true_label and false_label are 'null' in case3-OR");
+          ir::RuntimeError("both true_label and false_label are 'null' in case3-OR");
         }
         break;
       }
@@ -1255,19 +1188,16 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
 
         if ("null" != false_label) {
           // genir(jreverseop,lhs,rhs,falselabel)
-          ir::gIRList.push_back({ir::GetOpKind(this->op_, true), lhs_opn,
-                                 rhs_opn, false_label_opn});
+          ir::gIRList.push_back({ir::GetOpKind(this->op_, true), lhs_opn, rhs_opn, false_label_opn});
           if ("null" != true_label) {
             // genir(goto,truelabel)
             ir::gIRList.push_back({ir::IR::OpKind::GOTO, true_label_opn});
           }
         } else if ("null" != true_label) {
           // genir(jop,lhstempvar,rhstempvar,truelabel)
-          ir::gIRList.push_back({ir::GetOpKind(this->op_, false), lhs_opn,
-                                 rhs_opn, true_label_opn});
+          ir::gIRList.push_back({ir::GetOpKind(this->op_, false), lhs_opn, rhs_opn, true_label_opn});
         } else {
-          ir::RuntimeError(
-              "both true_label and false_label are 'null' in case3-Default");
+          ir::RuntimeError("both true_label and false_label are 'null' in case3-Default");
         }
         break;
       }
@@ -1290,8 +1220,7 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
             }
           } else {
             // genir(jeq,lhs,0,falselabel)
-            ir::gIRList.push_back(
-                {ir::IR::OpKind::JEQ, lhs_opn, IMM_0_OPN, false_label_opn});
+            ir::gIRList.push_back({ir::IR::OpKind::JEQ, lhs_opn, IMM_0_OPN, false_label_opn});
           }
 
           gen_ir(this->rhs_);
@@ -1305,8 +1234,7 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
             }
           } else {
             // genir(jeq,rhs,0,falselabel)
-            ir::gIRList.push_back(
-                {ir::IR::OpKind::JEQ, rhs_opn, IMM_0_OPN, false_label_opn});
+            ir::gIRList.push_back({ir::IR::OpKind::JEQ, rhs_opn, IMM_0_OPN, false_label_opn});
           }
 
           if ("null" != true_label) {
@@ -1318,13 +1246,11 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
           if (lhs_opn.type_ == ir::Opn::Type::Imm) {
             if (lhs_opn.imm_num_ == 0) {
               // genir(goto newfalselabel).
-              ir::gIRList.push_back(
-                  {ir::IR::OpKind::GOTO, LABEL_OPN(new_false_label)});
+              ir::gIRList.push_back({ir::IR::OpKind::GOTO, LABEL_OPN(new_false_label)});
             }
           } else {
             // genir(jeq,lhs,0,newfalselabel)
-            ir::gIRList.push_back({ir::IR::OpKind::JEQ, lhs_opn, IMM_0_OPN,
-                                   LABEL_OPN(new_false_label)});
+            ir::gIRList.push_back({ir::IR::OpKind::JEQ, lhs_opn, IMM_0_OPN, LABEL_OPN(new_false_label)});
           }
 
           gen_ir(this->rhs_);
@@ -1338,16 +1264,13 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
             }
           } else {
             // genir(jne,rhs,0,truelabel)
-            ir::gIRList.push_back(
-                {ir::IR::OpKind::JNE, rhs_opn, IMM_0_OPN, true_label_opn});
+            ir::gIRList.push_back({ir::IR::OpKind::JNE, rhs_opn, IMM_0_OPN, true_label_opn});
           }
 
           // genir(label,newfalselabel,-,-)
-          ir::gIRList.push_back(
-              {ir::IR::OpKind::LABEL, LABEL_OPN(new_false_label)});
+          ir::gIRList.push_back({ir::IR::OpKind::LABEL, LABEL_OPN(new_false_label)});
         } else {
-          ir::RuntimeError(
-              "both true_label and false_label are 'null' in case4-ADD");
+          ir::RuntimeError("both true_label and false_label are 'null' in case4-ADD");
         }
         break;
       }
@@ -1363,13 +1286,11 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
           if (lhs_opn.type_ == ir::Opn::Type::Imm) {
             if (lhs_opn.imm_num_ != 0) {
               // genir(goto,newtruelabel)
-              ir::gIRList.push_back(
-                  {ir::IR::OpKind::GOTO, LABEL_OPN(new_true_label)});
+              ir::gIRList.push_back({ir::IR::OpKind::GOTO, LABEL_OPN(new_true_label)});
             }
           } else {
             // genir(jne,lhs,0,newtruelabel)
-            ir::gIRList.push_back({ir::IR::OpKind::JNE, lhs_opn, IMM_0_OPN,
-                                   LABEL_OPN(new_true_label)});
+            ir::gIRList.push_back({ir::IR::OpKind::JNE, lhs_opn, IMM_0_OPN, LABEL_OPN(new_true_label)});
           }
 
           gen_ir(this->rhs_);
@@ -1383,18 +1304,15 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
             }
           } else {
             // genir(jeq,rhs,0,falselabel)
-            ir::gIRList.push_back(
-                {ir::IR::OpKind::JEQ, rhs_opn, IMM_0_OPN, false_label_opn});
+            ir::gIRList.push_back({ir::IR::OpKind::JEQ, rhs_opn, IMM_0_OPN, false_label_opn});
           }
 
           if ("null" == true_label) {
             // genir(label,newtruelabel,-,-)
-            ir::gIRList.push_back(
-                {ir::IR::OpKind::LABEL, LABEL_OPN(new_true_label)});
+            ir::gIRList.push_back({ir::IR::OpKind::LABEL, LABEL_OPN(new_true_label)});
           } else {
             // genir(goto,newtruelabel,-,-)
-            ir::gIRList.push_back(
-                {ir::IR::OpKind::GOTO, LABEL_OPN(new_true_label)});
+            ir::gIRList.push_back({ir::IR::OpKind::GOTO, LABEL_OPN(new_true_label)});
           }
         } else if ("null" != true_label) {
           if (lhs_opn.type_ == ir::Opn::Type::Imm) {
@@ -1404,8 +1322,7 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
             }
           } else {
             // genir(jne,lhs,0,truelabel)
-            ir::gIRList.push_back(
-                {ir::IR::OpKind::JNE, lhs_opn, IMM_0_OPN, true_label_opn});
+            ir::gIRList.push_back({ir::IR::OpKind::JNE, lhs_opn, IMM_0_OPN, true_label_opn});
           }
 
           gen_ir(this->rhs_);
@@ -1418,12 +1335,10 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
             }
           } else {
             // genir(jne,rhs,0,truelabel)
-            ir::gIRList.push_back(
-                {ir::IR::OpKind::JNE, rhs_opn, IMM_0_OPN, true_label_opn});
+            ir::gIRList.push_back({ir::IR::OpKind::JNE, rhs_opn, IMM_0_OPN, true_label_opn});
           }
         } else {
-          ir::RuntimeError(
-              "both true_label and false_label are 'null' in case4-OR");
+          ir::RuntimeError("both true_label and false_label are 'null' in case4-OR");
         }
         break;
       }
@@ -1432,8 +1347,7 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
         CHECK_OPN_INT("condexp rhs exp");
         auto &rhs_opn = ctx.opn_;
 
-        if (lhs_opn.type_ == ir::Opn::Type::Imm &&
-            rhs_opn.type_ == ir::Opn::Type::Imm) {
+        if (lhs_opn.type_ == ir::Opn::Type::Imm && rhs_opn.type_ == ir::Opn::Type::Imm) {
           bool res = false;
           switch (this->op_) {
             case EQ:
@@ -1474,15 +1388,13 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
               ir::gIRList.push_back({ir::IR::OpKind::GOTO, true_label_opn});
             }
           } else {
-            ir::RuntimeError(
-                "both true_label and false_label are 'null' in case4-Default");
+            ir::RuntimeError("both true_label and false_label are 'null' in case4-Default");
           }
         } else {
           if ("null" != false_label) {
             // genir:if False lhs op rhs goto falselabel
             // (jreverseop, lhs, rhs, falselabel)
-            ir::gIRList.push_back({ir::GetOpKind(this->op_, true), lhs_opn,
-                                   rhs_opn, false_label_opn});
+            ir::gIRList.push_back({ir::GetOpKind(this->op_, true), lhs_opn, rhs_opn, false_label_opn});
 
             if ("null" != true_label) {
               // genir(goto, truelabel)
@@ -1490,11 +1402,9 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
             }
           } else if ("null" != true_label) {
             // genir(jop,lhs,rhs,truelabel)
-            ir::gIRList.push_back({ir::GetOpKind(this->op_, false), lhs_opn,
-                                   rhs_opn, true_label_opn});
+            ir::gIRList.push_back({ir::GetOpKind(this->op_, false), lhs_opn, rhs_opn, true_label_opn});
           } else {
-            ir::RuntimeError(
-                "both true_label and false_label are 'null' in case4-Default");
+            ir::RuntimeError("both true_label and false_label are 'null' in case4-Default");
           }
         }
         break;

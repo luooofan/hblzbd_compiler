@@ -38,11 +38,10 @@ class GenerateArm : public Transform {
   Operand2* ResolveImm2Operand2(ArmBasicBlock* armbb, int imm);
   void AddPrologue(ArmBasicBlock* first_bb);
   void AddEpilogue(ArmBasicBlock* armbb);
+  void GenCallCode(ArmBasicBlock* armbb, ir::IR& ir, int loc);
   void LoadGlobalOpn2Reg(ArmBasicBlock* armbb, ir::Opn* opn);
   Reg* ResolveOpn2Reg(ArmBasicBlock* armbb, ir::Opn* opn);
   Operand2* ResolveOpn2Operand2(ArmBasicBlock* armbb, ir::Opn* opn);
-  void ResolveResOpn2RdRegWithBiInst(ArmBasicBlock* armbb, ir::Opn* opn, BinaryInst::OpCode opcode, Reg* rn,
-                                     Operand2* op2);
   template <typename CallableObjTy>
   void ResolveResOpn2RdReg(ArmBasicBlock* armbb, ir::Opn* opn, CallableObjTy f);
 };
