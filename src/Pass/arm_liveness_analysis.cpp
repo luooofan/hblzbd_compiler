@@ -66,10 +66,10 @@ std::pair<std::vector<RegId>, std::vector<RegId>> GetDefUse(Instruction *inst) {
       }
     } else {
       for (auto reg : src_inst->reg_list_) {
-        // if (reg->reg_id_ == static_cast<RegId>(ArmReg::pc)) {
-        //   // 此时作为ret语句 视为对r0的使用以及对pc的定义
-        //   use.push_back(static_cast<RegId>(ArmReg::r0));
-        // }
+        if (reg->reg_id_ == static_cast<RegId>(ArmReg::pc)) {
+          // 此时作为ret语句 视为对r0的使用以及对pc的定义
+          use.push_back(static_cast<RegId>(ArmReg::r0));
+        }
         def.push_back(reg->reg_id_);
       }
     }
@@ -120,6 +120,10 @@ std::pair<Reg *, std::vector<Reg *>> GetDefUsePtr(Instruction *inst) {
       }
     } else {
       for (auto reg : src_inst->reg_list_) {
+        if (reg->reg_id_ == static_cast<RegId>(ArmReg::pc)) {
+          // 此时作为ret语句 视为对r0的使用以及对pc的定义
+          use.push_back(reg);
+        }
         def = (reg);
       }
     }

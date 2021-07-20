@@ -540,11 +540,14 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
             //  mov语句视作对r0的一次定值 紧接着的pop语句应该视作对r0的一次使用
             //  但两条语句一定紧挨着在一个bb末尾所以不必如此 不会影响bb的def use livein liveout
             //  带虚拟寄存器的arm code中只有对r0的def没有use
+            Operand2* op2 = nullptr;
             if (ir.opn1_.type_ != ir::Opn::Type::Null) {
-              Operand2* op2 = ResolveOpn2Operand2(armbb, &(ir.opn1_));
-              armbb->inst_list_.push_back(
-                  static_cast<Instruction*>(new Move(false, Cond::AL, new Reg(ArmReg::r0), op2)));
+              op2 = ResolveOpn2Operand2(armbb, &(ir.opn1_));
+
+            } else {
+              op2 = new Operand2(0);
             }
+            armbb->inst_list_.push_back(static_cast<Instruction*>(new Move(false, Cond::AL, new Reg(ArmReg::r0), op2)));
             AddEpilogue(armbb);
             break;
           }
