@@ -310,26 +310,15 @@ void GenerateArm::GenCallCode(ArmBasicBlock* armbb, ir::IR& ir, int loc) {
                                                new Reg(ArmReg::sp), ResolveImm2Operand2(armbb, (order - 4) * 4))));
     }
   }
-  // for (int i = param_num - 1; i >= 0; --i) {  // i表示当前的参数是正着数的第几个参数 start from 0
-  //   auto& param_ir = ir::gIRList[param_start + param_num - i - 1];
-  //   if (i < 4) {
-  //     // r0-r3. MOV rx, op2
-  //     auto op2 = ResolveOpn2Operand2(armbb, &(param_ir.opn1_));
-  //     auto rd = new Reg(static_cast<ArmReg>(i));
-  //     armbb->inst_list_.push_back(static_cast<Instruction*>(new Move(false, Cond::AL, rd, op2)));
-  //   } else {
-  //     // str rd, sp, #(i-4)*4 靠后的参数放在较高的地方 第5个(i=4)放在sp指向的内存
-  //     auto rd = ResolveOpn2Reg(armbb, &(param_ir.opn1_));
-  //     armbb->inst_list_.push_back(
-  //         static_cast<Instruction*>(new LdrStr(LdrStr::OpKind::STR, LdrStr::Type::Norm, Cond::AL, rd,
-  //                                              new Reg(ArmReg::sp), ResolveImm2Operand2(armbb, (i - 4) * 4))));
-  //   }
-  // }
   // BL label
   armbb->inst_list_.push_back(static_cast<Instruction*>(new Branch(true, false, Cond::AL, ir.opn1_.name_)));
   if (ir.res_.type_ != ir::Opn::Type::Null) {
-    // NOTE: 这里不必生成一条mov语句
-    var_map[ir.res_.name_][ir.res_.scope_id_] = new Reg(ArmReg::r0);
+    // NOTE: 这里必须生成一条mov语句 会存在两个call ir接连出现的情况
+    // 并且只能放在这个基本块中或新建一个基本块不能放到下一个基本块中
+    auto vreg = NewVirtualReg();
+    armbb->inst_list_.push_back(
+        static_cast<Instruction*>(new Move(false, Cond::AL, vreg, new Operand2(new Reg(ArmReg::r0)))));
+    var_map[ir.res_.name_][ir.res_.scope_id_] = vreg;
     // dbg_print_var_map();
   }
 
