@@ -27,9 +27,10 @@ class FuncTableItem {
  public:
   int size_;      // 函数栈大小(不考虑中间变量)
   int ret_type_;  // VOID INT
+  int scope_id_;
   std::vector<std::vector<int>> shape_list_;
   // TODO: 如何处理库函数的size
-  FuncTableItem(int ret_type) : ret_type_(ret_type), size_(0) {}
+  FuncTableItem(int ret_type, int scope_id) : ret_type_(ret_type), size_(0), scope_id_(scope_id) {}
   FuncTableItem() {}
   void Print();
 };
@@ -48,6 +49,7 @@ class Scope {
   Scope(int scope_id, int parent_scope_id, int dynamic_offset)
       : scope_id_(scope_id), parent_scope_id_(parent_scope_id), dynamic_offset_(dynamic_offset) {}
   void Print();
+  bool IsSubScope(int scope_id);
 };
 
 int FindSymbol(int scope_id, std::string name, SymbolTableItem *&res_symbol_item);

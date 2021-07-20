@@ -25,12 +25,12 @@ namespace ast {
 void Root::GenerateIR(ir::ContextInfo &ctx) {
   // 把系统库中的函数添加到函数表中
   // NOTE: 库函数size为0
-  ir::gFuncTable.insert({"getint", {INT}});
-  ir::gFuncTable.insert({"getch", {INT}});
-  ir::FuncTableItem func_item = {INT};
+  ir::gFuncTable.insert({"getint", {INT, -1}});
+  ir::gFuncTable.insert({"getch", {INT, -1}});
+  ir::FuncTableItem func_item = {INT, -1};
   func_item.shape_list_.push_back({-1});
   ir::gFuncTable.insert({"getarray", func_item});
-  ir::FuncTableItem func_item_void = {VOID};
+  ir::FuncTableItem func_item_void = {VOID, -1};
   func_item_void.shape_list_.push_back({});
   ir::gFuncTable.insert({"putint", func_item_void});
   ir::gFuncTable.insert({"putch", func_item_void});
@@ -38,8 +38,8 @@ void Root::GenerateIR(ir::ContextInfo &ctx) {
   ir::gFuncTable.insert({"putarray", func_item_void});
   // TODO: string type and putf function
   // ir::gFuncTable.insert({"putf", {VOID}});
-  ir::gFuncTable.insert({"starttime", {VOID}});
-  ir::gFuncTable.insert({"stoptime", {VOID}});
+  ir::gFuncTable.insert({"starttime", {VOID, -1}});
+  ir::gFuncTable.insert({"stoptime", {VOID, -1}});
 
   // 创建一张全局符号表 全局作用域id为0 父作用域id为-1 当前dynamic_offset为0
   ir::gScopes.push_back({0, -1, 0});
@@ -488,12 +488,12 @@ void FunctionDefine::GenerateIR(ir::ContextInfo &ctx) {
   }
   const auto &func_iter = ir::gFuncTable.find(this->name_.name_);
   if (func_iter == ir::gFuncTable.end()) {
-    auto tmp = new ir::FuncTableItem(return_type_);
     ctx.current_func_name_ = this->name_.name_;
     ctx.scope_id_ = ir::gScopes.size();
     ir::gIRList.push_back({ir::IR::OpKind::LABEL, FUNC_OPN(this->name_.name_)});
     // 父作用域id一定为0 函数初始栈偏移为0
     ir::gScopes.push_back({ctx.scope_id_, 0, 0});
+    auto tmp = new ir::FuncTableItem(return_type_, ctx.scope_id_);
     ctx.has_aug_scope = true;
     for (const auto &arg : args_.arg_list_) {
       auto &scope = ir::gScopes[ctx.scope_id_];

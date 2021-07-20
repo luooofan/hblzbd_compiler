@@ -1,5 +1,6 @@
 #include "../../include/Pass/generate_arm.h"
 
+#include <algorithm>
 #include <cassert>
 #include <functional>
 
@@ -123,22 +124,20 @@ Reg* GenerateArm::ResolveOpn2Reg(ArmBasicBlock* armbb, ir::Opn* opn) {
         var_map[opn->name_][opn->scope_id_] = rbase;
         auto& symbol = ir::gScopes[opn->scope_id_].symbol_table_[opn->name_];
         if (symbol.width_[0] != -1) {
-          armbb->inst_list_.push_back(static_cast<Instruction*>(
-              new BinaryInst(BinaryInst::OpCode::ADD, false, Cond::AL, rbase, sp_vreg,
-                             ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - symbol.width_[0]))));
+          armbb->inst_list_.push_back(static_cast<Instruction*>(new BinaryInst(
+              BinaryInst::OpCode::ADD, false, Cond::AL, rbase, sp_vreg, ResolveImm2Operand2(armbb, symbol.offset_))));
+          //  ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - symbol.width_[0]))));
         } else {
           // 等于-1说明是int array参数 所以要ldr
           armbb->inst_list_.push_back(
               static_cast<Instruction*>(new LdrStr(LdrStr::OpKind::LDR, LdrStr::Type::Norm, Cond::AL, rbase, sp_vreg,
-                                                   ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - 4))));
+                                                   ResolveImm2Operand2(armbb, symbol.offset_))));
+          //  ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - 4))));
         }
       }
     }
     armbb->inst_list_.push_back(static_cast<Instruction*>(new BinaryInst(
         BinaryInst::OpCode::ADD, false, Cond::AL, vreg, rbase, ResolveOpn2Operand2(armbb, opn->offset_))));
-    // offset可能并非立即数 不会导致死循环
-    // armbb->inst_list_.push_back(static_cast<Instruction*>(new LdrStr(
-    // LdrStr::OpKind::LDR, LdrStr::Type::Norm, Cond::AL, vreg, rbase, ResolveOpn2Operand2(armbb, opn->offset_))));
     return vreg;
   } else {
     // 如果是全局变量 一定有一条ldr
@@ -166,7 +165,8 @@ Reg* GenerateArm::ResolveOpn2Reg(ArmBasicBlock* armbb, ir::Opn* opn) {
     } else {
       // 局部变量 一定生成一条ldr语句 ldr rd, [sp, #offset]
       auto vreg = NewVirtualReg();
-      auto offset = ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - 4);
+      auto offset = ResolveImm2Operand2(armbb, symbol.offset_);
+      // auto offset = ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - 4);
       armbb->inst_list_.push_back({static_cast<Instruction*>(
           new LdrStr(LdrStr::OpKind::LDR, LdrStr::Type::Norm, Cond::AL, vreg, sp_vreg, offset))});
       return vreg;
@@ -213,16 +213,37 @@ void GenerateArm::ResolveResOpn2RdReg(ArmBasicBlock* armbb, ir::Opn* opn, Callab
     armbb->inst_list_.push_back(static_cast<Instruction*>(
         new LdrStr(LdrStr::OpKind::STR, LdrStr::Type::Norm, Cond::AL, rd, glo_addr_map[opn->name_], new Operand2(0))));
   } else if (-1 != symbol.offset_) {
-    armbb->inst_list_.push_back(
-        static_cast<Instruction*>(new LdrStr(LdrStr::OpKind::STR, LdrStr::Type::Norm, Cond::AL, rd, sp_vreg,
-                                             ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - 4))));
+    armbb->inst_list_.push_back(static_cast<Instruction*>(new LdrStr(
+        LdrStr::OpKind::STR, LdrStr::Type::Norm, Cond::AL, rd, sp_vreg, ResolveImm2Operand2(armbb, symbol.offset_))));
+    //  ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - 4))));
+  }
+}
+
+void GenerateArm::ChangeOffset(std::string& func_name) {
+  // 把符号表里的偏移都改了: 对于所有参数和局部int量改为stack_size-offset-4
+  // 对于局部int array量改为stack_size-offset-array.width[0] 中间变量仍为-1
+  // 首先拿到函数的作用域id
+  const auto& iter = ir::gFuncTable.find(func_name);
+  assert(iter != ir::gFuncTable.end());
+  int func_scope_id = iter->second.scope_id_;
+  // 遍历所有作用域 修改偏移 改后的偏移为针对sp的偏移
+  for (auto& scope : ir::gScopes) {
+    if (scope.IsSubScope(func_scope_id)) {
+      for (auto& item : scope.symbol_table_) {
+        auto& symbol = item.second;
+        if (-1 == symbol.offset_) {
+          continue;
+        } else if (!symbol.is_array_ || -1 == symbol.width_[0]) {
+          symbol.offset_ = this->stack_size - symbol.offset_ - 4;
+        } else {
+          symbol.offset_ = this->stack_size - symbol.offset_ - symbol.width_[0];
+        }
+      }
+    }
   }
 }
 
 void GenerateArm::AddPrologue(ArmBasicBlock* first_bb) {
-  // 对于变量来说 栈偏移应为 stack_size-offset-4
-  // 对于数组来说 栈偏移应为 stack_size-offset-array.width[0] 也是-4
-
   // 添加prologue 先push 再sub 再str
   // push {lr}
   auto push_inst = new PushPop(PushPop::OpKind::PUSH, Cond::AL);
@@ -345,6 +366,9 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
     func_map.insert({func, armfunc});
     armmodule->func_list_.push_back(armfunc);
 
+    ResetFuncData(armfunc);
+    ChangeOffset(armfunc->name_);
+
     // create armbb according to irbb
     std::unordered_map<IRBasicBlock*, ArmBasicBlock*> bb_map;
     for (auto bb : func->bb_list_) {
@@ -363,7 +387,6 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
       }
     }
 
-    ResetFuncData(armfunc);
     AddPrologue(bb_map[func->bb_list_.front()]);
 
     // for every ir basicblock
@@ -412,23 +435,19 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
       // valid ir: gIRList[start,end_)
       // for every ir
       while (start < bb->end_) {
-        // 对于每条有原始变量(非中间变量)的四元式
-        // 为了保证正确性 必须生成对使用变量的ldr指令
-        // 因为无法确认程序执行流 无法确认当前使用的变量的上一个定值点
-        // 也就无法确认到底在哪个寄存器中 所以需要ldr到一个新的虚拟寄存器中
-        // 为了保证逻辑与存储的一致性 必须生成对定值变量的str指令
-        // 寄存器分配期间也无法删除这些ldr和str指令
-        // 这些虚拟寄存器对应的活跃区间也非常短
+        // 对于每条有原始变量(非中间变量)的四元式 为了保证正确性 必须生成对使用变量的ldr指令
+        // 因为无法确认程序执行流 无法确认当前使用的变量的上一个定值点 也就无法确认到底在哪个寄存器中
+        // 所以需要ldr到一个新的虚拟寄存器中 为了保证逻辑与存储的一致性 必须生成对定值变量的str指令
+        // 寄存器分配期间也无法删除这些ldr和str指令 这些虚拟寄存器对应的活跃区间也非常短
         auto& ir = ir::gIRList[start++];
         switch (ir.op_) {
+          // NOTE: 只有assign类型ir的res可能是局部变量 全局变量 也可能是数组类型 其他情况的res都是中间变量
           case ir::IR::OpKind::ADD: {
             Reg* rn = nullptr;
             Operand2* op2 = nullptr;
             gen_rn_op2(&(ir.opn1_), &(ir.opn2_), rn, op2);
             Reg* rd = ResolveOpn2Reg(armbb, &(ir.res_));
             gen_bi_inst(BinaryInst::OpCode::ADD, rd, rn, op2);
-            // auto f = std::bind(gen_bi_inst, BinaryInst::OpCode::ADD, std::placeholders::_1, rn, op2);
-            // this->ResolveResOpn2RdReg(armbb, &(ir.res_), f);
             break;
           }
           case ir::IR::OpKind::SUB: {
@@ -438,8 +457,6 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
             BinaryInst::OpCode opcode = is_opn1_imm ? BinaryInst::OpCode::RSB : BinaryInst::OpCode::SUB;
             Reg* rd = ResolveOpn2Reg(armbb, &(ir.res_));
             gen_bi_inst(opcode, rd, rn, op2);
-            // auto f = std::bind(gen_bi_inst, opcode, std::placeholders::_1, rn, op2);
-            // this->ResolveResOpn2RdReg(armbb, &(ir.res_), f);
             break;
           }
           case ir::IR::OpKind::MUL: {
@@ -448,8 +465,6 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
             auto op2 = new Operand2(ResolveOpn2Reg(armbb, &(ir.opn2_)));
             Reg* rd = ResolveOpn2Reg(armbb, &(ir.res_));
             gen_bi_inst(BinaryInst::OpCode::MUL, rd, rn, op2);
-            // auto f = std::bind(gen_bi_inst, BinaryInst::OpCode::MUL, std::placeholders::_1, rn, op2);
-            // this->ResolveResOpn2RdReg(armbb, &(ir.res_), f);
             break;
           }
           case ir::IR::OpKind::DIV: {
@@ -461,6 +476,11 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
             armbb->inst_list_.push_back(static_cast<Instruction*>(new Move(false, Cond::AL, new Reg(ArmReg::r0), rm)));
             // call __aeabi_idiv
             armbb->inst_list_.push_back(static_cast<Instruction*>(new Branch(true, false, Cond::AL, "__aeabi_idiv")));
+            // 维护call_list
+            auto& call_funcs = armfunc->call_func_list_;
+            if (std::find(call_funcs.begin(), call_funcs.end(), mod_func) == call_funcs.end()) {
+              call_funcs.push_back(div_func);
+            }
             //
             auto rd = ResolveOpn2Reg(armbb, &(ir.res_));
             armbb->inst_list_.push_back(
@@ -477,11 +497,11 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
             // call __aeabi_idivmod
             armbb->inst_list_.push_back(
                 static_cast<Instruction*>(new Branch(true, false, Cond::AL, "__aeabi_idivmod")));
-            // TODO: 维护call_list
-            // if (armfunc->call_func_list_.find(mod_func) ==
-            //     armfunc->call_func_list_.end()) {
-            //   armfunc->call_func_list_.push_back(mod_func);
-            // }
+            // 维护call_list
+            auto& call_funcs = armfunc->call_func_list_;
+            if (std::find(call_funcs.begin(), call_funcs.end(), mod_func) == call_funcs.end()) {
+              call_funcs.push_back(mod_func);
+            }
             // mov rd, r1
             auto rd = ResolveOpn2Reg(armbb, &(ir.res_));
             armbb->inst_list_.push_back(
@@ -501,7 +521,6 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
             };
             Reg* rd = ResolveOpn2Reg(armbb, &(ir.res_));
             gen_not_armcode(rd);
-            // this->ResolveResOpn2RdReg(armbb, &(ir.res_), gen_not_armcode);
             break;
           }
           case ir::IR::OpKind::NEG: {
@@ -510,8 +529,6 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
             auto op2 = new Operand2(0);
             Reg* rd = ResolveOpn2Reg(armbb, &(ir.res_));
             gen_bi_inst(BinaryInst::OpCode::RSB, rd, rn, op2);
-            // auto f = std::bind(gen_bi_inst, BinaryInst::OpCode::RSB, std::placeholders::_1, rn, op2);
-            // this->ResolveResOpn2RdReg(armbb, &(ir.res_), f);
             break;
           }
           case ir::IR::OpKind::LABEL: {  // 所有label语句都应该已经被跳过
@@ -546,8 +563,6 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
             break;
           }
           case ir::IR::OpKind::ASSIGN: {
-            // maybe imm or var or array
-            //
             // NOTE:
             // 很多四元式类型的op1和op2都可以是Array类型
             // 但是只有assign语句的rd可能是Array类型
@@ -577,14 +592,16 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
                   var_map[ir.res_.name_][ir.res_.scope_id_] = rbase;
                   auto& symbol = ir::gScopes[ir.res_.scope_id_].symbol_table_[ir.res_.name_];
                   if (symbol.width_[0] != -1) {
-                    armbb->inst_list_.push_back(static_cast<Instruction*>(
-                        new BinaryInst(BinaryInst::OpCode::ADD, false, Cond::AL, rbase, sp_vreg,
-                                       ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - symbol.width_[0]))));
+                    armbb->inst_list_.push_back(
+                        static_cast<Instruction*>(new BinaryInst(BinaryInst::OpCode::ADD, false, Cond::AL, rbase,
+                                                                 sp_vreg, ResolveImm2Operand2(armbb, symbol.offset_))));
+                    //  ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - symbol.width_[0]))));
                   } else {
                     // 等于-1说明是int array参数 所以要ldr
-                    armbb->inst_list_.push_back(static_cast<Instruction*>(
-                        new LdrStr(LdrStr::OpKind::LDR, LdrStr::Type::Norm, Cond::AL, rbase, sp_vreg,
-                                   ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - 4))));
+                    armbb->inst_list_.push_back(
+                        static_cast<Instruction*>(new LdrStr(LdrStr::OpKind::LDR, LdrStr::Type::Norm, Cond::AL, rbase,
+                                                             sp_vreg, ResolveImm2Operand2(armbb, symbol.offset_))));
+                    //  ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - 4))));
                   }
                 }
               }
@@ -627,14 +644,16 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
                 var_map[opn->name_][opn->scope_id_] = rbase;
                 auto& symbol = ir::gScopes[opn->scope_id_].symbol_table_[opn->name_];
                 if (symbol.width_[0] != -1) {
-                  armbb->inst_list_.push_back(static_cast<Instruction*>(
-                      new BinaryInst(BinaryInst::OpCode::ADD, false, Cond::AL, rbase, sp_vreg,
-                                     ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - symbol.width_[0]))));
+                  armbb->inst_list_.push_back(
+                      static_cast<Instruction*>(new BinaryInst(BinaryInst::OpCode::ADD, false, Cond::AL, rbase, sp_vreg,
+                                                               ResolveImm2Operand2(armbb, symbol.offset_))));
+                  //  ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - symbol.width_[0]))));
                 } else {
                   // 等于-1说明是int array参数 所以要ldr
-                  armbb->inst_list_.push_back(static_cast<Instruction*>(
-                      new LdrStr(LdrStr::OpKind::LDR, LdrStr::Type::Norm, Cond::AL, rbase, sp_vreg,
-                                 ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - 4))));
+                  armbb->inst_list_.push_back(
+                      static_cast<Instruction*>(new LdrStr(LdrStr::OpKind::LDR, LdrStr::Type::Norm, Cond::AL, rbase,
+                                                           sp_vreg, ResolveImm2Operand2(armbb, symbol.offset_))));
+                  //  ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - 4))));
                 }
               }
             }

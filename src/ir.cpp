@@ -1,11 +1,11 @@
 #include "../include/ir.h"
 
+#include <cassert>
 #include <cstdio>
 #include <iostream>
 
 #include "../include/ast.h"
 #include "parser.hpp"  // EQOP RELOP
-
 #define TYPE_STRING(type) ((type) == INT ? "int" : ((type) == VOID ? "void" : "undefined"))
 #define PRINT_IR(op_name)                                                                          \
   printf("(%10s,%10s,%10s,%10s)", (op_name), this->opn1_.name_.c_str(), this->opn2_.name_.c_str(), \
@@ -31,7 +31,7 @@ void PrintScopes() {
 
 void PrintFuncTable() {
   std::cout << "FuncTable:" << std::endl;
-  printf("%10s%10s%10s\n", "name", "ret_type", "size");
+  printf("%10s%10s%10s%10s\n", "name", "ret_type", "size", "scope_id");
   for (auto &symbol : gFuncTable) {
     printf("%10s", symbol.first.c_str());
     symbol.second.Print();
@@ -56,7 +56,7 @@ void SymbolTableItem::Print() {
   }
 }
 
-void FuncTableItem::Print() { printf("%10s%10d\n", TYPE_STRING(this->ret_type_), this->size_); }
+void FuncTableItem::Print() { printf("%10s%10d%10d\n", TYPE_STRING(this->ret_type_), this->size_, this->scope_id_); }
 
 void Scope::Print() {
   std::cout << "Scope:\n"
@@ -68,6 +68,18 @@ void Scope::Print() {
     printf("%10s", symbol.first.c_str());
     symbol.second.Print();
   }
+}
+bool Scope::IsSubScope(int scope_id) {
+  assert(scope_id >= 0);  // <0无意义
+  int sid = this->scope_id_;
+  while (-1 != sid) {
+    if (sid == scope_id) {
+      return true;
+    } else {
+      sid = gScopes[sid].parent_scope_id_;
+    }
+  }
+  return false;
 }
 
 int FindSymbol(int scope_id, std::string name, SymbolTableItem *&res_symbol_item) {

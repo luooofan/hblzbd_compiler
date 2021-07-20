@@ -36,6 +36,7 @@ class GenerateArm : public Transform {
   Cond GetCondType(ir::IR::OpKind opkind, bool exchange = false);
   Reg* NewVirtualReg();
   Operand2* ResolveImm2Operand2(ArmBasicBlock* armbb, int imm);
+  void ChangeOffset(std::string& func_name);
   void AddPrologue(ArmBasicBlock* first_bb);
   void AddEpilogue(ArmBasicBlock* armbb);
   void GenCallCode(ArmBasicBlock* armbb, ir::IR& ir, int loc);
