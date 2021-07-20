@@ -48,12 +48,13 @@ Cond GenerateArm::GetCondType(ir::IR::OpKind opkind, bool exchange) {
 Reg* GenerateArm::NewVirtualReg() { return new Reg(virtual_reg_id++); };
 
 Operand2* GenerateArm::ResolveImm2Operand2(ArmBasicBlock* armbb, int imm) {
-  int encoding = imm;
+  unsigned int encoding = imm;
   for (int ror = 0; ror < 32; ror += 2) {
+    // 如果encoding的前24bit都是0 说明imm能被表示成一个8bit循环右移偶数位得到
     if (!(encoding & ~0xFFu)) {
       return new Operand2(imm);
     }
-    encoding = (encoding << 2u) | (encoding >> 30u);
+    encoding = (encoding << 30u) | (encoding >> 2u);
   }
   // use move or ldr
   auto vreg = NewVirtualReg();
