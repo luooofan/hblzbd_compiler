@@ -607,7 +607,7 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
               }
               armbb->inst_list_.push_back(
                   static_cast<Instruction*>(new LdrStr(LdrStr::OpKind::STR, LdrStr::Type::Norm, Cond::AL, rd, rbase,
-                                                       ResolveImm2Operand2(armbb, ir.res_.offset_->imm_num_))));
+                                                       ResolveOpn2Operand2(armbb, ir.res_.offset_))));
             } else {
               // 把一个op2 mov到某变量中
               // 如果是中间变量 直接mov到这个变量所在的寄存器中即可
