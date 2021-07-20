@@ -85,10 +85,8 @@ void BinaryInst::EmitCode(std::ostream& outfile) {
   }
   if (this->HasS()) opcode += "s";
   opcode += CondToString(this->cond_);
-  outfile << "\t" << opcode << " "
-          << (nullptr != this->rd_ ? (std::string(*this->rd_) + ", ") : "")
-          << std::string(*this->rn_) << ", " << std::string(*this->op2_)
-          << std::endl;
+  outfile << "\t" << opcode << " " << (nullptr != this->rd_ ? (std::string(*this->rd_) + ", ") : "")
+          << std::string(*this->rn_) << ", " << std::string(*this->op2_) << std::endl;
 }
 
 Move::~Move() {}
@@ -117,18 +115,15 @@ void LdrStr::EmitCode(std::ostream& outfile) {
   switch (this->type_) {
     // NOTE: offset为0也要输出
     case Type::Norm: {
-      prefix += "[" + std::string(*(this->rn_)) + ", " +
-                std::string(*(this->offset_)) + "]";
+      prefix += "[" + std::string(*(this->rn_)) + ", " + std::string(*(this->offset_)) + "]";
       break;
     }
     case Type::Pre: {
-      prefix += "[" + std::string(*(this->rn_)) + ", " +
-                std::string(*(this->offset_)) + "]!";
+      prefix += "[" + std::string(*(this->rn_)) + ", " + std::string(*(this->offset_)) + "]!";
       break;
     }
     case Type::Post: {
-      prefix += "[" + std::string(*(this->rn_)) + "], " +
-                std::string(*(this->offset_));
+      prefix += "[" + std::string(*(this->rn_)) + "], " + std::string(*(this->offset_));
       break;
     }
     case Type::PCrel: {
@@ -145,10 +140,11 @@ void LdrStr::EmitCode(std::ostream& outfile) {
 
 PushPop::~PushPop() {}
 void PushPop::EmitCode(std::ostream& outfile) {
+  assert(!this->reg_list_.empty());
   std::string opcode = this->opkind_ == OpKind::PUSH ? "push" : "pop";
-  outfile << "\t" << opcode << " {";
-  for (auto reg : this->reg_list_) {
-    outfile << " " << std::string(*reg);
+  outfile << "\t" << opcode << " { " << std::string(*(this->reg_list_[0]));
+  for (auto iter = this->reg_list_.begin() + 1; iter != this->reg_list_.end(); ++iter) {
+    outfile << ", " << std::string(**iter);
   }
   outfile << " }" << std::endl;
 }
