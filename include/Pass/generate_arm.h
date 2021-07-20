@@ -37,7 +37,7 @@ class GenerateArm : public Transform {
   Reg* NewVirtualReg();
   Operand2* ResolveImm2Operand2(ArmBasicBlock* armbb, int imm);
   void ChangeOffset(std::string& func_name);
-  void AddPrologue(ArmBasicBlock* first_bb);
+  void AddPrologue(ArmFunction* func, ArmBasicBlock* first_bb);
   void AddEpilogue(ArmBasicBlock* armbb);
   void GenCallCode(ArmBasicBlock* armbb, ir::IR& ir, int loc);
   void LoadGlobalOpn2Reg(ArmBasicBlock* armbb, ir::Opn* opn);

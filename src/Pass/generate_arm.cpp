@@ -243,7 +243,7 @@ void GenerateArm::ChangeOffset(std::string& func_name) {
   }
 }
 
-void GenerateArm::AddPrologue(ArmBasicBlock* first_bb) {
+void GenerateArm::AddPrologue(ArmFunction* func, ArmBasicBlock* first_bb) {
   // 添加prologue 先push 再sub 再str
   // push {lr}
   auto push_inst = new PushPop(PushPop::OpKind::PUSH, Cond::AL);
@@ -269,8 +269,10 @@ void GenerateArm::AddPrologue(ArmBasicBlock* first_bb) {
       // str ri sp offset = i*4
       int offset = stack_size + 4 + (i - 4) * 4;
       auto vreg = NewVirtualReg();
-      first_bb->inst_list_.push_back(static_cast<Instruction*>(new LdrStr(
-          LdrStr::OpKind::LDR, LdrStr::Type::Norm, Cond::AL, vreg, sp_vreg, ResolveImm2Operand2(first_bb, offset))));
+      auto ldr_inst = (new LdrStr(LdrStr::OpKind::LDR, LdrStr::Type::Norm, Cond::AL, vreg, sp_vreg,
+                                  ResolveImm2Operand2(first_bb, offset)));
+      func->sp_arg_fixup_.push_back(ldr_inst);  // NOTE: 如果寄存器分配要多做一些push pop的话需要修改该指令中的offset
+      first_bb->inst_list_.push_back(static_cast<Instruction*>(ldr_inst));
       first_bb->inst_list_.push_back(
           static_cast<Instruction*>(new LdrStr(LdrStr::OpKind::STR, LdrStr::Type::Norm, Cond::AL, vreg, sp_vreg,
                                                ResolveImm2Operand2(first_bb, stack_size - i * 4 - 4))));
@@ -376,7 +378,7 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
       }
     }
 
-    AddPrologue(bb_map[func->bb_list_.front()]);
+    AddPrologue(armfunc, bb_map[func->bb_list_.front()]);
 
     // for every ir basicblock
     for (auto bb : func->bb_list_) {

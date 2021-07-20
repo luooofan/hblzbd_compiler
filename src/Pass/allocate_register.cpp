@@ -43,8 +43,10 @@ void RegAlloc::AllocateRegister(ArmModule *m) {
   int i = 0;
   for (auto func : m->func_list_) {
     std::cout << "第" << i++ << "个函数: " << func->name_ << std::endl;
+    std::set<RegId> used_callee_saved_regs;
     bool done = false;
     while (!done) {
+      used_callee_saved_regs.clear();
       // K color
       const int K = 14;  // r0-r11 r12 lr(r14)
 
@@ -486,6 +488,9 @@ void RegAlloc::AllocateRegister(ArmModule *m) {
           } else {
             // 可分配
             auto color = *std::min_element(ok_colors.begin(), ok_colors.end());
+            if (color >= 4 && color <= 11) {
+              used_callee_saved_regs.insert(color);
+            }
             colored[vreg] = color;
             // std::cout << "给" << vreg << "结点分配了" << color << std::endl;
           }
@@ -679,7 +684,62 @@ void RegAlloc::AllocateRegister(ArmModule *m) {
       }
     }
     // TODO: 每一个函数确定了之后 添加push pop指令
-    // TODO: 删除自己到自己的mov语句
+    // 找到push语句 添加或删除
+    // 找到pop语句 添加或删除
+    int offset_fixup_diff = used_callee_saved_regs.size() * 4;  // maybe -4
+    if (func->IsLeaf()) {
+      //原本计算有lr
+      offset_fixup_diff -= 4;
+    }
+    for (auto bb : func->bb_list_) {
+      for (auto iter = bb->inst_list_.begin(); iter != bb->inst_list_.end();) {
+        if (auto pushpop_inst = dynamic_cast<PushPop *>(*iter)) {
+          // pushpop_inst->EmitCode(std::cout);
+          pushpop_inst->reg_list_.clear();
+          for (auto reg : used_callee_saved_regs) {
+            pushpop_inst->reg_list_.push_back(new Reg(reg));
+          }
+          if (pushpop_inst->opkind_ == PushPop::OpKind::PUSH) {
+            if (!func->IsLeaf()) {
+              pushpop_inst->reg_list_.push_back(new Reg(ArmReg::lr));
+            }
+            if (pushpop_inst->reg_list_.empty()) {
+              iter = bb->inst_list_.erase(iter);
+              continue;
+            }
+          } else {
+            if (!func->IsLeaf()) {
+              pushpop_inst->reg_list_.push_back(new Reg(ArmReg::pc));
+            }
+            if (pushpop_inst->reg_list_.empty()) {
+              iter = bb->inst_list_.erase(iter);
+            } else {
+              ++iter;
+            }
+            // 此时iter指向原pop指令的下一条指令
+            if (func->IsLeaf()) {  // 插入一条 bx lr
+              iter = bb->inst_list_.insert(iter, static_cast<Instruction *>(new Branch(false, true, Cond::AL, "lr")));
+            }
+            continue;
+          }
+          ++iter;
+        } else if (auto move_inst = dynamic_cast<Move *>(*iter)) {
+          // TODO: 删除自己到自己的mov语句
+          auto op2 = move_inst->op2_;
+          if (!op2->is_imm_ && nullptr == op2->shift_ && move_inst->rd_->reg_id_ == op2->reg_->reg_id_) {
+            iter = bb->inst_list_.erase(iter);
+          } else {
+            ++iter;
+          }
+        } else {
+          ++iter;
+        }
+      }
+    }
+    for (auto inst : func->sp_arg_fixup_) {
+      assert(inst->offset_->is_imm_);
+      inst->offset_->imm_num_ += offset_fixup_diff;
+    }
     // TODO: 地址偏移立即数过大处理
-  }
+  }  // end of func loop
 }
