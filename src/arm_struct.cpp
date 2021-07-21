@@ -3,8 +3,7 @@
 #include <iostream>
 #include <string>
 
-#define GET_BB_LABEL_STR(bb_ptr) \
-  (nullptr != bb_ptr->label_ ? (*(bb_ptr->label_)) : ("UnamedBB"))
+#define GET_BB_LABEL_STR(bb_ptr) (nullptr != bb_ptr->label_ ? (*(bb_ptr->label_)) : ("UnamedBB"))
 
 void ArmModule::EmitCode(std::ostream& out) {
   out << ".arch armv7ve" << std::endl;
@@ -15,16 +14,37 @@ void ArmModule::EmitCode(std::ostream& out) {
   // .data
   auto& global_symtab = this->global_scope_.symbol_table_;
   if (!global_symtab.empty()) {
-    out << ".section .data" << std::endl;
-    out << ".align 4" << std::endl;
-    out << std::endl;
+    // out << ".section .data" << std::endl;
+    // out << ".align 4" << std::endl;
+    // out << std::endl;
     // TODO: order?
     for (auto& symbol : global_symtab) {
-      out << ".global " << symbol.first << std::endl;
-      out << "\t.type " << symbol.first << ", %object" << std::endl;
-      out << symbol.first << ":" << std::endl;
-      for (auto value : symbol.second.initval_) {
-        out << "\t.word " << std::to_string(value) << std::endl;
+      bool in_bss = true;
+      int last_not0 = 0;
+      for (int i = 0; i < symbol.second.initval_.size(); ++i) {
+        if (0 != symbol.second.initval_[i]) {
+          in_bss = false;
+          last_not0 = i;
+        }
+      }
+      if (in_bss) {
+        // .comm symbol length align
+        out << ".comm " << symbol.first << ", " << (symbol.second.width_.empty() ? 4 : symbol.second.width_[0]) << ", 4"
+            << std::endl;
+      } else {
+        out << "\t.global " << symbol.first << std::endl;
+        out << "\t.data" << std::endl;
+        out << "\t.align 4" << std::endl;
+        out << "\t.type " << symbol.first << ", %object" << std::endl;
+        out << symbol.first << ":" << std::endl;
+        for (int i = 0; i < symbol.second.initval_.size(); ++i) {
+          out << "\t.word " << symbol.second.initval_[i] << std::endl;
+          if (i == last_not0) break;
+        }
+        int space = (symbol.second.initval_.size() - last_not0 - 1) * 4;
+        if (0 != space) {
+          out << "\t.space " << space << std::endl;
+        }
       }
       out << std::endl;
     }

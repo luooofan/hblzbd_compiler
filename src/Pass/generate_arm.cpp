@@ -5,7 +5,7 @@
 #include <functional>
 
 using namespace arm;
-// TODO: 用sp不用vreg EmitCode把.word改了 一堆赋值语句看能不能改
+// TODO: 用sp不用vreg 一堆赋值语句看能不能改
 
 Cond GenerateArm::GetCondType(ir::IR::OpKind opkind, bool exchange) {
   if (exchange) {
