@@ -25,8 +25,8 @@ IRModule* ConstructModule(const std::string& module_name) {
   label2func.insert({"putint", new IRFunction("putint", 1, 0)});
   label2func.insert({"putch", new IRFunction("putch", 1, 0)});
   label2func.insert({"putarray", new IRFunction("putarray", 1, 0)});
-  label2func.insert({"starttime", new IRFunction("starttime", 0, 0)});
-  label2func.insert({"stoptime", new IRFunction("stoptime", 0, 0)});
+  label2func.insert({"_sysy_starttime", new IRFunction("_sysy_starttime", 1, 0)});
+  label2func.insert({"_sysy_stoptime", new IRFunction("_sysy_stoptime", 1, 0)});
 
   IRModule* module = new IRModule(module_name, gScopes[0]);
 

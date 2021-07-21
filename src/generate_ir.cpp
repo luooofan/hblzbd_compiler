@@ -34,12 +34,12 @@ void Root::GenerateIR(ir::ContextInfo &ctx) {
   func_item_void.shape_list_.push_back({});
   ir::gFuncTable.insert({"putint", func_item_void});
   ir::gFuncTable.insert({"putch", func_item_void});
+  ir::gFuncTable.insert({"_sysy_starttime", func_item_void});
+  ir::gFuncTable.insert({"_sysy_stoptime", func_item_void});
   func_item_void.shape_list_.push_back({-1});
   ir::gFuncTable.insert({"putarray", func_item_void});
   // TODO: string type and putf function
   // ir::gFuncTable.insert({"putf", {VOID}});
-  ir::gFuncTable.insert({"starttime", {VOID, -1}});
-  ir::gFuncTable.insert({"stoptime", {VOID, -1}});
 
   // 创建一张全局符号表 全局作用域id为0 父作用域id为-1 当前dynamic_offset为0
   ir::gScopes.push_back({0, -1, 0});
