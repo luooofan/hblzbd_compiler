@@ -31,6 +31,11 @@ if __name__ == '__main__':
   for file in files:
     filepath_without_ext, _ = path.splitext(file)
     _, filename = path.split(file)
+    asm_file = filepath_without_ext+".s"
+    exec_file = filepath_without_ext+".o"
+    stdin_file = filepath_without_ext+".in"
+    stdout_file = filepath_without_ext+".out"
+
     print("{:10s}:{:35s}{:10s}:{}".format("Processing",filename,"full path",file))
 
     # Compile
@@ -41,11 +46,6 @@ if __name__ == '__main__':
     time_end = time.time()
     compile_time = (time_end - time_start) # s
     print("{:10s}:{:.6f}s".format("compile tm",compile_time))
-
-    asm_file = filepath_without_ext+".s"
-    exec_file = filepath_without_ext+".o"
-    stdin_file = filepath_without_ext+".in"
-    stdout_file = filepath_without_ext+".out"
 
     # GCC Link
     link_cmd = f"gcc -o {exec_file} {gGccArgs} {asm_file}"
@@ -63,21 +63,14 @@ if __name__ == '__main__':
       stdin = open(stdin_file, 'r')
     else:
       stdin = None
-    time_start = time.time()
     subp = subprocess.Popen(exec_cmd.split(), bufsize=0, stdin=stdin, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding='utf-8')
-    ret_code = subp.wait()
-    time_end = time.time()
-    run_time = (time_end - time_start) # s
-    print("{:10s}:{:.6f}s".format("exec time",run_time))
-
-    # exec_err = subp.stderr.read()
-    # exec_time = re.search("[0-9]+H.*us",exec_err).group()
-    subp.stderr.close()
-    # print("{:10s}:{:35s}{:10s}:{:.6f}s".format("exec time",exec_time,"run time",run_time))
+    exec_out, exec_err = subp.communicate()
+    ret_code = subp.returncode
+    exec_time = (re.search("[0-9]+H.*us",exec_err)).group()
+    print("{:10s}:{}".format("exec time",exec_time))
 
     # Exec output
-    exec_out_list = subp.stdout.read().split()
-    subp.stdout.close()
+    exec_out_list = exec_out.split()
     exec_out_list.append(str(ret_code))
     # print(exec_out_list)
 
