@@ -5,6 +5,7 @@
 #include <functional>
 
 using namespace arm;
+// TODO: 用sp不用vreg EmitCode把.word改了 一堆赋值语句看能不能改
 
 Cond GenerateArm::GetCondType(ir::IR::OpKind opkind, bool exchange) {
   if (exchange) {
@@ -75,19 +76,19 @@ void GenerateArm::AddEpilogue(ArmBasicBlock* armbb) {
 };
 
 void GenerateArm::LoadGlobalOpn2Reg(ArmBasicBlock* armbb, ir::Opn* opn) {
-  // 如果是全局变量并且没在glo_addr_map里找到就ldr
+  // 如果是全局变量就要重新ldr
   if (opn->scope_id_ == 0) {
     Reg* rglo = nullptr;
-    const auto& iter = glo_addr_map.find(opn->name_);
-    if (iter != glo_addr_map.end()) {
-      rglo = (*iter).second;
-    }
-    if (nullptr == rglo) {
-      rglo = NewVirtualReg();
-      glo_addr_map[opn->name_] = rglo;
-      // 把全局量基址ldr到某寄存器中
-      armbb->inst_list_.push_back(static_cast<Instruction*>(new LdrStr(rglo, opn->name_)));
-    }
+    // const auto& iter = glo_addr_map.find(opn->name_);
+    // if (iter != glo_addr_map.end()) {
+    //   rglo = (*iter).second;
+    // }
+    // if (nullptr == rglo) {
+    rglo = NewVirtualReg();
+    glo_addr_map[opn->name_] = rglo;
+    // 把全局量基址ldr到某寄存器中
+    armbb->inst_list_.push_back(static_cast<Instruction*>(new LdrStr(rglo, opn->name_)));
+    // }
   }
 };
 
@@ -113,29 +114,30 @@ Reg* GenerateArm::ResolveOpn2Reg(ArmBasicBlock* armbb, ir::Opn* opn) {
       LoadGlobalOpn2Reg(armbb, opn);
       rbase = glo_addr_map[opn->name_];
     } else {
-      const auto& iter = var_map.find(opn->name_);
-      if (iter != var_map.end()) {
-        const auto& iter2 = (*iter).second.find(opn->scope_id_);
-        if (iter2 != (*iter).second.end()) {
-          rbase = ((*iter2).second);
-        }
+      // 不能找 每次都要重新加载 不会有中间数组
+      // const auto& iter = var_map.find(opn->name_);
+      // if (iter != var_map.end()) {
+      //   const auto& iter2 = (*iter).second.find(opn->scope_id_);
+      //   if (iter2 != (*iter).second.end()) {
+      //     rbase = ((*iter2).second);
+      //   }
+      // }
+      // if (nullptr == rbase) {
+      rbase = NewVirtualReg();
+      var_map[opn->name_][opn->scope_id_] = rbase;
+      auto& symbol = ir::gScopes[opn->scope_id_].symbol_table_[opn->name_];
+      if (symbol.width_[0] != -1) {
+        armbb->inst_list_.push_back(static_cast<Instruction*>(new BinaryInst(
+            BinaryInst::OpCode::ADD, false, Cond::AL, rbase, sp_vreg, ResolveImm2Operand2(armbb, symbol.offset_))));
+        //  ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - symbol.width_[0]))));
+      } else {
+        // 等于-1说明是int array参数 所以要ldr
+        armbb->inst_list_.push_back(
+            static_cast<Instruction*>(new LdrStr(LdrStr::OpKind::LDR, LdrStr::Type::Norm, Cond::AL, rbase, sp_vreg,
+                                                 ResolveImm2Operand2(armbb, symbol.offset_))));
+        //  ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - 4))));
       }
-      if (nullptr == rbase) {
-        rbase = NewVirtualReg();
-        var_map[opn->name_][opn->scope_id_] = rbase;
-        auto& symbol = ir::gScopes[opn->scope_id_].symbol_table_[opn->name_];
-        if (symbol.width_[0] != -1) {
-          armbb->inst_list_.push_back(static_cast<Instruction*>(new BinaryInst(
-              BinaryInst::OpCode::ADD, false, Cond::AL, rbase, sp_vreg, ResolveImm2Operand2(armbb, symbol.offset_))));
-          //  ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - symbol.width_[0]))));
-        } else {
-          // 等于-1说明是int array参数 所以要ldr
-          armbb->inst_list_.push_back(
-              static_cast<Instruction*>(new LdrStr(LdrStr::OpKind::LDR, LdrStr::Type::Norm, Cond::AL, rbase, sp_vreg,
-                                                   ResolveImm2Operand2(armbb, symbol.offset_))));
-          //  ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - 4))));
-        }
-      }
+      // }
     }
     armbb->inst_list_.push_back(static_cast<Instruction*>(new BinaryInst(
         BinaryInst::OpCode::ADD, false, Cond::AL, vreg, rbase, ResolveOpn2Operand2(armbb, opn->offset_))));
@@ -575,30 +577,30 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
                 LoadGlobalOpn2Reg(armbb, &(ir.res_));
                 rbase = glo_addr_map[ir.res_.name_];
               } else {
-                const auto& iter = var_map.find(ir.res_.name_);
-                if (iter != var_map.end()) {
-                  const auto& iter2 = (*iter).second.find(ir.res_.scope_id_);
-                  if (iter2 != (*iter).second.end()) {
-                    rbase = ((*iter2).second);
-                  }
+                // const auto& iter = var_map.find(ir.res_.name_);
+                // if (iter != var_map.end()) {
+                //   const auto& iter2 = (*iter).second.find(ir.res_.scope_id_);
+                //   if (iter2 != (*iter).second.end()) {
+                //     rbase = ((*iter2).second);
+                //   }
+                // }
+                // if (nullptr == rbase) {
+                rbase = NewVirtualReg();
+                var_map[ir.res_.name_][ir.res_.scope_id_] = rbase;
+                auto& symbol = ir::gScopes[ir.res_.scope_id_].symbol_table_[ir.res_.name_];
+                if (symbol.width_[0] != -1) {
+                  armbb->inst_list_.push_back(
+                      static_cast<Instruction*>(new BinaryInst(BinaryInst::OpCode::ADD, false, Cond::AL, rbase, sp_vreg,
+                                                               ResolveImm2Operand2(armbb, symbol.offset_))));
+                  //  ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - symbol.width_[0]))));
+                } else {
+                  // 等于-1说明是int array参数 所以要ldr
+                  armbb->inst_list_.push_back(
+                      static_cast<Instruction*>(new LdrStr(LdrStr::OpKind::LDR, LdrStr::Type::Norm, Cond::AL, rbase,
+                                                           sp_vreg, ResolveImm2Operand2(armbb, symbol.offset_))));
+                  //  ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - 4))));
                 }
-                if (nullptr == rbase) {
-                  rbase = NewVirtualReg();
-                  var_map[ir.res_.name_][ir.res_.scope_id_] = rbase;
-                  auto& symbol = ir::gScopes[ir.res_.scope_id_].symbol_table_[ir.res_.name_];
-                  if (symbol.width_[0] != -1) {
-                    armbb->inst_list_.push_back(
-                        static_cast<Instruction*>(new BinaryInst(BinaryInst::OpCode::ADD, false, Cond::AL, rbase,
-                                                                 sp_vreg, ResolveImm2Operand2(armbb, symbol.offset_))));
-                    //  ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - symbol.width_[0]))));
-                  } else {
-                    // 等于-1说明是int array参数 所以要ldr
-                    armbb->inst_list_.push_back(
-                        static_cast<Instruction*>(new LdrStr(LdrStr::OpKind::LDR, LdrStr::Type::Norm, Cond::AL, rbase,
-                                                             sp_vreg, ResolveImm2Operand2(armbb, symbol.offset_))));
-                    //  ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - 4))));
-                  }
-                }
+                // }
               }
               armbb->inst_list_.push_back(
                   static_cast<Instruction*>(new LdrStr(LdrStr::OpKind::STR, LdrStr::Type::Norm, Cond::AL, rd, rbase,
@@ -627,30 +629,30 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
               LoadGlobalOpn2Reg(armbb, opn);
               rbase = glo_addr_map[opn->name_];
             } else {
-              const auto& iter = var_map.find(opn->name_);
-              if (iter != var_map.end()) {
-                const auto& iter2 = (*iter).second.find(opn->scope_id_);
-                if (iter2 != (*iter).second.end()) {
-                  rbase = ((*iter2).second);
-                }
+              // const auto& iter = var_map.find(opn->name_);
+              // if (iter != var_map.end()) {
+              //   const auto& iter2 = (*iter).second.find(opn->scope_id_);
+              //   if (iter2 != (*iter).second.end()) {
+              //     rbase = ((*iter2).second);
+              //   }
+              // }
+              // if (nullptr == rbase) {
+              rbase = NewVirtualReg();
+              var_map[opn->name_][opn->scope_id_] = rbase;
+              auto& symbol = ir::gScopes[opn->scope_id_].symbol_table_[opn->name_];
+              if (symbol.width_[0] != -1) {
+                armbb->inst_list_.push_back(
+                    static_cast<Instruction*>(new BinaryInst(BinaryInst::OpCode::ADD, false, Cond::AL, rbase, sp_vreg,
+                                                             ResolveImm2Operand2(armbb, symbol.offset_))));
+                //  ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - symbol.width_[0]))));
+              } else {
+                // 等于-1说明是int array参数 所以要ldr
+                armbb->inst_list_.push_back(
+                    static_cast<Instruction*>(new LdrStr(LdrStr::OpKind::LDR, LdrStr::Type::Norm, Cond::AL, rbase,
+                                                         sp_vreg, ResolveImm2Operand2(armbb, symbol.offset_))));
+                //  ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - 4))));
               }
-              if (nullptr == rbase) {
-                rbase = NewVirtualReg();
-                var_map[opn->name_][opn->scope_id_] = rbase;
-                auto& symbol = ir::gScopes[opn->scope_id_].symbol_table_[opn->name_];
-                if (symbol.width_[0] != -1) {
-                  armbb->inst_list_.push_back(
-                      static_cast<Instruction*>(new BinaryInst(BinaryInst::OpCode::ADD, false, Cond::AL, rbase, sp_vreg,
-                                                               ResolveImm2Operand2(armbb, symbol.offset_))));
-                  //  ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - symbol.width_[0]))));
-                } else {
-                  // 等于-1说明是int array参数 所以要ldr
-                  armbb->inst_list_.push_back(
-                      static_cast<Instruction*>(new LdrStr(LdrStr::OpKind::LDR, LdrStr::Type::Norm, Cond::AL, rbase,
-                                                           sp_vreg, ResolveImm2Operand2(armbb, symbol.offset_))));
-                  //  ResolveImm2Operand2(armbb, stack_size - symbol.offset_ - 4))));
-                }
-              }
+              // }
             }
             // 找到rbase后 来一条ldr语句
             armbb->inst_list_.push_back(
