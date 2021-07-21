@@ -1,3 +1,5 @@
+#include <unistd.h>
+
 #include <cstring>
 #include <fstream>
 
@@ -17,64 +19,111 @@ extern int yylex_destroy();
 extern void yyset_lineno(int _line_number);
 
 int main(int argc, char **argv) {
-  char *in = nullptr;
-
-  for (int i = 1; i < argc; ++i) {
-    if (nullptr != argv[i]) in = argv[i];
+  bool opt = false, print_usage = false;
+  char *src = nullptr, *output = nullptr, *log_file = nullptr;
+  // parse command line options and check
+  for (int ch; (ch = getopt(argc, argv, "Sl:o:O:h")) != -1;) {
+    switch (ch) {
+      case 'S':
+        // do nothing
+        break;
+      case 'l':
+        log_file = strdup(optarg);
+        break;
+      case 'o':
+        output = strdup(optarg);
+        break;
+      case 'O':
+        opt = atoi(optarg) > 0;
+        break;
+      case 'h':
+        print_usage = true;
+        break;
+      default:
+        break;
+    }
   }
 
-  if (nullptr != in) {
-    freopen(in, "r", stdin);
+  if (optind <= argc) {
+    src = argv[optind];
   }
 
-  std::cout << "Start Parser:" << std::endl;
+  if (src == nullptr || print_usage) {
+    std::cerr << "Usage: " << argv[0] << " [-l log_file] [-o output_file] [-O level] input_file" << std::endl;
+    return 1;
+  }
+
+  if (nullptr != src) {
+    freopen(src, "r", stdin);
+  }
+  std::ofstream logfile;
+  if (nullptr != log_file) {
+    logfile.open(log_file);
+  }
+  // std::cout << "Start Parser:" << std::endl;
   yyset_lineno(1);
   yyparse();  // if success, ast_root is valid
   yylex_destroy();
 
-  if (nullptr == ast_root) {
-    return 1;
+  assert(nullptr != ast_root);
+  if (logfile.is_open()) {
+    logfile << "PrintNode:" << std::endl;
+    ast_root->PrintNode(0, logfile);
   }
-  std::cout << "PrintNode:" << std::endl;
-  ast_root->PrintNode(0, std::cout);
 
-  std::cout << "Generate IR:" << std::endl;
+  // std::cout << "Generate IR:" << std::endl;
   ir::ContextInfo ctx;
   ast_root->GenerateIR(ctx);
 
   delete ast_root;
 
-  ir::PrintFuncTable();
-  ir::PrintScopes();
-
-  std::cout << "IRList:" << std::endl;
-  for (auto &ir : ir::gIRList) {
-    ir.PrintIR();
+  if (logfile.is_open()) {
+    ir::PrintFuncTable(logfile);
+    ir::PrintScopes(logfile);
+    logfile << "IRList:" << std::endl;
+    for (auto &ir : ir::gIRList) {
+      ir.PrintIR(logfile);
+    }
   }
 
-  // it represents IRModule before GenerateArm Pass
-  // and ArmModule after GenerateArm Pass.
+  // it represents IRModule before GenerateArm Pass and ArmModule after GenerateArm Pass.
   // the source space will be released when running GenerateArm Pass.
-  Module *module_ptr = static_cast<Module *>(ConstructModule(std::string(in)));
-  module_ptr->EmitCode(std::cout);
+  Module *module_ptr = static_cast<Module *>(ConstructModule(std::string(src)));
+  // module_ptr->EmitCode(std::cout);
   Module **const module_ptr_addr = &module_ptr;
 
   PassManager pm(module_ptr_addr);
   pm.AddPass<GenerateArm>(false);
   pm.AddPass<RegAlloc>(false);
-  pm.Run(true, std::cout);
+  if (logfile.is_open()) {
+    pm.Run(true, logfile);
+  } else {
+    pm.Run();
+  }
 
   assert(typeid(*module_ptr) == typeid(ArmModule));
 
   {
     std::ofstream outfile;
-    int len = strlen(in);
-    std::string file_name = std::string(in, in + len - 1);
+    std::string file_name = "";
+    if (nullptr == output) {
+      file_name = std::string(src, src + strlen(src) - 1);
+    } else {
+      file_name = std::string(output);
+    }
     outfile.open(file_name);
-    std::cout << "Emitting code to file: " << file_name << std::endl;
+    if (logfile.is_open()) {
+      logfile << "Emitting code to file: " << file_name << std::endl;
+    }
     module_ptr->EmitCode(outfile);
-    std::cout << "EmitCode finish." << std::endl;
+    if (logfile.is_open()) {
+      logfile << "EmitCode finish." << std::endl;
+    }
     outfile.close();
+  }
+
+  if (logfile.is_open()) {
+    logfile.close();
   }
 
   // release the arm module space.

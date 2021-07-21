@@ -2,18 +2,26 @@
 
 #include <cassert>
 #include <cstdio>
+#include <iomanip>
 #include <iostream>
 
 #include "../include/ast.h"
 #include "parser.hpp"  // EQOP RELOP
 #define TYPE_STRING(type) ((type) == INT ? "int" : ((type) == VOID ? "void" : "undefined"))
-#define PRINT_IR(op_name)                                                                          \
-  printf("(%10s,%10s,%10s,%10s)", (op_name), this->opn1_.name_.c_str(), this->opn2_.name_.c_str(), \
-         this->res_.name_.c_str());                                                                \
-  if (opn1_.type_ == Opn::Type::Array) printf(" %s", opn1_.offset_->name_.c_str());                \
-  if (opn2_.type_ == Opn::Type::Array) printf(" %s", opn2_.offset_->name_.c_str());                \
-  if (res_.type_ == Opn::Type::Array) printf(" %s", res_.offset_->name_.c_str());                  \
-  printf("\n");
+// #define PRINT_IR(op_name)                                                                          \
+//   printf("(%10s,%10s,%10s,%10s)", (op_name), this->opn1_.name_.c_str(), this->opn2_.name_.c_str(), \
+//          this->res_.name_.c_str());                                                                \
+//   if (opn1_.type_ == Opn::Type::Array) printf(" %s", opn1_.offset_->name_.c_str());                \
+//   if (opn2_.type_ == Opn::Type::Array) printf(" %s", opn2_.offset_->name_.c_str());                \
+//   if (res_.type_ == Opn::Type::Array) printf(" %s", res_.offset_->name_.c_str());                  \
+//   printf("\n");
+#define PRINT_IR(op_name)                                                                                    \
+  outfile << "(" << std::setw(10) << op_name << std::setw(10) << opn1_.name_ << std::setw(10) << opn2_.name_ \
+          << std::setw(10) << res_.name_ << ")";                                                             \
+  if (opn1_.type_ == Opn::Type::Array) outfile << " " << opn1_.offset_->name_;                               \
+  if (opn2_.type_ == Opn::Type::Array) outfile << " " << opn2_.offset_->name_;                               \
+  if (res_.type_ == Opn::Type::Array) outfile << " " << res_.offset_->name_;                                 \
+  outfile << std::endl;
 
 namespace ir {
 
@@ -23,52 +31,73 @@ std::vector<IR> gIRList;
 
 const int kIntWidth = 4;
 
-void PrintScopes() {
+void PrintScopes(std::ostream &outfile) {
   for (auto &symbol_table : gScopes) {
-    symbol_table.Print();
+    symbol_table.Print(outfile);
   }
 }
 
-void PrintFuncTable() {
-  std::cout << "FuncTable:" << std::endl;
-  printf("%10s%10s%10s%10s\n", "name", "ret_type", "size", "scope_id");
+void PrintFuncTable(std::ostream &outfile) {
+  outfile << "FuncTable:" << std::endl;
+  outfile << std::setw(10) << "name" << std::setw(10) << "ret_type" << std::setw(10) << "size" << std::setw(10)
+          << "scope_id" << std::endl;
+  // printf("%10s%10s%10s%10s\n", "name", "ret_type", "size", "scope_id");
   for (auto &symbol : gFuncTable) {
-    printf("%10s", symbol.first.c_str());
-    symbol.second.Print();
+    // printf("%10s", symbol.first.c_str());
+    outfile << std::setw(10) << symbol.first;
+    symbol.second.Print(outfile);
   }
 }
 
-void SymbolTableItem::Print() {
-  printf("%10s%10s%10d\n", (this->is_array_ ? "√" : "×"), (this->is_const_ ? "√" : "×"), this->offset_);
+void SymbolTableItem::Print(std::ostream &outfile) {
+  outfile << std::setw(10) << (this->is_array_ ? "√" : "×") << std::setw(10) << (this->is_const_ ? "√" : "×")
+          << std::setw(10) << this->offset_ << std::endl;
+  // printf("%10s%10s%10d\n", (this->is_array_ ? "√" : "×"), (this->is_const_ ? "√" : "×"), this->offset_);
   if (this->is_array_) {
-    printf("%20s: ", "shape");
+    // printf("%20s: ", "shape");
+    outfile << std::setw(20) << "shape"
+            << ": ";
     for (const auto &shape : this->shape_) {
-      printf("[%d]", shape);
+      // printf("[%d]", shape);
+      outfile << "[" << shape << "]";
     }
-    printf("\n");
+    // printf("\n");
+    outfile << std::endl;
   }
   if (!this->initval_.empty()) {
-    printf("%20s: ", "initval");
+    // printf("%20s: ", "initval");
+    outfile << std::setw(20) << "initval"
+            << ": ";
     for (const auto &initval : this->initval_) {
-      printf("%3d ", initval);
+      // printf("%3d ", initval);
+      outfile << std::setw(3) << initval;
     }
-    printf("\n");
+    // printf("\n");
+    outfile << std::endl;
   }
 }
 
-void FuncTableItem::Print() { printf("%10s%10d%10d\n", TYPE_STRING(this->ret_type_), this->size_, this->scope_id_); }
+void FuncTableItem::Print(std::ostream &outfile) {
+  outfile << std::setw(10) << TYPE_STRING(this->ret_type_) << std::setw(10) << this->size_ << std::setw(10)
+          << this->scope_id_ << std::endl;
+  // printf("%10s%10d%10d\n", TYPE_STRING(this->ret_type_), this->size_, this->scope_id_);
+}
 
-void Scope::Print() {
-  std::cout << "Scope:\n"
-            << "  scope_id: " << this->scope_id_ << std::endl
-            << "  parent_scope_id: " << this->parent_scope_id_ << std::endl
-            << "  dyn_offset: " << this->dynamic_offset_ << std::endl;
-  printf("%10s%10s%10s%10s\n", "name", "is_array", "is_const", "offset");
+void Scope::Print(std::ostream &outfile) {
+  outfile << "Scope:" << std::endl
+          << "  scope_id: " << this->scope_id_ << std::endl
+          << "  parent_scope_id: " << this->parent_scope_id_ << std::endl
+          << "  dyn_offset: " << this->dynamic_offset_ << std::endl;
+  // printf("%10s%10s%10s%10s\n", "name", "is_array", "is_const", "offset");
+  outfile << std::setw(10) << "name" << std::setw(10) << "is_array" << std::setw(10) << "is_const" << std::setw(10)
+          << "offset" << std::endl;
   for (auto &symbol : this->symbol_table_) {
-    printf("%10s", symbol.first.c_str());
-    symbol.second.Print();
+    // printf("%10s", symbol.first.c_str());
+    outfile << std::setw(10) << symbol.first;
+    symbol.second.Print(outfile);
   }
 }
+
 bool Scope::IsSubScope(int scope_id) {
   assert(scope_id >= 0);  // <0无意义
   int sid = this->scope_id_;
@@ -147,7 +176,7 @@ IR::OpKind GetOpKind(int op, bool reverse) {
   return IR::OpKind::VOID;
 }
 
-void IR::PrintIR() {
+void IR::PrintIR(std::ostream &outfile) {
   switch (op_) {
     case IR::OpKind::ADD:
       PRINT_IR("add");
@@ -213,7 +242,8 @@ void IR::PrintIR() {
       PRINT_IR("=[]");
       break;
     default:
-      printf("unimplemented\n");
+      // printf("unimplemented\n");
+      outfile << "unimplemented" << std::endl;
       break;
   }
 }

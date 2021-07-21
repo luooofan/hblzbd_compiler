@@ -1,6 +1,7 @@
 #ifndef __IR__H_
 #define __IR__H_
 
+#include <iostream>
 #include <stack>
 #include <string>
 #include <unordered_map>
@@ -20,7 +21,7 @@ class SymbolTableItem {
   SymbolTableItem(bool is_array, bool is_const, int offset)
       : is_array_(is_array), is_const_(is_const), offset_(offset) {}
   SymbolTableItem() {}
-  void Print();
+  void Print(std::ostream &outfile = std::clog);
 };
 
 class FuncTableItem {
@@ -32,7 +33,7 @@ class FuncTableItem {
   // TODO: 如何处理库函数的size
   FuncTableItem(int ret_type, int scope_id) : ret_type_(ret_type), size_(0), scope_id_(scope_id) {}
   FuncTableItem() {}
-  void Print();
+  void Print(std::ostream &outfile = std::clog);
 };
 
 //每个作用域一个符号表
@@ -48,7 +49,7 @@ class Scope {
   // Scope() {}
   Scope(int scope_id, int parent_scope_id, int dynamic_offset)
       : scope_id_(scope_id), parent_scope_id_(parent_scope_id), dynamic_offset_(dynamic_offset) {}
-  void Print();
+  void Print(std::ostream &outfile = std::clog);
   bool IsSubScope(int scope_id);
 };
 
@@ -118,7 +119,7 @@ class IR {
   IR(OpKind op, Opn opn1) : op_(op), opn1_(opn1), opn2_({Opn::Type::Null}), res_({Opn::Type::Null}) {}
   IR(OpKind op) : op_(op), opn1_({Opn::Type::Null}), opn2_({Opn::Type::Null}), res_({Opn::Type::Null}) {}
   IR() {}
-  void PrintIR();
+  void PrintIR(std::ostream &outfile = std::clog);
 };
 
 class ContextInfo {
@@ -159,8 +160,8 @@ std::string NewLabel();
 
 IR::OpKind GetOpKind(int op, bool reverse);
 
-void PrintScopes();
-void PrintFuncTable();
+void PrintScopes(std::ostream &outfile = std::clog);
+void PrintFuncTable(std::ostream &outfile = std::clog);
 void SemanticError(int line_no, const std::string &&error_msg);
 void RuntimeError(const std::string &&error_msg);
 

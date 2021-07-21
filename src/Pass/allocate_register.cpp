@@ -5,20 +5,20 @@ using namespace arm;
 
 #define IS_PRECOLORED(i) (i < 16)
 
-void dbg_print_worklist(RegAlloc::WorkList &wl) {
+void dbg_print_worklist(RegAlloc::WorkList &wl, std::ostream &outfile) {
   for (auto item : wl) {
-    std::cout << item << " ";
+    outfile << item << " ";
   }
-  std::cout << std::endl;
+  outfile << std::endl;
 }
 // 利用adj_list返回一个结点的所有有效邻接点 无效邻接点为选择栈中的结点和已合并的结点
 // called Adjacent in paper.
 RegAlloc::WorkList RegAlloc::ValidAdjacentSet(RegId reg, AdjList &adj_list, std::vector<RegId> &select_stack,
                                               WorkList &coalesced_nodes) {
   WorkList valid_adjacent = adj_list[reg];
-  // std::cout << valid_adjacent.size() << std::endl;
+  // outfile << valid_adjacent.size() << std::endl;
   for (auto iter = valid_adjacent.begin(); iter != valid_adjacent.end();) {
-    // std::cout << *iter << std::endl;
+    // outfile << *iter << std::endl;
     // NOTE: erase
     if (std::find(select_stack.begin(), select_stack.end(), *iter) == select_stack.end() &&
         coalesced_nodes.find(*iter) == coalesced_nodes.end()) {
@@ -26,7 +26,7 @@ RegAlloc::WorkList RegAlloc::ValidAdjacentSet(RegId reg, AdjList &adj_list, std:
     } else {
       iter = valid_adjacent.erase(iter);
     }
-    // dbg_print_worklist(valid_adjacent);
+    // dbg_print_worklist(valid_adjacent, outfile);
   }
   return valid_adjacent;
 };
@@ -38,10 +38,10 @@ void RegAlloc::Run() {
 }
 
 // iterated register coalescing
-void RegAlloc::AllocateRegister(ArmModule *m) {
+void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
   int i = 0;
   for (auto func : m->func_list_) {
-    std::cout << "第" << i++ << "个函数: " << func->name_ << std::endl;
+    // outfile << "第" << i++ << "个函数: " << func->name_ << std::endl;
     std::set<RegId> used_callee_saved_regs;
     bool done = false;
     while (!done) {
@@ -231,7 +231,7 @@ void RegAlloc::AllocateRegister(ArmModule *m) {
         select_stack.push_back(reg);
         // 所有邻接结点的度数-1
         auto &&valid_adj_set = this->ValidAdjacentSet(reg, adj_list, select_stack, coalesced_nodes);
-        // std::cout << valid_adj_set.size() << std::endl;
+        // outfile << valid_adj_set.size() << std::endl;
         for (auto &m : valid_adj_set) {
           decrement_degree(m);
         }
@@ -412,20 +412,20 @@ void RegAlloc::AllocateRegister(ArmModule *m) {
         auto lr = static_cast<RegId>(ArmReg::lr);
         colored.insert({lr, lr});
 
-        // std::cout << "选择栈中有" << select_stack.size() << "个结点"
+        // outfile << "选择栈中有" << select_stack.size() << "个结点"
         //           << std::endl;
         while (!select_stack.empty()) {
           auto vreg = select_stack.back();
-          // std::cout << "现在为" << vreg << "分配寄存器:" << std::endl;
+          // outfile << "现在为" << vreg << "分配寄存器:" << std::endl;
           select_stack.pop_back();
           std::unordered_set<RegId> ok_colors;
 
-          auto dbg_print_ok_colors = [&ok_colors](std::string msg) {
-            std::cout << "输出ok_colors " << msg << std::endl;
+          auto dbg_print_ok_colors = [&ok_colors, &outfile](std::string msg) {
+            // outfile << "输出ok_colors " << msg << std::endl;
             for (auto ok_color : ok_colors) {
-              std::cout << ok_color << " ";
+              // outfile << ok_color << " ";
             }
-            std::cout << std::endl;
+            // outfile << std::endl;
           };
 
           // 先填
@@ -441,10 +441,10 @@ void RegAlloc::AllocateRegister(ArmModule *m) {
             auto it = colored.find(real_reg);
             if (it == colored.end()) {
               ok_colors.erase(real_reg);
-              //   std::cout << "erase:" << real_reg << std::endl;
+              //   outfile << "erase:" << real_reg << std::endl;
             } else {
               ok_colors.erase(colored[real_reg]);
-              //   std::cout << "erase:" << colored[real_reg] << std::endl;
+              //   outfile << "erase:" << colored[real_reg] << std::endl;
             }
           }
           // dbg_print_ok_colors("删完之后");
@@ -460,7 +460,7 @@ void RegAlloc::AllocateRegister(ArmModule *m) {
               used_callee_saved_regs.insert(color);
             }
             colored[vreg] = color;
-            // std::cout << "给" << vreg << "结点分配了" << color << std::endl;
+            // outfile << "给" << vreg << "结点分配了" << color << std::endl;
           }
         }
 
@@ -480,7 +480,7 @@ void RegAlloc::AllocateRegister(ArmModule *m) {
         //   auto colored =
         //       std::to_string(before) + " => " + std::to_string(after);
         //   //   dbg(colored);
-        //   std::cout << colored << std::endl;
+        //   outfile << colored << std::endl;
         // }
 
         // modify_armcode
@@ -511,53 +511,53 @@ void RegAlloc::AllocateRegister(ArmModule *m) {
         degree[i] = 0x40000000;
       }
 
-      auto dbg_print_worklist = [](WorkList &wl, std::string msg) {
-        std::cout << msg << std::endl;
+      auto dbg_print_worklist = [&outfile](WorkList &wl, std::string msg) {
+        // outfile << msg << std::endl;
         for (auto n : wl) {
-          std::cout << n << " ";
+          // outfile << n << " ";
         }
-        std::cout << std::endl;
+        // outfile << std::endl;
       };
 
-      std::cout << "Build Start:" << std::endl;
+      // outfile << "Build Start:" << std::endl;
       build();
-      std::cout << "End." << std::endl;
-      std::cout << "MK_WL Start:" << std::endl;
+      // outfile << "End." << std::endl;
+      // outfile << "MK_WL Start:" << std::endl;
       mk_worklist();
-      std::cout << "End." << std::endl;
+      // outfile << "End." << std::endl;
       do {
         if (!simplify_worklist.empty()) {
-          std::cout << "Simplify Start:" << std::endl;
+          // outfile << "Simplify Start:" << std::endl;
           // dbg_print_worklist(simplify_worklist, "可简化的结点如下:");
           simplify();
-          std::cout << "End." << std::endl;
+          // outfile << "End." << std::endl;
         } else if (!worklist_moves.empty()) {
-          std::cout << "Coalesce Start:" << std::endl;
+          // outfile << "Coalesce Start:" << std::endl;
           coalesce();
-          std::cout << "End." << std::endl;
+          // outfile << "End." << std::endl;
         } else if (!freeze_worklist.empty()) {
           // dbg_print_worklist(simplify_worklist, "可冻结的结点如下:");
-          std::cout << "Freeze Start:" << std::endl;
+          // outfile << "Freeze Start:" << std::endl;
           freeze();
-          std::cout << "End." << std::endl;
+          // outfile << "End." << std::endl;
         } else if (!spill_worklist.empty()) {
-          std::cout << "SelectSpill Start:" << std::endl;
+          // outfile << "SelectSpill Start:" << std::endl;
           // dbg_print_worklist(simplify_worklist, "可能溢出的结点如下:");
           select_spill();
-          std::cout << "End." << std::endl;
+          // outfile << "End." << std::endl;
         }
       } while (!simplify_worklist.empty() || !worklist_moves.empty() || !freeze_worklist.empty() ||
                !spill_worklist.empty());
-      std::cout << "Coloring Start:" << std::endl;
+      // outfile << "Coloring Start:" << std::endl;
       assign_colors();
-      std::cout << "End." << std::endl;
+      // outfile << "End." << std::endl;
       if (spilled_nodes.empty()) {
         done = true;
       } else {  // TODO: 实际溢出
         done = true;
         continue;
 
-        std::cout << "actual spill" << std::endl;
+        // outfile << "actual spill" << std::endl;
         // rewrite program
         for (auto &n : spilled_nodes) {
           // allocate on stack
@@ -656,7 +656,7 @@ void RegAlloc::AllocateRegister(ArmModule *m) {
     for (auto bb : func->bb_list_) {
       for (auto iter = bb->inst_list_.begin(); iter != bb->inst_list_.end();) {
         if (auto pushpop_inst = dynamic_cast<PushPop *>(*iter)) {
-          // pushpop_inst->EmitCode(std::cout);
+          // pushpop_inst->EmitCode(outfile);
           pushpop_inst->reg_list_.clear();
           for (auto reg : used_callee_saved_regs) {
             pushpop_inst->reg_list_.push_back(new Reg(reg));

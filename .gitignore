@@ -1,10 +1,11 @@
 sysyruntimelibrary/
 sysyruntimelibrary-master/
+autotest*/
 /*.sh
 *.out*
 /*.sy
 *.txt
-/mycompiler
+/*compiler
 test/*
 !test/test_*.sy
 docs/

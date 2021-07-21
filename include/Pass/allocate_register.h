@@ -32,6 +32,6 @@ class RegAlloc : public Transform {
   WorkList ValidAdjacentSet(RegId reg, AdjList &adj_list,
                             std::vector<RegId> &select_stack,
                             WorkList &coalesced_nodes);
-  void AllocateRegister(ArmModule *m);
+  void AllocateRegister(ArmModule *m, std::ostream &outfile = std::clog);
   void Run();
 };

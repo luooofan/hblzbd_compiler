@@ -1,61 +1,66 @@
-import sys
 from glob import glob
 import subprocess
 from os import path
 import re
+import os
 import time
-
-gCompilerPath = './mycompiler'
-gCompileArgs = '> /dev/null'
-gGccArgs = '-L . -lsysy -march=armv7'
+import argparse
 
 if __name__ == '__main__':
-  # print(sys.argv)
+  parser = argparse.ArgumentParser(description='Automaticly test')
+  parser.add_argument("test_path", type=str, help="the path of the test cases. can be glob style.")
+  parser.add_argument("-L", "--linked_library_path", type=str, help="the path of the linked library", default=".")
+  parser.add_argument("-v", "--verbose", help="print compile time and exec time for every test case.", action="store_true")
+  args = parser.parse_args()
+
+  CompilerPath = './compiler'
+  CompileArgs = '-S -O1'
+  GccArgs = f'-L {args.linked_library_path} -lsysy -march=armv7'
+  OutputFolder = './autotest_output'
+
+  if not path.exists(OutputFolder):
+    os.system(f"mkdir {OutputFolder}")
+
   make_res = subprocess.call("make -j", shell=True)
   if make_res == 1:
     print("build compiler failed.")
     exit()
   print()
 
-  # glob: sys.argv[1]
-  if len(sys.argv)<2 :
-    print("need a glob path.")
-    exit()
-
-  # print(sys.argv[1])
-  # print(glob(sys.argv[1], recursive=True))
-  files = glob(sys.argv[1], recursive=True)
+  files = glob(args.test_path, recursive=True)
   files.sort()
   bug_num = len(files)
 
   for file in files:
-    filepath_without_ext, _ = path.splitext(file)
+    filepath_noext, _ = path.splitext(file)
     _, filename = path.split(file)
-    asm_file = filepath_without_ext+".s"
-    exec_file = filepath_without_ext+".o"
-    stdin_file = filepath_without_ext+".in"
-    stdout_file = filepath_without_ext+".out"
+    filename_noext, _=path.splitext(filename)
+    asm_file = OutputFolder+"/"+filename_noext+".s"
+    exec_file = OutputFolder+"/"+filename_noext+".o"
+    stdin_file = filepath_noext+".in"
+    stdout_file = filepath_noext+".out"
 
     print("{:10s}:{:35s}{:10s}:{}".format("Processing",filename,"full path",file))
 
     # Compile
     time_start = time.time()
-    if subprocess.call(f"{gCompilerPath} {file} {gCompileArgs}",shell=True) == 1:
+    if subprocess.call(f"{CompilerPath} {file} -o {asm_file} {CompileArgs}",shell=True) == 1:
       print("compile failed.")
       continue
     time_end = time.time()
     compile_time = (time_end - time_start) # s
-    print("{:10s}:{:.6f}s".format("compile tm",compile_time))
+    if args.verbose:
+      print("{:10s}:{:.6f}s".format("compile tm",compile_time))
 
     # GCC Link
-    link_cmd = f"gcc -o {exec_file} {gGccArgs} {asm_file}"
+    link_cmd = f"gcc -o {exec_file} {GccArgs} {asm_file}"
     time_start = time.time()
     if subprocess.call(link_cmd, shell=True) == 1:
       print("link failed.")
       continue
     time_end = time.time()
     link_time = (time_end - time_start) # s
-    print("{:10s}:{:.6f}s".format("link time",link_time))
+    # print("{:10s}:{:.6f}s".format("link time",link_time))
 
     # Exec
     exec_cmd = f"{exec_file}"
@@ -67,7 +72,8 @@ if __name__ == '__main__':
     exec_out, exec_err = subp.communicate()
     ret_code = subp.returncode
     exec_time = (re.search("[0-9]+H.*us",exec_err)).group()
-    print("{:10s}:{}".format("exec time",exec_time))
+    if args.verbose:
+      print("{:10s}:{}".format("exec time",exec_time))
 
     # Exec output
     exec_out_list = exec_out.split()

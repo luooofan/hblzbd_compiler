@@ -53,10 +53,12 @@ class PassManager {
 
   void Run(bool emit = false, std::ostream& out = std::cout) {
     for (auto pass : this->passes_) {
-      out << ">>>>>>>>>>>> Start pass " << pass->GetName() << " <<<<<<<<<<<<" << std::endl;
+      // if (emit || pass->IsEmit()) {
+      //   out << ">>>>>>>>>>>> Start pass " << pass->GetName() << " <<<<<<<<<<<<" << std::endl;
+      // }
       pass->Run();
-      out << ">>>>>>>>>>>> After pass " << pass->GetName() << " <<<<<<<<<<<<" << std::endl;
       if (emit || pass->IsEmit()) {
+        out << ">>>>>>>>>>>> After pass " << pass->GetName() << " <<<<<<<<<<<<" << std::endl;
         (*m_)->EmitCode(out);
       }
     }
