@@ -7,20 +7,23 @@
 #include "parser.hpp"  // VOID INT
 
 #define IMM_0_OPN \
-  { ir::Opn::Type::Imm, 0, ctx.scope_id_ }
+  { OpnType::Imm, 0, ctx.scope_id_ }
 #define IMM_1_OPN \
-  { ir::Opn::Type::Imm, 1, ctx.scope_id_ }
+  { OpnType::Imm, 1, ctx.scope_id_ }
 #define LABEL_OPN(label_name) \
-  { ir::Opn::Type::Label, label_name, ctx.scope_id_ }
+  { OpnType::Label, label_name, ctx.scope_id_ }
 #define FUNC_OPN(label_name) \
-  { ir::Opn::Type::Func, label_name, ctx.scope_id_ }
-#define OPN_IS_NOT_INT (!ctx.shape_.empty() && ctx.opn_.type_ == ir::Opn::Type::Null)
+  { OpnType::Func, label_name, ctx.scope_id_ }
+#define OPN_IS_NOT_INT (!ctx.shape_.empty() && ctx.opn_.type_ == OpnType::Null)
 #define CHECK_OPN_INT(locstr)                                                            \
   if (OPN_IS_NOT_INT) {                                                                  \
     ir::SemanticError(this->line_no_, ctx.opn_.name_ + ": " + locstr + " type not int"); \
   }
 
 namespace ast {
+
+using OpnType = ir::Opn::Type;
+using IROpKind = ir::IR::OpKind;
 
 void Root::GenerateIR(ir::ContextInfo &ctx) {
   // 把系统库中的函数添加到函数表中
@@ -64,12 +67,13 @@ void Root::GenerateIR(ir::ContextInfo &ctx) {
 
 void Number::GenerateIR(ir::ContextInfo &ctx) {
   // 生成一个imm opn 维护shape
-  ctx.opn_ = ir::Opn(ir::Opn::Type::Imm, value_, ctx.scope_id_);
+  ctx.opn_ = ir::Opn(OpnType::Imm, value_, ctx.scope_id_);
   ctx.shape_.clear();
 }
 
 // NOTE: 对于函数名的检查在FunctionCall完成 不调用此函数
 void Identifier::GenerateIR(ir::ContextInfo &ctx) {
+  bool is_assigned = ctx.is_assigned_;
   ctx.is_assigned_ = false;
   ir::SymbolTableItem *s = nullptr;
   int scope_id = ir::FindSymbol(ctx.scope_id_, name_, s);
@@ -77,8 +81,14 @@ void Identifier::GenerateIR(ir::ContextInfo &ctx) {
     ir::SemanticError(line_no_, name_ + ": undefined variable");
   }
 
-  ctx.shape_ = s->shape_;
-  ctx.opn_ = ir::Opn(ir::Opn::Type::Var, name_, scope_id);
+  // NOTE: 常量直接替换为立即数 作用域为当前作用域
+  if (!is_assigned && s->is_const_ && !s->is_array_) {
+    ctx.opn_ = ir::Opn(OpnType::Imm, s->initval_[0], ctx.scope_id_);
+    ctx.shape_.clear();
+  } else {
+    ctx.shape_ = s->shape_;
+    ctx.opn_ = ir::Opn(OpnType::Var, name_, scope_id);
+  }
 }
 
 // NOTE:
@@ -137,22 +147,26 @@ void ArrayIdentifier::GenerateIR(ir::ContextInfo &ctx) {
   // std::cout << s->shape_.size() << " " << shape_list_.size() << " " << ctx.shape_.size() << std::endl;
 
   ir::Opn *offset = new ir::Opn(ctx.opn_);
-  ctx.opn_ = ir::Opn(ir::Opn::Type::Array, name_.name_, scope_id, offset);
+  ctx.opn_ = ir::Opn(OpnType::Array, name_.name_, scope_id, offset);
   if (!is_assigned && ctx.shape_.empty()) {
-    // 如果是int类型而不是int[] 则需要生成一条=[]ir以区分地址和取值
-    std::string res_var = ir::NewTemp();
-    int scope_id = ctx.scope_id_;
-    ir::gScopes[scope_id].symbol_table_.insert({res_var, {false, false, -1}});
-    ir::Opn temp = ir::Opn(ir::Opn::Type::Var, res_var, scope_id);
-    ir::gIRList.push_back({ir::IR::OpKind::ASSIGN_OFFSET, ctx.opn_, temp});
-    ctx.opn_ = temp;
+    if (s->is_const_ && offset->type_ == OpnType::Imm) {  // 常量数组的使用 直接返回一个立即数
+      ctx.opn_ = ir::Opn(OpnType::Imm, s->initval_[offset->imm_num_ / 4], ctx.scope_id_);
+    } else {
+      // 如果是int类型而不是int[] 则需要生成一条=[]ir以区分地址和取值
+      std::string res_var = ir::NewTemp();
+      int scope_id = ctx.scope_id_;
+      ir::gScopes[scope_id].symbol_table_.insert({res_var, {false, false, -1}});
+      ir::Opn temp = ir::Opn(OpnType::Var, res_var, scope_id);
+      ir::gIRList.push_back({IROpKind::ASSIGN_OFFSET, ctx.opn_, temp});
+      ctx.opn_ = temp;
+    }
   }
 }
 
 // TODO: var+0 0+var var-0 var*0 0*var var/0 var%0 var/1 var%1
 void BinaryExpression::GenerateIR(ir::ContextInfo &ctx) {
   ir::Opn opn1, opn2;
-  ir::IR::OpKind op;
+  IROpKind op;
 
   lhs_->GenerateIR(ctx);
   opn1 = ctx.opn_;
@@ -162,7 +176,7 @@ void BinaryExpression::GenerateIR(ir::ContextInfo &ctx) {
   opn2 = ctx.opn_;
   CHECK_OPN_INT("rhs exp");
 
-  if (opn1.type_ == ir::Opn::Type::Imm && opn2.type_ == ir::Opn::Type::Imm) {
+  if (opn1.type_ == OpnType::Imm && opn2.type_ == OpnType::Imm) {
     int result;
     int num1 = opn1.imm_num_, num2 = opn2.imm_num_;
     switch (op_) {
@@ -185,23 +199,23 @@ void BinaryExpression::GenerateIR(ir::ContextInfo &ctx) {
         printf("mystery operator code: %d", op_);
         break;
     }
-    ctx.opn_ = ir::Opn(ir::Opn::Type::Imm, result, ctx.scope_id_);
+    ctx.opn_ = ir::Opn(OpnType::Imm, result, ctx.scope_id_);
   } else {
     switch (op_) {
       case ADD:
-        op = ir::IR::OpKind::ADD;
+        op = IROpKind::ADD;
         break;
       case SUB:
-        op = ir::IR::OpKind::SUB;
+        op = IROpKind::SUB;
         break;
       case MUL:
-        op = ir::IR::OpKind::MUL;
+        op = IROpKind::MUL;
         break;
       case DIV:
-        op = ir::IR::OpKind::DIV;
+        op = IROpKind::DIV;
         break;
       case MOD:
-        op = ir::IR::OpKind::MOD;
+        op = IROpKind::MOD;
         break;
       default:
         printf("mystery operator code: %d", op_);
@@ -211,7 +225,7 @@ void BinaryExpression::GenerateIR(ir::ContextInfo &ctx) {
     // NOTE: 中间变量栈偏移-1 并且不维护scope的dynamic offset
     ir::gScopes[ctx.scope_id_].symbol_table_.insert({res_temp_var, {false, false, -1}});
 
-    ir::Opn temp = ir::Opn(ir::Opn::Type::Var, res_temp_var, ctx.scope_id_);
+    ir::Opn temp = ir::Opn(OpnType::Var, res_temp_var, ctx.scope_id_);
     ctx.opn_ = temp;
     ir::gIRList.push_back(ir::IR(op, opn1, opn2, temp));
   }
@@ -223,7 +237,7 @@ void UnaryExpression::GenerateIR(ir::ContextInfo &ctx) {
   ir::Opn opn1 = ctx.opn_;
   CHECK_OPN_INT("rhs exp");
 
-  if (opn1.type_ == ir::Opn::Type::Imm) {
+  if (opn1.type_ == OpnType::Imm) {
     int result;
     int num1 = opn1.imm_num_;
     switch (op_) {
@@ -240,19 +254,19 @@ void UnaryExpression::GenerateIR(ir::ContextInfo &ctx) {
         printf("mystery operator code: %d", op_);
         break;
     }
-    ctx.opn_ = ir::Opn(ir::Opn::Type::Imm, result, ctx.scope_id_);
+    ctx.opn_ = ir::Opn(OpnType::Imm, result, ctx.scope_id_);
   } else {
-    ir::IR::OpKind op;
+    IROpKind op;
     switch (op_) {
       case ADD:
-        // op = ir::IR::OpKind::POS;
+        // op = IROpKind::POS;
         return;
         break;
       case SUB:
-        op = ir::IR::OpKind::NEG;
+        op = IROpKind::NEG;
         break;
       case NOT:
-        op = ir::IR::OpKind::NOT;
+        op = IROpKind::NOT;
         break;
       default:
         printf("mystery operator code: %d", op_);
@@ -263,7 +277,7 @@ void UnaryExpression::GenerateIR(ir::ContextInfo &ctx) {
     // NOTE: 中间变量栈偏移-1 并且不维护scope的dynamic offset
     ir::gScopes[ctx.scope_id_].symbol_table_.insert({rhs_temp_var, {false, false, -1}});
 
-    ir::Opn temp = ir::Opn(ir::Opn::Type::Var, rhs_temp_var, ctx.scope_id_);
+    ir::Opn temp = ir::Opn(OpnType::Var, rhs_temp_var, ctx.scope_id_);
     ctx.opn_ = temp;
     ir::gIRList.push_back(ir::IR(op, opn1, temp));
   }
@@ -309,11 +323,11 @@ void FunctionCall::GenerateIR(ir::ContextInfo &ctx) {
 
     opn1 = ctx.opn_;
     if (s && s->is_array_ && nullptr == opn1.offset_) {
-      ir::Opn *offset = new ir::Opn(ir::Opn::Type::Imm, 0, opn1.scope_id_);
-      opn1 = ir::Opn(ir::Opn::Type::Array, opn1.name_, opn1.scope_id_, offset);
+      ir::Opn *offset = new ir::Opn(OpnType::Imm, 0, opn1.scope_id_);
+      opn1 = ir::Opn(OpnType::Array, opn1.name_, opn1.scope_id_, offset);
     }
 
-    param_list.push(ir::IR(ir::IR::OpKind::PARAM, opn1));
+    param_list.push(ir::IR(IROpKind::PARAM, opn1));
   }
 
   // NOTE: 倒着写Param语句
@@ -322,8 +336,8 @@ void FunctionCall::GenerateIR(ir::ContextInfo &ctx) {
     param_list.pop();
   }
 
-  opn1 = ir::Opn(ir::Opn::Type::Func, name_.name_, ctx.scope_id_);
-  opn2 = ir::Opn(ir::Opn::Type::Imm, func_item.shape_list_.size(), ctx.scope_id_);
+  opn1 = ir::Opn(OpnType::Func, name_.name_, ctx.scope_id_);
+  opn2 = ir::Opn(OpnType::Imm, func_item.shape_list_.size(), ctx.scope_id_);
 
   ir::IR ir;
   // 当call调用的函数返回INT时 生成(call, func, arg-num, temp) 返回VOID时 (call, func, arg-num, -/NULL)
@@ -334,15 +348,15 @@ void FunctionCall::GenerateIR(ir::ContextInfo &ctx) {
     // NOTE: 中间变量栈偏移-1 并且不维护scope的dynamic offset
     ir::gScopes[scope_id].symbol_table_.insert({ret_var, {false, false, -1}});
 
-    ir::Opn temp = ir::Opn(ir::Opn::Type::Var, ret_var, scope_id);
+    ir::Opn temp = ir::Opn(OpnType::Var, ret_var, scope_id);
     ctx.opn_ = temp;
     ctx.shape_.clear();
-    ir = ir::IR(ir::IR::OpKind::CALL, opn1, opn2, temp);
+    ir = ir::IR(IROpKind::CALL, opn1, opn2, temp);
   } else {
-    ir::Opn temp = ir::Opn(ir::Opn::Type::Null);
+    ir::Opn temp = ir::Opn(OpnType::Null);
     ctx.opn_ = temp;
     ctx.shape_.clear();
-    ir = ir::IR(ir::IR::OpKind::CALL, opn1, opn2, temp);
+    ir = ir::IR(IROpKind::CALL, opn1, opn2, temp);
   }
   // printf("/*********************\n");
   ir::gIRList.push_back(ir);
@@ -371,19 +385,14 @@ void VariableDefineWithInit::GenerateIR(ir::ContextInfo &ctx) {
   if (var_iter == symbol_table.end()) {
     auto tmp = new ir::SymbolTableItem(false, is_const_, scope.dynamic_offset_);
     scope.dynamic_offset_ += ir::kIntWidth;
-    // NOTE: 如果是全局量 需要填写initval 如果是局部变量 生成一条赋值语句
-    if (ctx.scope_id_ == 0) {
+    // NOTE: 如果是全局量或者常量 需要填写initval 如果是局部变量 生成一条赋值语句
+    if (ctx.scope_id_ == 0 || this->is_const_) {
       value_.Evaluate(ctx);
       tmp->initval_.push_back(ctx.opn_.imm_num_);
     } else {
-      if (this->is_const_) {
-        value_.Evaluate(ctx);
-        tmp->initval_.push_back(ctx.opn_.imm_num_);
-      } else {
-        value_.GenerateIR(ctx);
-      }
-      ir::Opn lhs_opn = ir::Opn(ir::Opn::Type::Var, name_.name_, ctx.scope_id_);
-      ir::gIRList.push_back({ir::IR::OpKind::ASSIGN, ctx.opn_, lhs_opn});
+      value_.GenerateIR(ctx);
+      ir::Opn lhs_opn = ir::Opn(OpnType::Var, name_.name_, ctx.scope_id_);
+      ir::gIRList.push_back({IROpKind::ASSIGN, ctx.opn_, lhs_opn});
     }
     symbol_table.insert({this->name_.name_, *tmp});
     delete tmp;
@@ -464,14 +473,8 @@ void ArrayDefineWithInit::GenerateIR(ir::ContextInfo &ctx) {
     ctx.array_offset_ = 0;
     ctx.brace_num_ = 1;
 
-    if (ctx.scope_id_ == 0) {
+    if (ctx.scope_id_ == 0 || this->is_const_) {
       this->value_.Evaluate(ctx);
-    } else if (this->is_const_) {
-      // 局部常量 不仅要填写initval也要生成赋值语句
-      this->value_.Evaluate(ctx);
-      ctx.array_offset_ = 0;
-      ctx.brace_num_ = 1;
-      this->value_.GenerateIR(ctx);
     } else {
       this->value_.GenerateIR(ctx);
     }
@@ -490,7 +493,7 @@ void FunctionDefine::GenerateIR(ir::ContextInfo &ctx) {
   if (func_iter == ir::gFuncTable.end()) {
     ctx.current_func_name_ = this->name_.name_;
     ctx.scope_id_ = ir::gScopes.size();
-    ir::gIRList.push_back({ir::IR::OpKind::LABEL, FUNC_OPN(this->name_.name_)});
+    ir::gIRList.push_back({IROpKind::LABEL, FUNC_OPN(this->name_.name_)});
     // 父作用域id一定为0 函数初始栈偏移为0
     ir::gScopes.push_back({ctx.scope_id_, 0, 0});
     auto tmp = new ir::FuncTableItem(return_type_, ctx.scope_id_);
@@ -545,7 +548,7 @@ void FunctionDefine::GenerateIR(ir::ContextInfo &ctx) {
     }
     // 保证函数执行流最后会有一条ret语句 方便汇编生成
     if (return_type_ == VOID && ctx.has_return == false) {
-      ir::gIRList.push_back({ir::IR::OpKind::RET});
+      ir::gIRList.push_back({IROpKind::RET});
     }
 
     // 填写函数表项中的栈大小size
@@ -581,7 +584,7 @@ void AssignStatement::GenerateIR(ir::ContextInfo &ctx) {
   }
 
   // genir(assign,opn1,-,res)
-  ir::gIRList.push_back({ir::IR::OpKind::ASSIGN, rhs_opn, lhs_opn});
+  ir::gIRList.push_back({IROpKind::ASSIGN, rhs_opn, lhs_opn});
 }
 
 void IfElseStatement::GenerateIR(ir::ContextInfo &ctx) {
@@ -604,19 +607,19 @@ void IfElseStatement::GenerateIR(ir::ContextInfo &ctx) {
     ctx.false_label_.pop();
     this->thenstmt_.GenerateIR(ctx);
     // genir(goto,next,-,-)
-    ir::gIRList.push_back({ir::IR::OpKind::GOTO, LABEL_OPN(label_next)});
+    ir::gIRList.push_back({IROpKind::GOTO, LABEL_OPN(label_next)});
     // genir(label,else,-,-)
-    ir::gIRList.push_back({ir::IR::OpKind::LABEL, LABEL_OPN(label_else)});
+    ir::gIRList.push_back({IROpKind::LABEL, LABEL_OPN(label_else)});
     this->elsestmt_->GenerateIR(ctx);
   }
-  ir::gIRList.push_back({ir::IR::OpKind::LABEL, LABEL_OPN(label_next)});
+  ir::gIRList.push_back({IROpKind::LABEL, LABEL_OPN(label_next)});
 }
 
 void WhileStatement::GenerateIR(ir::ContextInfo &ctx) {
   std::string label_next = ir::NewLabel();
   std::string label_begin = ir::NewLabel();
   // genir(label,begin,-,-)
-  ir::gIRList.push_back({ir::IR::OpKind::LABEL, LABEL_OPN(label_begin)});
+  ir::gIRList.push_back({IROpKind::LABEL, LABEL_OPN(label_begin)});
   ctx.true_label_.push("null");
   ctx.false_label_.push(label_next);
   this->cond_.GenerateIR(ctx);
@@ -629,12 +632,12 @@ void WhileStatement::GenerateIR(ir::ContextInfo &ctx) {
 
   this->bodystmt_.GenerateIR(ctx);
   // genir(goto,begin,-,-)
-  ir::gIRList.push_back({ir::IR::OpKind::GOTO, LABEL_OPN(label_begin)});
+  ir::gIRList.push_back({IROpKind::GOTO, LABEL_OPN(label_begin)});
 
   ctx.continue_label_.pop();
   ctx.break_label_.pop();
 
-  ir::gIRList.push_back({ir::IR::OpKind::LABEL, LABEL_OPN(label_next)});
+  ir::gIRList.push_back({IROpKind::LABEL, LABEL_OPN(label_next)});
 }
 
 void BreakStatement::GenerateIR(ir::ContextInfo &ctx) {
@@ -643,7 +646,7 @@ void BreakStatement::GenerateIR(ir::ContextInfo &ctx) {
     ir::SemanticError(this->line_no_, "'break' not in while loop");
   } else {
     // genir (goto,breaklabel,-,-)
-    ir::gIRList.push_back({ir::IR::OpKind::GOTO, {ir::Opn::Type::Label, ctx.break_label_.top(), ctx.scope_id_}});
+    ir::gIRList.push_back({IROpKind::GOTO, {OpnType::Label, ctx.break_label_.top(), ctx.scope_id_}});
   }
 }
 
@@ -653,7 +656,7 @@ void ContinueStatement::GenerateIR(ir::ContextInfo &ctx) {
     ir::SemanticError(this->line_no_, "'continue' not in while loop");
   } else {
     // genir (goto,continuelabel,-,-)
-    ir::gIRList.push_back({ir::IR::OpKind::GOTO, {ir::Opn::Type::Label, ctx.continue_label_.top(), ctx.scope_id_}});
+    ir::gIRList.push_back({IROpKind::GOTO, {OpnType::Label, ctx.continue_label_.top(), ctx.scope_id_}});
   }
 }
 
@@ -670,7 +673,7 @@ void ReturnStatement::GenerateIR(ir::ContextInfo &ctx) {
       // return ;
       if (nullptr == this->value_) {
         // genir (ret,-,-,-)
-        ir::gIRList.push_back({ir::IR::OpKind::RET});
+        ir::gIRList.push_back({IROpKind::RET});
       } else {
         ir::SemanticError(this->line_no_, "function ret type should be VOID: " + func_name);
       }
@@ -683,7 +686,7 @@ void ReturnStatement::GenerateIR(ir::ContextInfo &ctx) {
       this->value_->GenerateIR(ctx);
       if (ctx.shape_.empty()) {
         // genir (ret,opn,-,-)
-        ir::gIRList.push_back({ir::IR::OpKind::RET, ctx.opn_});
+        ir::gIRList.push_back({IROpKind::RET, ctx.opn_});
       } else {
         ir::SemanticError(this->line_no_, "function ret type should be INT: " + func_name);
       }
@@ -726,10 +729,10 @@ void ArrayInitVal::GenerateIR(ir::ContextInfo &ctx) {
     this->value_->GenerateIR(ctx);
     CHECK_OPN_INT("exp")
     // genir([]=,expvalue,-,arrayname offset)
-    ir::gIRList.push_back({ir::IR::OpKind::/*OFFSET_*/ ASSIGN,
+    ir::gIRList.push_back({IROpKind::/*OFFSET_*/ ASSIGN,
                            ctx.opn_,
-                           {ir::Opn::Type::Array, ctx.array_name_, ctx.scope_id_,
-                            new ir::Opn(ir::Opn::Type::Imm, ctx.array_offset_ * 4, ctx.scope_id_)}});
+                           {OpnType::Array, ctx.array_name_, ctx.scope_id_,
+                            new ir::Opn(OpnType::Imm, ctx.array_offset_ * 4, ctx.scope_id_)}});
 
     ctx.array_offset_ += 1;
   } else {
@@ -764,10 +767,10 @@ void ArrayInitVal::GenerateIR(ir::ContextInfo &ctx) {
       // 补0补到finaloffset
       while (offset < final_offset) {
         // genir([]=,0,-,arrayname offset)
-        ir::gIRList.push_back({ir::IR::OpKind::/*OFFSET_*/ ASSIGN,
+        ir::gIRList.push_back({IROpKind::/*OFFSET_*/ ASSIGN,
                                IMM_0_OPN,
-                               {ir::Opn::Type::Array, ctx.array_name_, ctx.scope_id_,
-                                new ir::Opn(ir::Opn::Type::Imm, (offset++ * 4), ctx.scope_id_)}});
+                               {OpnType::Array, ctx.array_name_, ctx.scope_id_,
+                                new ir::Opn(OpnType::Imm, (offset++ * 4), ctx.scope_id_)}});
       }
       if (offset > final_offset) {
         ir::SemanticError(this->line_no_, "初始值设定项值太多");
@@ -851,7 +854,7 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
           gen_ir(this->rhs_);
 
           // genir(label,newfalselabel,-,-)
-          ir::gIRList.push_back({ir::IR::OpKind::LABEL, LABEL_OPN(new_false_label)});
+          ir::gIRList.push_back({IROpKind::LABEL, LABEL_OPN(new_false_label)});
         } else {
           // ERROR
           ir::RuntimeError("both true_label and false_label are 'null' in case1-ADD");
@@ -868,7 +871,7 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
           gen_ir(this->rhs_);
 
           // genir(label,newtruelabel,-,-)
-          ir::gIRList.push_back({ir::IR::OpKind::LABEL, LABEL_OPN(new_true_label)});
+          ir::gIRList.push_back({IROpKind::LABEL, LABEL_OPN(new_true_label)});
         } else if ("null" != true_label && "null" == false_label) {
           // truelabel:src falselabel:null
           gen_ir(this->lhs_);
@@ -894,42 +897,42 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
 
         std::string lhs_temp_var = ir::NewTemp();
         scope.symbol_table_.insert({lhs_temp_var, {false, false, -1}});
-        ir::Opn lhs_opn = {ir::Opn::Type::Var, lhs_temp_var, scope_id};
+        ir::Opn lhs_opn = {OpnType::Var, lhs_temp_var, scope_id};
 
         // genir(assign,0,-,lhstmpvar)
-        ir::gIRList.push_back({ir::IR::OpKind::ASSIGN, IMM_0_OPN, lhs_opn});
+        ir::gIRList.push_back({IROpKind::ASSIGN, IMM_0_OPN, lhs_opn});
 
         // tl:null fl:rhslabel
         std::string rhs_label = ir::NewLabel();
         gen_tlfl_ir("null", rhs_label, this->lhs_);
 
         // genir(assign,1,-,lhstmpvar)
-        ir::gIRList.push_back({ir::IR::OpKind::ASSIGN, IMM_1_OPN, lhs_opn});
+        ir::gIRList.push_back({IROpKind::ASSIGN, IMM_1_OPN, lhs_opn});
         // genir(label,rhslabel,-,-)
-        ir::gIRList.push_back({ir::IR::OpKind::LABEL, LABEL_OPN(rhs_label)});
+        ir::gIRList.push_back({IROpKind::LABEL, LABEL_OPN(rhs_label)});
 
         std::string rhs_temp_var = ir::NewTemp();
         scope.symbol_table_.insert({rhs_temp_var, {false, false, -1}});
-        ir::Opn rhs_opn = {ir::Opn::Type::Var, rhs_temp_var, scope_id};
+        ir::Opn rhs_opn = {OpnType::Var, rhs_temp_var, scope_id};
 
         // genir(assign,0,-,rhstmpvar)
-        ir::gIRList.push_back({ir::IR::OpKind::ASSIGN, IMM_0_OPN, rhs_opn});
+        ir::gIRList.push_back({IROpKind::ASSIGN, IMM_0_OPN, rhs_opn});
 
         // tl:null fl:nextlabel
         std::string next_label = ir::NewLabel();
         gen_tlfl_ir("null", next_label, this->rhs_);
 
         // genir(assign,1,-,rhstmpvar)
-        ir::gIRList.push_back({ir::IR::OpKind::ASSIGN, IMM_1_OPN, rhs_opn});
+        ir::gIRList.push_back({IROpKind::ASSIGN, IMM_1_OPN, rhs_opn});
         // genir(label,nextlabel,-,-)
-        ir::gIRList.push_back({ir::IR::OpKind::LABEL, LABEL_OPN(next_label)});
+        ir::gIRList.push_back({IROpKind::LABEL, LABEL_OPN(next_label)});
 
         if ("null" != false_label) {
           // genir(jreverseop,lhstempvar,rhstempvar,falselabel)
           ir::gIRList.push_back({ir::GetOpKind(this->op_, true), lhs_opn, rhs_opn, false_label_opn});
           if ("null" != true_label) {
             // genir(goto,truelabel)
-            ir::gIRList.push_back({ir::IR::OpKind::GOTO, true_label_opn});
+            ir::gIRList.push_back({IROpKind::GOTO, true_label_opn});
           }
         } else if ("null" != true_label) {
           // genir(jop,lhstempvar,rhstempvar,truelabel)
@@ -951,19 +954,19 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
           CHECK_OPN_INT("condexp rhs exp")
           auto &rhs_opn = ctx.opn_;
 
-          if (rhs_opn.type_ == ir::Opn::Type::Imm) {
+          if (rhs_opn.type_ == OpnType::Imm) {
             if (rhs_opn.imm_num_ == 0) {
               // genir(goto,falselabel)
-              ir::gIRList.push_back({ir::IR::OpKind::GOTO, false_label_opn});
+              ir::gIRList.push_back({IROpKind::GOTO, false_label_opn});
             }
           } else {
             // genir(jeq,rhs,0,falselabel)
-            ir::gIRList.push_back({ir::IR::OpKind::JEQ, rhs_opn, IMM_0_OPN, false_label_opn});
+            ir::gIRList.push_back({IROpKind::JEQ, rhs_opn, IMM_0_OPN, false_label_opn});
           }
 
           if ("null" != true_label) {
             // genir(goto, truelabel)
-            ir::gIRList.push_back({ir::IR::OpKind::GOTO, true_label_opn});
+            ir::gIRList.push_back({IROpKind::GOTO, true_label_opn});
           }
         } else if ("null" != true_label) {
           // truelabel:null falselabel:new
@@ -974,17 +977,17 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
           CHECK_OPN_INT("condexp rhs exp")
           auto &rhs_opn = ctx.opn_;
 
-          if (rhs_opn.type_ == ir::Opn::Type::Imm) {
+          if (rhs_opn.type_ == OpnType::Imm) {
             if (rhs_opn.imm_num_ != 0) {
               // genir(goto,truelabel)
-              ir::gIRList.push_back({ir::IR::OpKind::GOTO, true_label_opn});
+              ir::gIRList.push_back({IROpKind::GOTO, true_label_opn});
             }
           } else {
             // genir(jne,rhs,0,truelabel)
-            ir::gIRList.push_back({ir::IR::OpKind::JNE, rhs_opn, IMM_0_OPN, true_label_opn});
+            ir::gIRList.push_back({IROpKind::JNE, rhs_opn, IMM_0_OPN, true_label_opn});
           }
           // genir(label,newfalselabel,-,-)
-          ir::gIRList.push_back({ir::IR::OpKind::LABEL, LABEL_OPN(new_false_label)});
+          ir::gIRList.push_back({IROpKind::LABEL, LABEL_OPN(new_false_label)});
         } else {
           ir::RuntimeError("both true_label and false_label are 'null' in case2-ADD");
         }
@@ -1000,18 +1003,18 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
           CHECK_OPN_INT("condexp rhs exp")
           auto &rhs_opn = ctx.opn_;
 
-          if (rhs_opn.type_ == ir::Opn::Type::Imm) {
+          if (rhs_opn.type_ == OpnType::Imm) {
             if (rhs_opn.imm_num_ == 0) {
               // genir(goto,falselabel)
-              ir::gIRList.push_back({ir::IR::OpKind::GOTO, false_label_opn});
+              ir::gIRList.push_back({IROpKind::GOTO, false_label_opn});
             }
           } else {
             // genir(jeq,rhs,0,falselabel)
-            ir::gIRList.push_back({ir::IR::OpKind::JEQ, rhs_opn, IMM_0_OPN, false_label_opn});
+            ir::gIRList.push_back({IROpKind::JEQ, rhs_opn, IMM_0_OPN, false_label_opn});
           }
 
           // genir(label,newtruelabel,-,-)
-          ir::gIRList.push_back({ir::IR::OpKind::LABEL, LABEL_OPN(new_true_label)});
+          ir::gIRList.push_back({IROpKind::LABEL, LABEL_OPN(new_true_label)});
         } else if ("null" != true_label && "null" == false_label) {
           // truelabel:src falselabel:null
           gen_ir(this->lhs_);
@@ -1020,14 +1023,14 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
           CHECK_OPN_INT("condexp rhs exp")
           auto &rhs_opn = ctx.opn_;
 
-          if (rhs_opn.type_ == ir::Opn::Type::Imm) {
+          if (rhs_opn.type_ == OpnType::Imm) {
             if (rhs_opn.imm_num_ != 0) {
               // genir(goto,truelabel)
-              ir::gIRList.push_back({ir::IR::OpKind::GOTO, true_label_opn});
+              ir::gIRList.push_back({IROpKind::GOTO, true_label_opn});
             }
           } else {
             // genir(jne,rhs,0,truelabel)
-            ir::gIRList.push_back({ir::IR::OpKind::JNE, rhs_opn, IMM_0_OPN, true_label_opn});
+            ir::gIRList.push_back({IROpKind::JNE, rhs_opn, IMM_0_OPN, true_label_opn});
           }
         } else if ("null" != true_label && "null" != false_label) {
           // truelabel:src falselabel:null
@@ -1037,18 +1040,18 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
           CHECK_OPN_INT("condexp rhs exp")
           auto &rhs_opn = ctx.opn_;
 
-          if (rhs_opn.type_ == ir::Opn::Type::Imm) {
+          if (rhs_opn.type_ == OpnType::Imm) {
             if (rhs_opn.imm_num_ == 0) {
               // genir(goto,falselabel)
-              ir::gIRList.push_back({ir::IR::OpKind::GOTO, false_label_opn});
+              ir::gIRList.push_back({IROpKind::GOTO, false_label_opn});
             }
           } else {
             // genir(jeq,rhs,0,falselabel)
-            ir::gIRList.push_back({ir::IR::OpKind::JEQ, rhs_opn, IMM_0_OPN, false_label_opn});
+            ir::gIRList.push_back({IROpKind::JEQ, rhs_opn, IMM_0_OPN, false_label_opn});
           }
 
           // genir(goto,truelabel)
-          ir::gIRList.push_back({ir::IR::OpKind::GOTO, true_label_opn});
+          ir::gIRList.push_back({IROpKind::GOTO, true_label_opn});
         } else {
           // ERROR
           ir::RuntimeError("both true_label and false_label are 'null' in case2-OR");
@@ -1060,19 +1063,19 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
         int scope_id = ctx.scope_id_;
         auto &scope = ir::gScopes[scope_id];
         scope.symbol_table_.insert({lhs_temp_var, {false, false, -1}});
-        ir::Opn lhs_opn = {ir::Opn::Type::Var, lhs_temp_var, scope_id};
+        ir::Opn lhs_opn = {OpnType::Var, lhs_temp_var, scope_id};
 
         // genir(assign,0,-,lhstmpvar)
-        ir::gIRList.push_back({ir::IR::OpKind::ASSIGN, IMM_0_OPN, lhs_opn});
+        ir::gIRList.push_back({IROpKind::ASSIGN, IMM_0_OPN, lhs_opn});
 
         // tl:null fl:rhslabel
         std::string rhs_label = ir::NewLabel();
         gen_tlfl_ir("null", rhs_label, this->lhs_);
 
         // genir(assign,1,-,lhstmpvar)
-        ir::gIRList.push_back({ir::IR::OpKind::ASSIGN, IMM_1_OPN, lhs_opn});
+        ir::gIRList.push_back({IROpKind::ASSIGN, IMM_1_OPN, lhs_opn});
         // genir(label,rhslabel,-,-)
-        ir::gIRList.push_back({ir::IR::OpKind::LABEL, LABEL_OPN(rhs_label)});
+        ir::gIRList.push_back({IROpKind::LABEL, LABEL_OPN(rhs_label)});
 
         gen_ir(this->rhs_);
         CHECK_OPN_INT("condexp rhs exp")
@@ -1082,7 +1085,7 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
           ir::gIRList.push_back({ir::GetOpKind(this->op_, true), lhs_opn, ctx.opn_, false_label_opn});
           if ("null" != true_label) {
             // genir(goto,truelabel)
-            ir::gIRList.push_back({ir::IR::OpKind::GOTO, true_label_opn});
+            ir::gIRList.push_back({IROpKind::GOTO, true_label_opn});
           }
         } else if ("null" != true_label) {
           // genir(jop,lhstempvar,rhstempvar,truelabel)
@@ -1102,35 +1105,35 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
     switch (this->op_) {
       case AND: {
         if ("null" != false_label) {
-          if (lhs_opn.type_ == ir::Opn::Type::Imm) {
+          if (lhs_opn.type_ == OpnType::Imm) {
             if (lhs_opn.imm_num_ == 0) {
               // genir(goto,flaselabel)
-              ir::gIRList.push_back({ir::IR::OpKind::GOTO, false_label_opn});
+              ir::gIRList.push_back({IROpKind::GOTO, false_label_opn});
             }
           } else {
             // genir(jeq,lhs,0,falselabel)
-            ir::gIRList.push_back({ir::IR::OpKind::JEQ, lhs_opn, IMM_0_OPN, false_label_opn});
+            ir::gIRList.push_back({IROpKind::JEQ, lhs_opn, IMM_0_OPN, false_label_opn});
           }
 
           // tl:src fl:src
           gen_ir(this->rhs_);
         } else if ("null" != true_label) {
           std::string new_false_label = ir::NewLabel();
-          if (lhs_opn.type_ == ir::Opn::Type::Imm) {
+          if (lhs_opn.type_ == OpnType::Imm) {
             if (lhs_opn.imm_num_ == 0) {
               // genir(goto,newflaselabel)
-              ir::gIRList.push_back({ir::IR::OpKind::GOTO, LABEL_OPN(new_false_label)});
+              ir::gIRList.push_back({IROpKind::GOTO, LABEL_OPN(new_false_label)});
             }
           } else {
             // genir(jeq,lhs,0,newfalselabel)
-            ir::gIRList.push_back({ir::IR::OpKind::JEQ, lhs_opn, IMM_0_OPN, LABEL_OPN(new_false_label)});
+            ir::gIRList.push_back({IROpKind::JEQ, lhs_opn, IMM_0_OPN, LABEL_OPN(new_false_label)});
           }
 
           // tl:src fl:src
           gen_ir(this->rhs_);
 
           // genir(label,newfalselabel,-,-)
-          ir::gIRList.push_back({ir::IR::OpKind::LABEL, LABEL_OPN(new_false_label)});
+          ir::gIRList.push_back({IROpKind::LABEL, LABEL_OPN(new_false_label)});
         } else {
           ir::RuntimeError("both true_label and false_label are 'null' in case3-ADD");
         }
@@ -1140,42 +1143,42 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
         if ("null" != false_label) {
           if ("null" == true_label) {
             std::string new_true_label = ir::NewLabel();
-            if (lhs_opn.type_ == ir::Opn::Type::Imm) {
+            if (lhs_opn.type_ == OpnType::Imm) {
               if (lhs_opn.imm_num_ != 0) {
                 // genir(goto,newtruelabel)
-                ir::gIRList.push_back({ir::IR::OpKind::GOTO, LABEL_OPN(new_true_label)});
+                ir::gIRList.push_back({IROpKind::GOTO, LABEL_OPN(new_true_label)});
               }
             } else {
               // genir(jne,lhs,0,newtruelabel)
-              ir::gIRList.push_back({ir::IR::OpKind::JNE, lhs_opn, IMM_0_OPN, LABEL_OPN(new_true_label)});
+              ir::gIRList.push_back({IROpKind::JNE, lhs_opn, IMM_0_OPN, LABEL_OPN(new_true_label)});
             }
             // tl:null fl:src
             gen_ir(this->rhs_);
 
             // genir(label,newtruelabel,-,-)
-            ir::gIRList.push_back({ir::IR::OpKind::LABEL, LABEL_OPN(new_true_label)});
+            ir::gIRList.push_back({IROpKind::LABEL, LABEL_OPN(new_true_label)});
           } else {
-            if (lhs_opn.type_ == ir::Opn::Type::Imm) {
+            if (lhs_opn.type_ == OpnType::Imm) {
               if (lhs_opn.imm_num_ != 0) {
                 // genir(goto,truelabel)
-                ir::gIRList.push_back({ir::IR::OpKind::GOTO, true_label_opn});
+                ir::gIRList.push_back({IROpKind::GOTO, true_label_opn});
               }
             } else {
               // genir(jne,lhs,0,truelabel)
-              ir::gIRList.push_back({ir::IR::OpKind::JNE, lhs_opn, IMM_0_OPN, true_label_opn});
+              ir::gIRList.push_back({IROpKind::JNE, lhs_opn, IMM_0_OPN, true_label_opn});
             }
             // tl:src fl:src
             gen_ir(this->rhs_);
           }
         } else if ("null" != true_label) {
-          if (lhs_opn.type_ == ir::Opn::Type::Imm) {
+          if (lhs_opn.type_ == OpnType::Imm) {
             if (lhs_opn.imm_num_ != 0) {
               // genir(goto,truelabel)
-              ir::gIRList.push_back({ir::IR::OpKind::GOTO, true_label_opn});
+              ir::gIRList.push_back({IROpKind::GOTO, true_label_opn});
             }
           } else {
             // genir(jne,lhs,0,truelabel)
-            ir::gIRList.push_back({ir::IR::OpKind::JNE, lhs_opn, IMM_0_OPN, true_label_opn});
+            ir::gIRList.push_back({IROpKind::JNE, lhs_opn, IMM_0_OPN, true_label_opn});
           }
           // tl:src fl:src&null
           gen_ir(this->rhs_);
@@ -1189,26 +1192,26 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
         int scope_id = ctx.scope_id_;
         auto &scope = ir::gScopes[scope_id];
         scope.symbol_table_.insert({rhs_temp_var, {false, false, -1}});
-        ir::Opn rhs_opn = {ir::Opn::Type::Var, rhs_temp_var, scope_id};
+        ir::Opn rhs_opn = {OpnType::Var, rhs_temp_var, scope_id};
 
         // genir(assign,0,-,rhstmpvar)
-        ir::gIRList.push_back({ir::IR::OpKind::ASSIGN, IMM_0_OPN, rhs_opn});
+        ir::gIRList.push_back({IROpKind::ASSIGN, IMM_0_OPN, rhs_opn});
 
         // tl:null fl:nextlabel
         std::string next_label = ir::NewLabel();
         gen_tlfl_ir("null", next_label, this->rhs_);
 
         // genir(assign,1,-,rhstmpvar)
-        ir::gIRList.push_back({ir::IR::OpKind::ASSIGN, IMM_1_OPN, rhs_opn});
+        ir::gIRList.push_back({IROpKind::ASSIGN, IMM_1_OPN, rhs_opn});
         // genir(label,nextlabel,-,-)
-        ir::gIRList.push_back({ir::IR::OpKind::LABEL, LABEL_OPN(next_label)});
+        ir::gIRList.push_back({IROpKind::LABEL, LABEL_OPN(next_label)});
 
         if ("null" != false_label) {
           // genir(jreverseop,lhs,rhs,falselabel)
           ir::gIRList.push_back({ir::GetOpKind(this->op_, true), lhs_opn, rhs_opn, false_label_opn});
           if ("null" != true_label) {
             // genir(goto,truelabel)
-            ir::gIRList.push_back({ir::IR::OpKind::GOTO, true_label_opn});
+            ir::gIRList.push_back({IROpKind::GOTO, true_label_opn});
           }
         } else if ("null" != true_label) {
           // genir(jop,lhstempvar,rhstempvar,truelabel)
@@ -1230,62 +1233,62 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
       case AND: {
         if ("null" != false_label) {
           // NOTE: optional optimize. simplify imm process.
-          if (lhs_opn.type_ == ir::Opn::Type::Imm) {
+          if (lhs_opn.type_ == OpnType::Imm) {
             if (lhs_opn.imm_num_ == 0) {
               // genir(goto,flaselabel)
-              ir::gIRList.push_back({ir::IR::OpKind::GOTO, false_label_opn});
+              ir::gIRList.push_back({IROpKind::GOTO, false_label_opn});
             }
           } else {
             // genir(jeq,lhs,0,falselabel)
-            ir::gIRList.push_back({ir::IR::OpKind::JEQ, lhs_opn, IMM_0_OPN, false_label_opn});
+            ir::gIRList.push_back({IROpKind::JEQ, lhs_opn, IMM_0_OPN, false_label_opn});
           }
 
           gen_ir(this->rhs_);
           CHECK_OPN_INT("condexp rhs exp");
 
           auto &rhs_opn = ctx.opn_;
-          if (rhs_opn.type_ == ir::Opn::Type::Imm) {
+          if (rhs_opn.type_ == OpnType::Imm) {
             if (rhs_opn.imm_num_ == 0) {
               // genir(goto,flaselabel)
-              ir::gIRList.push_back({ir::IR::OpKind::GOTO, false_label_opn});
+              ir::gIRList.push_back({IROpKind::GOTO, false_label_opn});
             }
           } else {
             // genir(jeq,rhs,0,falselabel)
-            ir::gIRList.push_back({ir::IR::OpKind::JEQ, rhs_opn, IMM_0_OPN, false_label_opn});
+            ir::gIRList.push_back({IROpKind::JEQ, rhs_opn, IMM_0_OPN, false_label_opn});
           }
 
           if ("null" != true_label) {
             // genir(goto, truelabel)
-            ir::gIRList.push_back({ir::IR::OpKind::GOTO, true_label_opn});
+            ir::gIRList.push_back({IROpKind::GOTO, true_label_opn});
           }
         } else if ("null" != true_label) {
           std::string new_false_label = ir::NewLabel();
-          if (lhs_opn.type_ == ir::Opn::Type::Imm) {
+          if (lhs_opn.type_ == OpnType::Imm) {
             if (lhs_opn.imm_num_ == 0) {
               // genir(goto newfalselabel).
-              ir::gIRList.push_back({ir::IR::OpKind::GOTO, LABEL_OPN(new_false_label)});
+              ir::gIRList.push_back({IROpKind::GOTO, LABEL_OPN(new_false_label)});
             }
           } else {
             // genir(jeq,lhs,0,newfalselabel)
-            ir::gIRList.push_back({ir::IR::OpKind::JEQ, lhs_opn, IMM_0_OPN, LABEL_OPN(new_false_label)});
+            ir::gIRList.push_back({IROpKind::JEQ, lhs_opn, IMM_0_OPN, LABEL_OPN(new_false_label)});
           }
 
           gen_ir(this->rhs_);
           CHECK_OPN_INT("condexp rhs exp");
 
           auto &rhs_opn = ctx.opn_;
-          if (rhs_opn.type_ == ir::Opn::Type::Imm) {
+          if (rhs_opn.type_ == OpnType::Imm) {
             if (rhs_opn.imm_num_ != 0) {
               // genir(goto,truelabel)
-              ir::gIRList.push_back({ir::IR::OpKind::GOTO, true_label_opn});
+              ir::gIRList.push_back({IROpKind::GOTO, true_label_opn});
             }
           } else {
             // genir(jne,rhs,0,truelabel)
-            ir::gIRList.push_back({ir::IR::OpKind::JNE, rhs_opn, IMM_0_OPN, true_label_opn});
+            ir::gIRList.push_back({IROpKind::JNE, rhs_opn, IMM_0_OPN, true_label_opn});
           }
 
           // genir(label,newfalselabel,-,-)
-          ir::gIRList.push_back({ir::IR::OpKind::LABEL, LABEL_OPN(new_false_label)});
+          ir::gIRList.push_back({IROpKind::LABEL, LABEL_OPN(new_false_label)});
         } else {
           ir::RuntimeError("both true_label and false_label are 'null' in case4-ADD");
         }
@@ -1300,59 +1303,59 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
             new_true_label = true_label;
           }
 
-          if (lhs_opn.type_ == ir::Opn::Type::Imm) {
+          if (lhs_opn.type_ == OpnType::Imm) {
             if (lhs_opn.imm_num_ != 0) {
               // genir(goto,newtruelabel)
-              ir::gIRList.push_back({ir::IR::OpKind::GOTO, LABEL_OPN(new_true_label)});
+              ir::gIRList.push_back({IROpKind::GOTO, LABEL_OPN(new_true_label)});
             }
           } else {
             // genir(jne,lhs,0,newtruelabel)
-            ir::gIRList.push_back({ir::IR::OpKind::JNE, lhs_opn, IMM_0_OPN, LABEL_OPN(new_true_label)});
+            ir::gIRList.push_back({IROpKind::JNE, lhs_opn, IMM_0_OPN, LABEL_OPN(new_true_label)});
           }
 
           gen_ir(this->rhs_);
           CHECK_OPN_INT("condexp rhs exp");
 
           auto &rhs_opn = ctx.opn_;
-          if (rhs_opn.type_ == ir::Opn::Type::Imm) {
+          if (rhs_opn.type_ == OpnType::Imm) {
             if (rhs_opn.imm_num_ != 0) {
               // genir(goto,falselabel)
-              ir::gIRList.push_back({ir::IR::OpKind::GOTO, false_label_opn});
+              ir::gIRList.push_back({IROpKind::GOTO, false_label_opn});
             }
           } else {
             // genir(jeq,rhs,0,falselabel)
-            ir::gIRList.push_back({ir::IR::OpKind::JEQ, rhs_opn, IMM_0_OPN, false_label_opn});
+            ir::gIRList.push_back({IROpKind::JEQ, rhs_opn, IMM_0_OPN, false_label_opn});
           }
 
           if ("null" == true_label) {
             // genir(label,newtruelabel,-,-)
-            ir::gIRList.push_back({ir::IR::OpKind::LABEL, LABEL_OPN(new_true_label)});
+            ir::gIRList.push_back({IROpKind::LABEL, LABEL_OPN(new_true_label)});
           } else {
             // genir(goto,newtruelabel,-,-)
-            ir::gIRList.push_back({ir::IR::OpKind::GOTO, LABEL_OPN(new_true_label)});
+            ir::gIRList.push_back({IROpKind::GOTO, LABEL_OPN(new_true_label)});
           }
         } else if ("null" != true_label) {
-          if (lhs_opn.type_ == ir::Opn::Type::Imm) {
+          if (lhs_opn.type_ == OpnType::Imm) {
             if (lhs_opn.imm_num_ != 0) {
               // genir(goto,truelabel)
-              ir::gIRList.push_back({ir::IR::OpKind::GOTO, true_label_opn});
+              ir::gIRList.push_back({IROpKind::GOTO, true_label_opn});
             }
           } else {
             // genir(jne,lhs,0,truelabel)
-            ir::gIRList.push_back({ir::IR::OpKind::JNE, lhs_opn, IMM_0_OPN, true_label_opn});
+            ir::gIRList.push_back({IROpKind::JNE, lhs_opn, IMM_0_OPN, true_label_opn});
           }
 
           gen_ir(this->rhs_);
           CHECK_OPN_INT("condexp rhs exp");
           auto &rhs_opn = ctx.opn_;
-          if (rhs_opn.type_ == ir::Opn::Type::Imm) {
+          if (rhs_opn.type_ == OpnType::Imm) {
             if (rhs_opn.imm_num_ != 0) {
               // genir(goto,truelabel)
-              ir::gIRList.push_back({ir::IR::OpKind::GOTO, true_label_opn});
+              ir::gIRList.push_back({IROpKind::GOTO, true_label_opn});
             }
           } else {
             // genir(jne,rhs,0,truelabel)
-            ir::gIRList.push_back({ir::IR::OpKind::JNE, rhs_opn, IMM_0_OPN, true_label_opn});
+            ir::gIRList.push_back({IROpKind::JNE, rhs_opn, IMM_0_OPN, true_label_opn});
           }
         } else {
           ir::RuntimeError("both true_label and false_label are 'null' in case4-OR");
@@ -1364,7 +1367,7 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
         CHECK_OPN_INT("condexp rhs exp");
         auto &rhs_opn = ctx.opn_;
 
-        if (lhs_opn.type_ == ir::Opn::Type::Imm && rhs_opn.type_ == ir::Opn::Type::Imm) {
+        if (lhs_opn.type_ == OpnType::Imm && rhs_opn.type_ == OpnType::Imm) {
           bool res = false;
           switch (this->op_) {
             case EQ:
@@ -1393,16 +1396,16 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
             // genir:if False lhs op rhs goto falselabel
             // (jreverseop, lhs, rhs, falselabel)
             if (!res) {
-              ir::gIRList.push_back({ir::IR::OpKind::GOTO, false_label_opn});
+              ir::gIRList.push_back({IROpKind::GOTO, false_label_opn});
             } else if ("null" != true_label) {
               // NOTE:
               // 如果res为假并且truelabel非null 则不会产生跳转到tl的goto语句
               // genir(goto, truelabel)
-              ir::gIRList.push_back({ir::IR::OpKind::GOTO, true_label_opn});
+              ir::gIRList.push_back({IROpKind::GOTO, true_label_opn});
             }
           } else if ("null" != true_label) {
             if (res) {
-              ir::gIRList.push_back({ir::IR::OpKind::GOTO, true_label_opn});
+              ir::gIRList.push_back({IROpKind::GOTO, true_label_opn});
             }
           } else {
             ir::RuntimeError("both true_label and false_label are 'null' in case4-Default");
@@ -1415,7 +1418,7 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
 
             if ("null" != true_label) {
               // genir(goto, truelabel)
-              ir::gIRList.push_back({ir::IR::OpKind::GOTO, true_label_opn});
+              ir::gIRList.push_back({IROpKind::GOTO, true_label_opn});
             }
           } else if ("null" != true_label) {
             // genir(jop,lhs,rhs,truelabel)
