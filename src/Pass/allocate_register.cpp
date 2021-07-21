@@ -11,9 +11,8 @@ void dbg_print_worklist(RegAlloc::WorkList &wl) {
   }
   std::cout << std::endl;
 }
-// 利用adj_list返回一个结点的所有有效邻接点
-// 无效邻接点为选择栈中的结点和已合并的结点
-// called adjacent in paper.
+// 利用adj_list返回一个结点的所有有效邻接点 无效邻接点为选择栈中的结点和已合并的结点
+// called Adjacent in paper.
 RegAlloc::WorkList RegAlloc::ValidAdjacentSet(RegId reg, AdjList &adj_list, std::vector<RegId> &select_stack,
                                               WorkList &coalesced_nodes) {
   WorkList valid_adjacent = adj_list[reg];
@@ -91,39 +90,36 @@ void RegAlloc::AllocateRegister(ArmModule *m) {
       // rewriteprogram() 插入对溢出变量的ldr和str
       // addcalleesavereg() 在函数开头插入对使用的callee save寄存器的保存
 
-      // 把i-j j-i添加到冲突图中
-      // adj_set adj_list degree这三个数据结构需要同时维护
-      auto add_edge = [&adj_set, &adj_list, &degree](RegId i, RegId j) {
-        // 维护邻接表时不用管precolored reg
-        if (adj_set.find({i, j}) == adj_set.end() && i != j) {
-          adj_set.insert({i, j});
-          adj_set.insert({j, i});
-          if (!IS_PRECOLORED(i)) {
-            adj_list[i].insert(j);
-            ++degree[i];
+      // 把u-v v-u添加到冲突图中 不维护预着色结点的邻接表
+      auto add_edge = [&adj_set, &adj_list, &degree](RegId u, RegId v) {
+        if (adj_set.find({u, v}) == adj_set.end() && u != v) {
+          adj_set.insert({u, v});
+          adj_set.insert({v, u});
+          if (!IS_PRECOLORED(u)) {
+            adj_list[u].insert(v);
+            ++degree[u];
           }
-          if (!IS_PRECOLORED(j)) {
-            adj_list[j].insert(i);
-            ++degree[j];
+          if (!IS_PRECOLORED(v)) {
+            adj_list[v].insert(u);
+            ++degree[v];
           }
         }
       };
 
-      // 根据每个bb中的livein liveout计算每条指令的livein liveout
-      // 据此构造冲突图
+      // 根据每个bb中的livein liveout计算每条指令的livein liveout 据此构造冲突图
       auto build = [&]() {
         for (auto bb : func->bb_list_) {
-          // live-out[B] also is live-out[B-last-inst]
+          // live-out[B] is also live-out[B-last-inst]
           auto live = bb->liveout_;
           for (auto inst_iter = bb->inst_list_.rbegin(); inst_iter != bb->inst_list_.rend(); ++inst_iter) {
             auto [def, use] = GetDefUse(*inst_iter);
             if (auto src_inst = dynamic_cast<Move *>(*inst_iter)) {
-              if (!src_inst->op2_->is_imm_ && nullptr == src_inst->op2_->shift_ && src_inst->cond_ == Cond::AL) {
+              // 对简单的mov指令要特殊处理 NOTE: 带条件的也可以
+              if (!src_inst->op2_->is_imm_ && nullptr == src_inst->op2_->shift_ /*&& src_inst->cond_ == Cond::AL*/) {
                 RegId op2_regid = src_inst->op2_->reg_->reg_id_;
-                // 从live中删除op2
-                // ????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
+                // mov s,t 并没有使得s和t冲突 所以从live中删除use 即op2
                 live.erase(op2_regid);
-                // 把这条mov指令加进两寄存器里去 也放进wl moves中
+                // 维护move_list和wl_moves
                 move_list[src_inst->rd_->reg_id_].insert(src_inst);
                 move_list[op2_regid].insert(src_inst);
                 worklist_moves.insert(src_inst);
@@ -133,7 +129,7 @@ void RegAlloc::AllocateRegister(ArmModule *m) {
             for (auto &d : def) {
               live.insert(d);
             }
-            // for edges between def and live
+            // for edges between def and live 定值点活跃视为冲突 TODO: 和同时活跃视为冲突相比?
             for (auto &d : def) {
               for (auto &l : live) {
                 add_edge(l, d);
@@ -154,10 +150,8 @@ void RegAlloc::AllocateRegister(ArmModule *m) {
         }
       };
 
-      // move信息下一轮可能还要用 不能直接删 所以会有一些无效的mov
-      // 根据move_list返回有效的mov指令集合
-      // 有效的mov指令都在active moves和worklist moves中
-      // called node_moves in paper.
+      // 根据move_list返回一个结点的有效的mov指令集合 有效的mov指令在active moves和worklist moves中
+      // called NodeMoves in paper.
       auto valid_mov_set = [&move_list, &active_moves, &worklist_moves](RegId reg) {
         MovSet res = move_list[reg];
         for (auto iter = res.begin(); iter != res.end();) {
@@ -167,40 +161,30 @@ void RegAlloc::AllocateRegister(ArmModule *m) {
             ++iter;
           }
         }
-        // for (auto mov : res) {
-        //   if (active_moves.find(mov) == active_moves.end() && worklist_moves.find(mov) == worklist_moves.end()) {
-        //     res.erase(mov);
-        //   }
-        // }
         return res;
       };
 
       // 如果该reg的有效mov指令集不空 则是mov-related
       auto move_related = [&valid_mov_set](RegId reg) { return !valid_mov_set(reg).empty(); };
 
-      // 根据冲突图中的结点度数填三张worklist
+      // 根据degree填三张worklist
       auto mk_worklist = [&degree, &spill_worklist, &freeze_worklist, &func, &simplify_worklist, &K, &move_related]() {
-        // degree中存着全部使用的寄存器 这里不应该把precolored寄存器放进去
         for (RegId i = 16; i < func->virtual_reg_max; ++i) {
-          // degree中可能没有
-          auto iter = degree.find(i);
-          if (iter == degree.end()) {
-            simplify_worklist.insert(i);
+          if (degree.find(i) == degree.end()) {  // 没在degree中说明度数为0
+            degree[i] = 0;
+          }
+          if (degree[i] >= K) {
+            spill_worklist.insert(i);
+          } else if (move_related(i)) {
+            freeze_worklist.insert(i);
           } else {
-            if (degree[i] >= K) {
-              spill_worklist.insert(i);
-            } else if (move_related(i)) {
-              freeze_worklist.insert(i);
-            } else {
-              simplify_worklist.insert(i);
-            }
+            simplify_worklist.insert(i);
           }
         }
       };
 
-      // active_moves---mov-->worklist_moves
-      // ???????????????????????? can't understand
-      // 当结点度数从k->k-1的时候需要enablemoves
+      // active_moves---mov-->worklist_moves 激活可能合并的mov指令
+      // 放在active_moves中说明之前尝试合并该mov指令失败了
       auto enable_moves = [&](RegId reg) {
         // enablemoves({reg}UValidAdjacent(reg))
         for (auto m : valid_mov_set(reg)) {
@@ -221,15 +205,14 @@ void RegAlloc::AllocateRegister(ArmModule *m) {
         }
       };
 
-      // degree更新时 可能带来了简化与合并的机会
-      // spill_worklist---reg-->simplify/freeze_worklist
+      // auto enable_moves = [&](WorkList)
+
       auto decrement_degree = [&spill_worklist, &simplify_worklist, &freeze_worklist, &degree, &move_related,
                                &enable_moves](RegId reg) {
         --degree[reg];
-        // degree可能从K变为了K-1 增加了简化与合并的机会
+        // degree可能从K变为了K-1 增加了简化与合并的机会 spill_worklist---reg-->simplify/freeze_worklist
         if (degree[reg] + 1 == K) {
-          // 基于启发式规则 可能可以合并
-          // ???????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
+          // 基于启发式规则 这个结点和它的所有邻接点的所有mov指令都有可能被合并
           enable_moves(reg);
           spill_worklist.erase(reg);
           if (move_related(reg)) {
@@ -240,17 +223,15 @@ void RegAlloc::AllocateRegister(ArmModule *m) {
         }
       };
 
-      // 逻辑上从冲突图中删除某节点
-      // 实际上是simplify_worklist---reg-->select_stack以及邻接点degree的更新
+      // 逻辑上从冲突图中删除某节点 实际上是simplify_worklist---reg-->select_stack以及邻接点degree的更新
       auto simplify = [&decrement_degree, &simplify_worklist, &select_stack, this, &adj_list, &coalesced_nodes]() {
         // if (simplify_worklist.empty()) return;
         RegId reg = *simplify_worklist.begin();
         simplify_worklist.erase(reg);
         select_stack.push_back(reg);
-        // NOTE 不能实际删除边 之后着色的时候要使用
         // 所有邻接结点的度数-1
         auto &&valid_adj_set = this->ValidAdjacentSet(reg, adj_list, select_stack, coalesced_nodes);
-        std::cout << valid_adj_set.size() << std::endl;
+        // std::cout << valid_adj_set.size() << std::endl;
         for (auto &m : valid_adj_set) {
           decrement_degree(m);
         }
@@ -264,34 +245,32 @@ void RegAlloc::AllocateRegister(ArmModule *m) {
         return reg;
       };
 
-      // 合并策略Briggs: 合并后结点的高度数邻接点个数少于K
-      // 用于两个virtual reg合并的情况 b->a
-      // called conservative() in paper.
+      // 合并策略Briggs: 合并后结点的高度数邻接点个数少于K 用于两个virtual reg合并的情况 b->a
+      // called Conservative() in paper.
       auto briggs_coalesce_test = [&](RegId a, RegId b) {
-        // NOTE:
         auto &&adj_a = ValidAdjacentSet(a, adj_list, select_stack, coalesced_nodes);
-        auto &&adj_b = ValidAdjacentSet(b, adj_list, select_stack, coalesced_nodes);
         int cnt = 0;
-        // 把b的邻接点都连到a上
-        int deg = degree[a];
         for (auto n : adj_a) {
-          // 对于a的每个邻接点 如果原来和b的某个邻接点相连 则现在度数-1
+          // 如果是公共邻接点 则现在度数-1
           int deg = degree[n];
-          for (auto m : adj_b) {
-            if (adj_set.find({n, m}) == adj_set.end()) {
-              --deg;
-            }
+          if (adj_set.find({n, b}) != adj_set.end()) {
+            --deg;
           }
           if (deg >= K) {
+            ++cnt;
+          }
+        }
+        auto &&adj_b = ValidAdjacentSet(b, adj_list, select_stack, coalesced_nodes);
+        for (auto n : adj_b) {
+          if (adj_set.find({a, n}) == adj_set.end() && degree[n] >= K) {
             ++cnt;
           }
         }
         return cnt < K;
       };
 
-      // George: a->b a的每一个adj t 要么和b冲突 要么低度数
-      // 用于一个virtual reg要合并到precolored reg的情况 a->b
-      // called ok() in paper.
+      // George: a->b a的每一个adj t 要么和b冲突 要么低度数 用于一个virtual reg要合并到precolored reg的情况 a->b
+      // called OK() in paper.
       auto george_coalesce_test = [&](RegId a, RegId b) {
         assert(IS_PRECOLORED(b));
         auto &&valid_adj_regs = ValidAdjacentSet(a, adj_list, select_stack, coalesced_nodes);
@@ -305,8 +284,7 @@ void RegAlloc::AllocateRegister(ArmModule *m) {
         return true;
       };
 
-      // 从worklist movs中移除一条mov指令后会调用该函数
-      // 该函数尝试: freeze_worklist---reg-->simplify_worklist
+      // 从worklist movs中移除一条mov指令后会调用该函数 尝试freeze_worklist---reg-->simplify_worklist
       auto add_worklist = [&](RegId reg) {
         if (!IS_PRECOLORED(reg) && !move_related(reg) && degree[reg] < K) {
           freeze_worklist.erase(reg);
@@ -314,10 +292,8 @@ void RegAlloc::AllocateRegister(ArmModule *m) {
         }
       };
 
-      // 合并结点操作 把b合并到a
-      // freeze/spill_worklist---b-->coalesced_nodes
-      // freeze_worklist --a--> spill_worklist
-      // 合并后可能原来度数<K现在>=K 需要移动
+      // 合并结点操作 把b合并到a 公共邻接点度数-1 自身度数可能变大 维护movelist 维护冲突图
+      // freeze/spill_worklist---b-->coalesced_nodes freeze_worklist --a--> spill_worklist
       auto combine = [&](RegId a, RegId b) {
         auto it = freeze_worklist.find(b);
         if (it != freeze_worklist.end()) {
@@ -325,7 +301,6 @@ void RegAlloc::AllocateRegister(ArmModule *m) {
         } else {
           spill_worklist.erase(b);
         }
-        // b被合并
         coalesced_nodes.insert(b);
         alias[b] = a;
 
@@ -333,6 +308,7 @@ void RegAlloc::AllocateRegister(ArmModule *m) {
         for (auto n : move_list[b]) {
           m.insert(n);
         }
+        // enable_moves(b); 原来处理有b的一条mov指令失败 合并后处理这条指令仍会失败
         for (auto t : ValidAdjacentSet(b, adj_list, select_stack, coalesced_nodes)) {
           add_edge(t, a);
           decrement_degree(t);
@@ -346,11 +322,8 @@ void RegAlloc::AllocateRegister(ArmModule *m) {
       };
 
       auto coalesce = [&]() {
-        // 有两种合并 根据两种启发式规则进行
-        // 一种是virtual reg到precolored reg的合并
-        // 所以不用维护预着色结点的邻接表
-        // 一种是virtual regs之间的合并
-        // TODO: 或许可以用启发式规则选择要合并的结点
+        // 有两种合并 根据两种启发式规则进行 一种是virtual reg到precolored reg的合并 另一种是virtual regs之间的合并
+        // TODO: 或许可以用启发式规则选择要合并的mov指令
         auto m = *worklist_moves.begin();
         auto u = get_alias(m->rd_->reg_id_);
         auto v = get_alias(m->op2_->reg_->reg_id_);
@@ -363,29 +336,24 @@ void RegAlloc::AllocateRegister(ArmModule *m) {
 
         worklist_moves.erase(m);
 
-        // 合并后 或者发现无法合并后 都会删除该mov指令
-        // 删除mov指令后 reg的mov有关无关状态可能发生改变
-        // 如果变为mov无关并且度数<K并且非precolored
-        // 则将其从freeze worklist移到simplify worklist中去
-        if (u == v) {
-          // 已经合并了
+        // u和v之前一定是mov-related 所以要么在spill wl中 要么在freeze wl中
+        // 从wl moves中删除该mov指令后 u和v的mov有关无关状态可能发生改变 如果成功合并 可能会改变u和v的度数
+        // 如果变为mov无关并且度数<K并且非precolored 则将其从freeze worklist移到simplify worklist中去 即AddWorklist函数
+        if (u == v) {  // 已经合并了
           coalesced_moves.insert(m);
           add_worklist(u);
           return;
         }
-        if ((IS_PRECOLORED(v)) || adj_set.find({u, v}) != adj_set.end()) {
-          // 冲突
+        if ((IS_PRECOLORED(v)) || adj_set.find({u, v}) != adj_set.end()) {  // 冲突
           constrained_moves.insert(m);
           add_worklist(u);
           add_worklist(v);
           return;
         }
-
         // 此时要么u precolored 要么都是virtual register
         if ((IS_PRECOLORED(u) && george_coalesce_test(v, u)) || (!IS_PRECOLORED(u) && briggs_coalesce_test(u, v))) {
           coalesced_moves.insert(m);
-          // 执行合并操作v->u 修改相应的数据结构
-          combine(u, v);
+          combine(u, v);  // 执行合并操作v->u 修改相应的数据结构
           add_worklist(u);
           return;
         }
@@ -560,23 +528,19 @@ void RegAlloc::AllocateRegister(ArmModule *m) {
       do {
         if (!simplify_worklist.empty()) {
           std::cout << "Simplify Start:" << std::endl;
-          //   std::cout << "可简化的结点如下:" << std::endl;
           // dbg_print_worklist(simplify_worklist, "可简化的结点如下:");
           simplify();
           std::cout << "End." << std::endl;
-        }
-        if (!worklist_moves.empty()) {
+        } else if (!worklist_moves.empty()) {
           std::cout << "Coalesce Start:" << std::endl;
           coalesce();
           std::cout << "End." << std::endl;
-        }
-        if (!freeze_worklist.empty()) {
+        } else if (!freeze_worklist.empty()) {
           // dbg_print_worklist(simplify_worklist, "可冻结的结点如下:");
           std::cout << "Freeze Start:" << std::endl;
           freeze();
           std::cout << "End." << std::endl;
-        }
-        if (!spill_worklist.empty()) {
+        } else if (!spill_worklist.empty()) {
           std::cout << "SelectSpill Start:" << std::endl;
           // dbg_print_worklist(simplify_worklist, "可能溢出的结点如下:");
           select_spill();
@@ -683,12 +647,10 @@ void RegAlloc::AllocateRegister(ArmModule *m) {
         done = false;
       }
     }
-    // TODO: 每一个函数确定了之后 添加push pop指令
-    // 找到push语句 添加或删除
-    // 找到pop语句 添加或删除
+
+    // 每一个函数确定了之后 添加push pop指令 找到push语句 添加或删除 找到pop语句 添加或删除 删除自己到自己的mov指令
     int offset_fixup_diff = used_callee_saved_regs.size() * 4;  // maybe -4
-    if (func->IsLeaf()) {
-      //原本计算有lr
+    if (func->IsLeaf()) {                                       //原本计算有lr
       offset_fixup_diff -= 4;
     }
     for (auto bb : func->bb_list_) {
@@ -723,8 +685,7 @@ void RegAlloc::AllocateRegister(ArmModule *m) {
             continue;
           }
           ++iter;
-        } else if (auto move_inst = dynamic_cast<Move *>(*iter)) {
-          // TODO: 删除自己到自己的mov语句
+        } else if (auto move_inst = dynamic_cast<Move *>(*iter)) {  // 删除自己到自己的mov语句
           auto op2 = move_inst->op2_;
           if (!op2->is_imm_ && nullptr == op2->shift_ && move_inst->rd_->reg_id_ == op2->reg_->reg_id_) {
             iter = bb->inst_list_.erase(iter);
@@ -736,10 +697,13 @@ void RegAlloc::AllocateRegister(ArmModule *m) {
         }
       }
     }
+    // push和pop中添加了r4-r11 或者删除了lr和sp的话 需要修复栈中实参的位置
     for (auto inst : func->sp_arg_fixup_) {
       assert(inst->offset_->is_imm_);
       inst->offset_->imm_num_ += offset_fixup_diff;
     }
+
     // TODO: 地址偏移立即数过大处理
+
   }  // end of func loop
 }
