@@ -15,6 +15,7 @@ if __name__ == '__main__':
   if make_res == 1:
     print("build compiler failed.")
     exit()
+  print()
 
   # glob: sys.argv[1]
   if len(sys.argv)<2 :
@@ -25,6 +26,7 @@ if __name__ == '__main__':
   # print(glob(sys.argv[1], recursive=True))
   files = glob(sys.argv[1], recursive=True)
   files.sort()
+  bug_num = len(files)
 
   for file in files:
     filepath_without_ext, _ = path.splitext(file)
@@ -68,13 +70,13 @@ if __name__ == '__main__':
     run_time = (time_end - time_start) # s
     print("{:10s}:{:.6f}s".format("exec time",run_time))
 
-    # exec_time = subp.stderr.read()
-    # exec_time = re.search("[0-9]+H.*us",exec_time).group()
+    # exec_err = subp.stderr.read()
+    # exec_time = re.search("[0-9]+H.*us",exec_err).group()
     subp.stderr.close()
     # print("{:10s}:{:35s}{:10s}:{:.6f}s".format("exec time",exec_time,"run time",run_time))
 
     # Exec output
-    exec_out_list = str(subp.stdout.read()).split()
+    exec_out_list = subp.stdout.read().split()
     subp.stdout.close()
     exec_out_list.append(str(ret_code))
     # print(exec_out_list)
@@ -82,6 +84,7 @@ if __name__ == '__main__':
     # Status
     status=""
     if not path.exists(stdout_file):
+      print("{:10s}:{}".format("exec out", exec_out_list))
       print("output file not exist.")
       continue
     else:
@@ -91,12 +94,15 @@ if __name__ == '__main__':
         # print(stdout_list)
         if exec_out_list == stdout_list:
           status="OK!"
+          bug_num-=1
         else:
           status="ERROR!!!"
           print("{:10s}:{}".format("std out", stdout_list))
           print("{:10s}:{}".format("exec out", exec_out_list))
+          # print("{:10s}:{}".format("exec err", exec_err))
     print("{:10s}:{}".format("status",status))
     print()
     
+  print("{:10s}:{}".format("bug num",bug_num))
   print("finish.")
         
