@@ -49,7 +49,7 @@ int main(int argc, char **argv) {
   }
 
   if (src == nullptr || print_usage) {
-    std::cerr << "Usage: " << argv[0] << " [-l log_file] [-o output_file] [-O level] input_file" << std::endl;
+    std::cerr << "Usage: " << argv[0] << " [-S] [-l log_file] [-o output_file] [-O level] input_file" << std::endl;
     return 1;
   }
 
