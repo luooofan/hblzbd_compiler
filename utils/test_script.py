@@ -71,7 +71,9 @@ if __name__ == '__main__':
     subp = subprocess.Popen(exec_cmd.split(), bufsize=0, stdin=stdin, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding='utf-8')
     exec_out, exec_err = subp.communicate()
     ret_code = subp.returncode
-    exec_time = (re.search("[0-9]+H.*us",exec_err)).group()
+    exec_time = (re.search("[0-9]+H.*us",exec_err))
+    if exec_time != None:
+      exec_time=exec_time.group()
     if args.verbose:
       print("{:10s}:{}".format("exec time",exec_time))
 
