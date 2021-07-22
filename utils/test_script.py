@@ -20,9 +20,11 @@ if __name__ == '__main__':
 
   if not path.exists(OutputFolder):
     os.system(f"mkdir {OutputFolder}")
+  else:
+    os.system(f"rm -rf {OutputFolder}/*")
 
   make_res = subprocess.call("make -j", shell=True)
-  if make_res == 1:
+  if make_res != 0:
     print("build compiler failed.")
     exit()
   print()
@@ -44,7 +46,7 @@ if __name__ == '__main__':
 
     # Compile
     time_start = time.time()
-    if subprocess.call(f"{CompilerPath} {file} -o {asm_file} {CompileArgs}",shell=True) == 1:
+    if subprocess.call(f"{CompilerPath} {file} -o {asm_file} {CompileArgs}".split()) != 0:
       print("compile failed.")
       continue
     time_end = time.time()
@@ -55,7 +57,7 @@ if __name__ == '__main__':
     # GCC Link
     link_cmd = f"gcc -o {exec_file} {GccArgs} {asm_file}"
     time_start = time.time()
-    if subprocess.call(link_cmd, shell=True) == 1:
+    if subprocess.call(link_cmd.split()) != 0:
       print("link failed.")
       continue
     time_end = time.time()
