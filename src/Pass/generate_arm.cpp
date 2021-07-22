@@ -48,12 +48,21 @@ Cond GenerateArm::GetCondType(ir::IR::OpKind opkind, bool exchange) {
 
 Reg* GenerateArm::NewVirtualReg() { return new Reg(virtual_reg_id++); };
 
-Operand2* GenerateArm::ResolveImm2Operand2(ArmBasicBlock* armbb, int imm) {
+Operand2* GenerateArm::ResolveImm2Operand2(ArmBasicBlock* armbb, int imm, bool record) {
   if (Operand2::CheckImm8m(imm)) {
     return new Operand2(imm);
-  } else {  // use ldr pseudo-inst instead of mov.
+  } else {
     auto vreg = NewVirtualReg();
-    armbb->inst_list_.push_back(static_cast<Instruction*>(new LdrStr(vreg, imm)));
+    Instruction* inst = nullptr;
+    if (imm < 0 && Operand2::CheckImm8m(-imm - 1)) {  // mvn
+      inst = static_cast<Instruction*>(new Move(false, Cond::AL, vreg, new Operand2(-imm - 1), true));
+    } else {  // use ldr pseudo-inst instead of mov.
+      inst = static_cast<Instruction*>(new LdrPseudo(Cond::AL, vreg, imm));
+    }
+    armbb->inst_list_.push_back(inst);
+    if (record) {
+      this->sp_fixup.push_back(inst);
+    }
     return new Operand2(vreg);
   }
 };
@@ -65,10 +74,12 @@ void GenerateArm::GenImmLdrStrInst(ArmBasicBlock* armbb, LdrStr::OpKind opkind, 
     armbb->inst_list_.push_back(inst);
   } else {
     auto vreg = NewVirtualReg();
-    if (Operand2::CheckImm8m(imm)) {
+    if (Operand2::CheckImm8m(imm)) {  // mov
       inst = static_cast<Instruction*>(new Move(false, Cond::AL, vreg, new Operand2(imm)));
-    } else {
-      inst = static_cast<Instruction*>(new LdrStr(vreg, imm));
+    } else if (imm < 0 && Operand2::CheckImm8m(-imm - 1)) {  // mvn
+      inst = static_cast<Instruction*>(new Move(false, Cond::AL, vreg, new Operand2(-imm - 1), true));
+    } else {  // ldr-pseudo
+      inst = static_cast<Instruction*>(new LdrPseudo(Cond::AL, vreg, imm));
     }
     armbb->inst_list_.push_back(inst);
     armbb->inst_list_.push_back(
@@ -82,9 +93,13 @@ void GenerateArm::GenImmLdrStrInst(ArmBasicBlock* armbb, LdrStr::OpKind opkind, 
 void GenerateArm::AddEpilogue(ArmBasicBlock* armbb) {
   // 要为每一个ret语句添加epilogue
   // add sp, sp, #stack_size
-  armbb->inst_list_.push_back(
-      static_cast<Instruction*>(new BinaryInst(BinaryInst::OpCode::ADD, false, Cond::AL, new Reg(ArmReg::sp),
-                                               new Reg(ArmReg::sp), ResolveImm2Operand2(armbb, stack_size))));
+  auto op2 = ResolveImm2Operand2(armbb, stack_size, true);
+  auto add_inst = static_cast<Instruction*>(
+      new BinaryInst(BinaryInst::OpCode::ADD, false, Cond::AL, new Reg(ArmReg::sp), new Reg(ArmReg::sp), op2));
+  armbb->inst_list_.push_back(add_inst);
+  if (op2->is_imm_) {
+    this->sp_fixup.push_back(add_inst);
+  }
   // pop {pc} NOTE: same as bx lr
   auto pop_inst = new PushPop(PushPop::OpKind::POP, Cond::AL);
   pop_inst->reg_list_.push_back(new Reg(ArmReg::pc));
@@ -96,7 +111,7 @@ Reg* GenerateArm::LoadGlobalOpn2Reg(ArmBasicBlock* armbb, ir::Opn* opn) {
   // 如果是全局变量就要重新ldr
   Reg* rglo = NewVirtualReg();
   // 把全局量基址ldr到某寄存器中
-  armbb->inst_list_.push_back(static_cast<Instruction*>(new LdrStr(rglo, opn->name_)));
+  armbb->inst_list_.push_back(static_cast<Instruction*>(new LdrPseudo(Cond::AL, rglo, opn->name_)));
   return rglo;
 };
 
@@ -235,9 +250,13 @@ void GenerateArm::AddPrologue(ArmFunction* func, ArmBasicBlock* first_bb) {
   push_inst->reg_list_.push_back(new Reg(ArmReg::lr));
   first_bb->inst_list_.push_back(static_cast<Instruction*>(push_inst));
   // sub sp, sp, #stack_size
-  first_bb->inst_list_.push_back(
-      static_cast<Instruction*>(new BinaryInst(BinaryInst::OpCode::SUB, false, Cond::AL, new Reg(ArmReg::sp),
-                                               new Reg(ArmReg::sp), ResolveImm2Operand2(first_bb, stack_size))));
+  auto op2 = ResolveImm2Operand2(first_bb, stack_size);
+  auto sub_inst = static_cast<Instruction*>(
+      new BinaryInst(BinaryInst::OpCode::SUB, false, Cond::AL, new Reg(ArmReg::sp), new Reg(ArmReg::sp), op2));
+  first_bb->inst_list_.push_back(sub_inst);
+  if (op2->is_imm_) {
+    this->sp_fixup.push_back(sub_inst);
+  }
   // add sp_vreg, sp, #0 是否有必要？
   first_bb->inst_list_.push_back(static_cast<Instruction*>(
       new BinaryInst(BinaryInst::OpCode::ADD, false, Cond::AL, sp_vreg, new Reg(ArmReg::sp), new Operand2(0))));
@@ -309,6 +328,7 @@ void GenerateArm::ResetFuncData(ArmFunction* armfunc) {
   if (this->arg_num > 4) armfunc->stack_size_ -= (this->arg_num - 4) * 4;
   this->stack_size = armfunc->stack_size_;
   this->sp_arg_fixup.clear();
+  this->sp_fixup.clear();
 }
 
 ArmModule* GenerateArm::GenCode(IRModule* module) {
@@ -628,6 +648,7 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
 
     // NOTE: 中间代码保证了函数执行流最后一定有一条return语句 所以不必在最后再加一个epilogue
 
+    armfunc->sp_fixup_ = this->sp_fixup;
     armfunc->sp_arg_fixup_ = this->sp_arg_fixup;
     armfunc->virtual_reg_max = virtual_reg_id;
   }  // end of func loop

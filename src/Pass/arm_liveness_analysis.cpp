@@ -7,7 +7,7 @@ std::pair<std::vector<RegId>, std::vector<RegId>> GetDefUse(Instruction *inst) {
   std::vector<RegId> use;
 
   auto process_op2 = [&use](Operand2 *op2) {
-    if (nullptr==op2) return ;
+    if (nullptr == op2) return;
     if (op2->is_imm_) return;
     use.push_back(op2->reg_->reg_id_);
     if (nullptr != op2->shift_ && !op2->shift_->is_imm_) {
@@ -51,10 +51,10 @@ std::pair<std::vector<RegId>, std::vector<RegId>> GetDefUse(Instruction *inst) {
     } else {
       use.push_back(src_inst->rd_->reg_id_);
     }
-    if (src_inst->type_ != LdrStr::Type::PCrel) {
-      use.push_back(src_inst->rn_->reg_id_);
-      process_op2(src_inst->offset_);
-    }
+    use.push_back(src_inst->rn_->reg_id_);
+    process_op2(src_inst->offset_);
+  } else if (auto src_inst = dynamic_cast<LdrPseudo *>(inst)) {
+    def.push_back(src_inst->rd_->reg_id_);
   } else if (auto src_inst = dynamic_cast<PushPop *>(inst)) {
     if (src_inst->opkind_ == PushPop::OpKind::PUSH) {
       for (auto reg : src_inst->reg_list_) {
@@ -110,10 +110,10 @@ std::pair<std::vector<Reg *>, std::vector<Reg *>> GetDefUsePtr(Instruction *inst
     } else {
       use.push_back(src_inst->rd_);
     }
-    if (src_inst->type_ != LdrStr::Type::PCrel) {
-      use.push_back(src_inst->rn_);
-      process_op2(src_inst->offset_);
-    }
+    use.push_back(src_inst->rn_);
+    process_op2(src_inst->offset_);
+  } else if (auto src_inst = dynamic_cast<LdrPseudo *>(inst)) {
+    def.push_back(src_inst->rd_);
   } else if (auto src_inst = dynamic_cast<PushPop *>(inst)) {
     if (src_inst->opkind_ == PushPop::OpKind::PUSH) {
       for (auto reg : src_inst->reg_list_) {

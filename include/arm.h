@@ -185,12 +185,13 @@ class BinaryInst : public Instruction {
 // Move: MOV{S}{Cond} Rd, <Operand2>
 class Move : public Instruction {
  public:
-  bool has_s_;  // only mean if opcode has char 'S'. don't mean the
-                // instruction whether updates CPSR or not.
+  bool is_mvn_;
+  bool has_s_;  // only mean if opcode has char 'S'. don't mean the instruction whether updates CPSR or not.
   Reg* rd_;
   Operand2* op2_;
   bool HasS() { return has_s_; }
-  Move(bool has_s, Cond cond, Reg* rd, Operand2* op2) : Instruction(cond), has_s_(has_s), rd_(rd), op2_(op2) {}
+  Move(bool has_s, Cond cond, Reg* rd, Operand2* op2, bool is_mvn = false)
+      : Instruction(cond), has_s_(has_s), rd_(rd), op2_(op2), is_mvn_(is_mvn) {}
   virtual ~Move();
   virtual void EmitCode(std::ostream& outfile = std::clog);
 };
@@ -210,11 +211,10 @@ class Branch : public Instruction {
 };
 
 // LoadStore: <op>/*{size}*/ rd, rn {, #<imm12>} OR rd , rn, +/- rm {, <opsh>}, i.e. a Operand2-style offset.
-//            OR a pseudo-ldr instruction: rd, =... ref: https://developer.arm.com/documentation/dui0041/c/Babbfdih
 class LdrStr : public Instruction {
  public:
   enum class OpKind { LDR, STR };
-  enum class Type { Pre, Norm, Post, Pseudo, PCrel = Pseudo };
+  enum class Type { Pre, Norm, Post };
   OpKind opkind_;
   Type type_;
   Reg* rd_;
@@ -222,16 +222,31 @@ class LdrStr : public Instruction {
   bool is_offset_imm_ = false;
   int offset_imm_ = -1;
   Operand2* offset_ = nullptr;  // a reg, or a scaled reg(imm_shift)
-  std::string label_;
   LdrStr(OpKind opkind, Type type, Cond cond, Reg* rd, Reg* rn, Operand2* offset)
       : Instruction(cond), opkind_(opkind), type_(type), rd_(rd), rn_(rn), offset_(offset) {}
   LdrStr(OpKind opkind, Type type, Cond cond, Reg* rd, Reg* rn, int offset)
       : Instruction(cond), opkind_(opkind), type_(type), rd_(rd), rn_(rn), is_offset_imm_(true), offset_imm_(offset) {}
-  LdrStr(Reg* rd, std::string label) : opkind_(OpKind::LDR), type_(Type::Pseudo), rd_(rd), label_(label) {}
-  LdrStr(Reg* rd, int imm) : opkind_(OpKind::LDR), type_(Type::Pseudo), rd_(rd), label_(std::to_string(imm)) {}
   virtual ~LdrStr();
   virtual void EmitCode(std::ostream& outfile = std::clog);
-  static bool CheckImm12(int imm) { return (imm < 4096) && (imm > -4096); }  // -4095, +4095
+  static bool CheckImm12(int imm) { return (imm < 4096) && (imm > -4096); }
+};
+
+// ldr-pseudo inst: ref: https://developer.arm.com/documentation/dui0041/c/Babbfdih
+// when emit code, it will be converted to movw and movt insts.
+class LdrPseudo : public Instruction {
+ public:
+  Reg* rd_;
+  std::string literal_;
+  int imm_;
+  LdrPseudo(Cond cond, Reg* rd, const std::string& literal)
+      : Instruction(cond), rd_(rd), is_imm_(false), literal_(literal) {}
+  LdrPseudo(Cond cond, Reg* rd, int imm) : Instruction(cond), rd_(rd), is_imm_(true), imm_(imm) {}
+  bool IsImm() { return is_imm_; }
+  virtual ~LdrPseudo();
+  virtual void EmitCode(std::ostream& outfile = std::clog);
+
+ private:
+  bool is_imm_;
 };
 
 // PushPop: <op> <reglist>

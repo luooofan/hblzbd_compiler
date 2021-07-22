@@ -28,6 +28,7 @@ class ArmFunction : public Function {
   std::vector<ArmBasicBlock*> bb_list_;
   std::vector<ArmFunction*> call_func_list_;
   std::vector<Instruction*> sp_arg_fixup_;  // maybe a move inst or a ldrstr inst or a ldr-pseudo inst
+  std::vector<Instruction*> sp_fixup_;
 
   ArmFunction(const std::string& name, int arg_num, int stack_size) : Function(name, arg_num, stack_size) {}
   bool IsLeaf() { return call_func_list_.empty(); }

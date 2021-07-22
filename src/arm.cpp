@@ -101,7 +101,7 @@ void BinaryInst::EmitCode(std::ostream& outfile) {
 
 Move::~Move() {}
 void Move::EmitCode(std::ostream& outfile) {
-  std::string opcode = "mov";
+  std::string opcode = this->is_mvn_ ? "mvn" : "mov";
   if (this->HasS()) opcode += "s";
   opcode += CondToString(this->cond_);
   outfile << "\t" << opcode << " " << std::string(*this->rd_);
@@ -130,12 +130,7 @@ LdrStr::~LdrStr() {}
 void LdrStr::EmitCode(std::ostream& outfile) {
   std::string prefix = this->opkind_ == OpKind::LDR ? "ldr" : "str";
   prefix += CondToString(this->cond_) + " " + std::string(*(this->rd_)) + ", ";
-  if(this->type_==Type::PCrel){
-      prefix += "=" + this->label_;
-  outfile << "\t" << prefix << std::endl;
-  return ;
-  }
-  std::string offset = this->is_offset_imm_? "#"+std::to_string(offset_imm_):std::string(*(this->offset_));
+  std::string offset = this->is_offset_imm_ ? "#" + std::to_string(offset_imm_) : std::string(*(this->offset_));
   switch (this->type_) {
     case Type::Norm: {
       prefix += "[" + std::string(*(this->rn_)) + ", " + offset + "]";
@@ -155,6 +150,22 @@ void LdrStr::EmitCode(std::ostream& outfile) {
     }
   }
   outfile << "\t" << prefix << std::endl;
+}
+
+LdrPseudo::~LdrPseudo() {}
+void LdrPseudo::EmitCode(std::ostream& outfile) {
+  // convert ldr-pseudo inst to movw&movt
+  // https://community.arm.com/developer/ip-products/processors/b/processors-ip-blog/posts/how-to-load-constants-in-assembly-for-arm-architecture
+  if (!this->is_imm_ || 0 != this->imm_ & 0xFFFF) {
+    outfile << "\tmovw " << std::string(*(this->rd_)) + ", #";
+    outfile << (this->is_imm_ ? std::to_string(this->imm_ & 0xFFFF) : ":lower16:" + this->literal_);
+    outfile << std::endl;
+  }
+  if (!this->is_imm_ || 0 != (this->imm_ >> 16) & 0xFFFF) {
+    outfile << "\tmovt " << std::string(*(this->rd_)) + ", #";
+    outfile << (this->is_imm_ ? std::to_string((this->imm_ >> 16) & 0xFFFF) : ":upper16:" + this->literal_);
+    outfile << std::endl;
+  }
 }
 
 PushPop::~PushPop() {}

@@ -29,6 +29,7 @@ class GenerateArm : public Transform {
   int stack_size = 0;
   int arg_num = 0;
   std::vector<Instruction*> sp_arg_fixup;
+  std::vector<Instruction*> sp_fixup;
 
   void ResetFuncData(ArmFunction* armfunc);
 
@@ -36,7 +37,7 @@ class GenerateArm : public Transform {
   // used for generate arm code.
   Cond GetCondType(ir::IR::OpKind opkind, bool exchange = false);
   Reg* NewVirtualReg();
-  Operand2* ResolveImm2Operand2(ArmBasicBlock* armbb, int imm);
+  Operand2* ResolveImm2Operand2(ArmBasicBlock* armbb, int imm, bool record = false);
   void GenImmLdrStrInst(ArmBasicBlock* armbb, LdrStr::OpKind opkind, Reg* rd, Reg* rn, int imm);
   void ChangeOffset(std::string& func_name);
   void AddPrologue(ArmFunction* func, ArmBasicBlock* first_bb);
