@@ -59,14 +59,23 @@ Operand2* GenerateArm::ResolveImm2Operand2(ArmBasicBlock* armbb, int imm) {
 };
 
 void GenerateArm::GenImmLdrStrInst(ArmBasicBlock* armbb, LdrStr::OpKind opkind, Reg* rd, Reg* rn, int imm) {
+  Instruction* inst = nullptr;
   if (LdrStr::CheckImm12(imm)) {
-    armbb->inst_list_.push_back(
-        static_cast<Instruction*>(new LdrStr(opkind, LdrStr::Type::Norm, Cond::AL, rd, rn, imm)));
-  } else {  // a ldr-pseudo inst and then a ldrstr imm inst.
+    inst = static_cast<Instruction*>(new LdrStr(opkind, LdrStr::Type::Norm, Cond::AL, rd, rn, imm));
+    armbb->inst_list_.push_back(inst);
+  } else {
     auto vreg = NewVirtualReg();
-    armbb->inst_list_.push_back(static_cast<Instruction*>(new LdrStr(vreg, imm)));
+    if (Operand2::CheckImm8m(imm)) {
+      inst = static_cast<Instruction*>(new Move(false, Cond::AL, vreg, new Operand2(imm)));
+    } else {
+      inst = static_cast<Instruction*>(new LdrStr(vreg, imm));
+    }
+    armbb->inst_list_.push_back(inst);
     armbb->inst_list_.push_back(
         static_cast<Instruction*>(new LdrStr(opkind, LdrStr::Type::Norm, Cond::AL, rd, rn, new Operand2(vreg))));
+  }
+  if (rn == this->sp_vreg && imm > this->stack_size) {
+    this->sp_arg_fixup.push_back(inst);
   }
 }
 
@@ -105,11 +114,12 @@ Reg* GenerateArm::ResolveOpn2Reg(ArmBasicBlock* armbb, ir::Opn* opn) {
     } else {  // 不用在varmap找 每次都要重新加载 不会有中间数组
       rbase = NewVirtualReg();
       auto& symbol = ir::gScopes[opn->scope_id_].symbol_table_[opn->name_];
-      if (symbol.width_[0] != -1) {
-        armbb->inst_list_.push_back(static_cast<Instruction*>(new BinaryInst(
-            BinaryInst::OpCode::ADD, false, Cond::AL, rbase, sp_vreg, ResolveImm2Operand2(armbb, symbol.offset_))));
+      if (!symbol.IsArg()) {
+        armbb->inst_list_.push_back(
+            static_cast<Instruction*>(new BinaryInst(BinaryInst::OpCode::ADD, false, Cond::AL, rbase, sp_vreg,
+                                                     ResolveImm2Operand2(armbb, symbol.stack_offset_))));
       } else {  // 等于-1说明是int array参数 offset中存着的是基地址 所以要ldr
-        this->GenImmLdrStrInst(armbb, LdrStr::OpKind::LDR, rbase, sp_vreg, symbol.offset_);
+        this->GenImmLdrStrInst(armbb, LdrStr::OpKind::LDR, rbase, sp_vreg, symbol.stack_offset_);
       }
     }
 
@@ -126,7 +136,7 @@ Reg* GenerateArm::ResolveOpn2Reg(ArmBasicBlock* armbb, ir::Opn* opn) {
       return vreg;
     }
     auto& symbol = ir::gScopes[opn->scope_id_].symbol_table_[opn->name_];
-    if (symbol.offset_ == -1) {  // 如果是中间变量 找到返回 没找到生成并绑定
+    if (symbol.IsTemp()) {  // 如果是中间变量 找到返回 没找到生成并绑定
       const auto& iter = var_map.find(opn->name_);
       if (iter != var_map.end()) {
         const auto& iter2 = (*iter).second.find(opn->scope_id_);
@@ -139,7 +149,7 @@ Reg* GenerateArm::ResolveOpn2Reg(ArmBasicBlock* armbb, ir::Opn* opn) {
       return vreg;
     } else {  // 局部变量 一定生成一条ldr语句 ldr rd, [sp, #offset]
       auto vreg = NewVirtualReg();
-      this->GenImmLdrStrInst(armbb, LdrStr::OpKind::LDR, vreg, sp_vreg, symbol.offset_);
+      this->GenImmLdrStrInst(armbb, LdrStr::OpKind::LDR, vreg, sp_vreg, symbol.stack_offset_);
       return vreg;
     }
   }
@@ -161,7 +171,7 @@ void GenerateArm::ResolveResOpn2RdReg(ArmBasicBlock* armbb, ir::Opn* opn, Callab
   Reg* rd = nullptr;
   // Var offset为-1或者以temp-开头表示中间变量 是中间变量则只生成一条运算指令
   auto& symbol = ir::gScopes[opn->scope_id_].symbol_table_[opn->name_];
-  if (-1 == symbol.offset_) {
+  if (symbol.IsTemp()) {
     const auto& iter = var_map.find(opn->name_);
     if (iter != var_map.end()) {
       const auto& iter2 = (*iter).second.find(opn->scope_id_);
@@ -181,8 +191,8 @@ void GenerateArm::ResolveResOpn2RdReg(ArmBasicBlock* armbb, ir::Opn* opn, Callab
   if (opn->scope_id_ == 0) {
     auto vadr = LoadGlobalOpn2Reg(armbb, opn);
     this->GenImmLdrStrInst(armbb, LdrStr::OpKind::STR, rd, vadr, 0);
-  } else if (-1 != symbol.offset_) {
-    this->GenImmLdrStrInst(armbb, LdrStr::OpKind::STR, rd, sp_vreg, symbol.offset_);
+  } else if (!symbol.IsTemp()) {
+    this->GenImmLdrStrInst(armbb, LdrStr::OpKind::STR, rd, sp_vreg, symbol.stack_offset_);
   }
 }
 
@@ -198,16 +208,24 @@ void GenerateArm::ChangeOffset(std::string& func_name) {
     if (scope.IsSubScope(func_scope_id)) {
       for (auto& item : scope.symbol_table_) {
         auto& symbol = item.second;
-        if (-1 == symbol.offset_) {
-          continue;
-        } else if (!symbol.is_array_ || -1 == symbol.width_[0]) {
-          symbol.offset_ = this->stack_size - symbol.offset_ - 4;
-        } else {
-          symbol.offset_ = this->stack_size - symbol.offset_ - symbol.width_[0];
+        if (symbol.IsTemp()) {        // 中间变量
+          symbol.stack_offset_ = -1;  // useless
+        } else if (symbol.IsArg()) {  // 参数
+          if (symbol.IsHighArg()) {   // 第5个及以后的参数 函数栈大小加上一个lr
+            symbol.stack_offset_ = this->stack_size + 4 + (symbol.offset_ / 4 - 4) * 4;
+          } else {  // 前4个参数
+            symbol.stack_offset_ = this->stack_size - symbol.offset_ - 4;
+          }
+        } else if (symbol.is_array_) {  // 非参数局部数组量
+          symbol.stack_offset_ =
+              this->stack_size - (symbol.offset_ - 4 * (std::max(4, this->arg_num) - 4)) - symbol.width_[0];
+        } else {  // 非参数局部非数组量
+          symbol.stack_offset_ = this->stack_size - (symbol.offset_ - 4 * (std::max(4, this->arg_num) - 4)) - 4;
         }
       }
     }
   }
+  // ir::PrintScopes(std::cout);
 }
 
 void GenerateArm::AddPrologue(ArmFunction* func, ArmBasicBlock* first_bb) {
@@ -228,16 +246,6 @@ void GenerateArm::AddPrologue(ArmFunction* func, ArmBasicBlock* first_bb) {
     if (i < 4) {
       // str ri sp offset!=i*4 =(stack_size-offset-4) 或者 stack_size-i*4-4
       this->GenImmLdrStrInst(first_bb, LdrStr::OpKind::STR, new Reg(ArmReg(i)), sp_vreg, stack_size - i * 4 - 4);
-    } else {
-      // 可以存到当前栈中 也可以改一下符号表中的偏移
-      // ldr ri sp stack_size+4+(i-4)*4
-      // str ri sp offset = i*4
-      int offset = stack_size + 4 + (i - 4) * 4;
-      auto vreg = NewVirtualReg();
-      this->GenImmLdrStrInst(first_bb, LdrStr::OpKind::LDR, vreg, sp_vreg, offset);
-      assert(nullptr != dynamic_cast<LdrStr*>(first_bb->inst_list_.back()));
-      func->sp_arg_fixup_.push_back(dynamic_cast<LdrStr*>(first_bb->inst_list_.back()));
-      this->GenImmLdrStrInst(first_bb, LdrStr::OpKind::STR, vreg, sp_vreg, stack_size - i * 4 - 4);
     }
   }
 }
@@ -297,8 +305,10 @@ void GenerateArm::ResetFuncData(ArmFunction* armfunc) {
   this->var_map.clear();
   this->glo_addr_map.clear();
   this->sp_vreg = NewVirtualReg();
-  this->stack_size = armfunc->stack_size_;
   this->arg_num = armfunc->arg_num_;
+  if (this->arg_num > 4) armfunc->stack_size_ -= (this->arg_num - 4) * 4;
+  this->stack_size = armfunc->stack_size_;
+  this->sp_arg_fixup.clear();
 }
 
 ArmModule* GenerateArm::GenCode(IRModule* module) {
@@ -537,12 +547,12 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
                 rbase = NewVirtualReg();
                 var_map[ir.res_.name_][ir.res_.scope_id_] = rbase;
                 auto& symbol = ir::gScopes[ir.res_.scope_id_].symbol_table_[ir.res_.name_];
-                if (symbol.width_[0] != -1) {
+                if (!symbol.IsArg()) {
                   armbb->inst_list_.push_back(
                       static_cast<Instruction*>(new BinaryInst(BinaryInst::OpCode::ADD, false, Cond::AL, rbase, sp_vreg,
-                                                               ResolveImm2Operand2(armbb, symbol.offset_))));
+                                                               ResolveImm2Operand2(armbb, symbol.stack_offset_))));
                 } else {  // 等于-1说明是int array参数 所以要ldr
-                  this->GenImmLdrStrInst(armbb, LdrStr::OpKind::LDR, rbase, sp_vreg, symbol.offset_);
+                  this->GenImmLdrStrInst(armbb, LdrStr::OpKind::LDR, rbase, sp_vreg, symbol.stack_offset_);
                 }
               }
               armbb->inst_list_.push_back(
@@ -567,17 +577,16 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
             if (0 == opn->scope_id_) {
               // 全局数组 地址量即其基址量
               rbase = LoadGlobalOpn2Reg(armbb, opn);
-              // rbase = glo_addr_map[opn->name_];
             } else {
               rbase = NewVirtualReg();
               var_map[opn->name_][opn->scope_id_] = rbase;
               auto& symbol = ir::gScopes[opn->scope_id_].symbol_table_[opn->name_];
-              if (symbol.width_[0] != -1) {
+              if (!symbol.IsArg()) {
                 armbb->inst_list_.push_back(
                     static_cast<Instruction*>(new BinaryInst(BinaryInst::OpCode::ADD, false, Cond::AL, rbase, sp_vreg,
-                                                             ResolveImm2Operand2(armbb, symbol.offset_))));
+                                                             ResolveImm2Operand2(armbb, symbol.stack_offset_))));
               } else {  // 等于-1说明是int array参数 所以要ldr
-                this->GenImmLdrStrInst(armbb, LdrStr::OpKind::LDR, rbase, sp_vreg, symbol.offset_);
+                this->GenImmLdrStrInst(armbb, LdrStr::OpKind::LDR, rbase, sp_vreg, symbol.stack_offset_);
               }
             }
             // 找到rbase后 来一条ldr语句
@@ -619,6 +628,7 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
 
     // NOTE: 中间代码保证了函数执行流最后一定有一条return语句 所以不必在最后再加一个epilogue
 
+    armfunc->sp_arg_fixup_ = this->sp_arg_fixup;
     armfunc->virtual_reg_max = virtual_reg_id;
   }  // end of func loop
 

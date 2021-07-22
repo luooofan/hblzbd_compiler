@@ -28,6 +28,7 @@ class GenerateArm : public Transform {
   Reg* sp_vreg = nullptr;
   int stack_size = 0;
   int arg_num = 0;
+  std::vector<Instruction*> sp_arg_fixup;
 
   void ResetFuncData(ArmFunction* armfunc);
 

@@ -504,7 +504,9 @@ void FunctionDefine::GenerateIR(ir::ContextInfo &ctx) {
       if (Identifier *ident = dynamic_cast<Identifier *>(&arg->name_)) {
         const auto &var_iter = symbol_table.find(ident->name_);
         if (var_iter == symbol_table.end()) {
-          symbol_table.insert({ident->name_, {false, false, scope.dynamic_offset_}});
+          auto &&symbol_item = ir::SymbolTableItem(false, false, scope.dynamic_offset_);
+          symbol_item.SetIsArg();
+          symbol_table.insert({ident->name_, symbol_item});
           scope.dynamic_offset_ += ir::kIntWidth;
         } else {
           ir::SemanticError(this->line_no_, ident->name_ + ": variable redefined");
@@ -514,6 +516,7 @@ void FunctionDefine::GenerateIR(ir::ContextInfo &ctx) {
         const auto &var_iter = symbol_table.find(arrident->name_.name_);
         if (var_iter == symbol_table.end()) {
           auto tmp1 = new ir::SymbolTableItem(true, false, scope.dynamic_offset_);
+          tmp1->SetIsArg();
           // NOTE: 参数中的数组视为一个基址指针
           scope.dynamic_offset_ += ir::kIntWidth;
           // 计算shape和width shape:-1 2 3  width:? 24 12 4
