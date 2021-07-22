@@ -3,9 +3,6 @@
 #include <cassert>
 namespace arm {
 
-// TODO: 是否要构建一个gARMList?
-// std::vector<Instruction> gASMList;
-
 std::string CondToString(Cond cond) {
   switch (cond) {
     case Cond::AL:
@@ -24,6 +21,19 @@ std::string CondToString(Cond cond) {
       return "le";
   }
   return "";
+}
+
+bool Operand2::CheckImm8m(int imm) {
+  // NOTE: assign a int to unsigned int
+  unsigned int encoding = imm;
+  for (int ror = 0; ror < 32; ror += 2) {
+    // 如果encoding的前24bit都是0 说明imm能被表示成一个8bit循环右移偶数位得到
+    if (!(encoding & ~0xFFu)) {
+      return true;
+    }
+    encoding = (encoding << 30u) | (encoding >> 2u);
+  }
+  return false;
 }
 
 BinaryInst::~BinaryInst() {
@@ -99,10 +109,18 @@ void Move::EmitCode(std::ostream& outfile) {
 }
 
 Branch::~Branch() {}
+bool Branch::IsCall() {
+  if (this->has_l_ && this->label_.size() > 0 && this->label_ != "lr" && this->label_[0] != '.') {
+    return true;
+  } else {
+    return false;
+  }
+}
+bool Branch::IsRet() { return this->has_x_ && this->label_ == "lr"; }
 void Branch::EmitCode(std::ostream& outfile) {
   std::string opcode = "b";
   if (this->has_l_) opcode += "l";
-  // NOTE:
+  // NOTE: only for bx lr
   if (this->has_x_) opcode += "x";
   opcode += CondToString(this->cond_);
   outfile << "\t" << opcode << " " << this->label_ << std::endl;
@@ -112,22 +130,23 @@ LdrStr::~LdrStr() {}
 void LdrStr::EmitCode(std::ostream& outfile) {
   std::string prefix = this->opkind_ == OpKind::LDR ? "ldr" : "str";
   prefix += CondToString(this->cond_) + " " + std::string(*(this->rd_)) + ", ";
+  if(this->type_==Type::PCrel){
+      prefix += "=" + this->label_;
+  outfile << "\t" << prefix << std::endl;
+  return ;
+  }
+  std::string offset = this->is_offset_imm_? "#"+std::to_string(offset_imm_):std::string(*(this->offset_));
   switch (this->type_) {
-    // NOTE: offset为0也要输出
     case Type::Norm: {
-      prefix += "[" + std::string(*(this->rn_)) + ", " + std::string(*(this->offset_)) + "]";
+      prefix += "[" + std::string(*(this->rn_)) + ", " + offset + "]";
       break;
     }
     case Type::Pre: {
-      prefix += "[" + std::string(*(this->rn_)) + ", " + std::string(*(this->offset_)) + "]!";
+      prefix += "[" + std::string(*(this->rn_)) + ", " + offset + "]!";
       break;
     }
     case Type::Post: {
-      prefix += "[" + std::string(*(this->rn_)) + "], " + std::string(*(this->offset_));
-      break;
-    }
-    case Type::PCrel: {
-      prefix += "=" + this->label_;
+      prefix += "[" + std::string(*(this->rn_)) + "], " + offset;
       break;
     }
     default: {

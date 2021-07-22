@@ -36,11 +36,12 @@ class GenerateArm : public Transform {
   Cond GetCondType(ir::IR::OpKind opkind, bool exchange = false);
   Reg* NewVirtualReg();
   Operand2* ResolveImm2Operand2(ArmBasicBlock* armbb, int imm);
+  void GenImmLdrStrInst(ArmBasicBlock* armbb, LdrStr::OpKind opkind, Reg* rd, Reg* rn, int imm);
   void ChangeOffset(std::string& func_name);
   void AddPrologue(ArmFunction* func, ArmBasicBlock* first_bb);
   void AddEpilogue(ArmBasicBlock* armbb);
   void GenCallCode(ArmBasicBlock* armbb, ir::IR& ir, int loc);
-  void LoadGlobalOpn2Reg(ArmBasicBlock* armbb, ir::Opn* opn);
+  Reg* LoadGlobalOpn2Reg(ArmBasicBlock* armbb, ir::Opn* opn);
   Reg* ResolveOpn2Reg(ArmBasicBlock* armbb, ir::Opn* opn);
   Operand2* ResolveOpn2Operand2(ArmBasicBlock* armbb, ir::Opn* opn);
   template <typename CallableObjTy>

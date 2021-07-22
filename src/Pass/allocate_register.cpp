@@ -364,7 +364,6 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
 
       auto freeze_moves = [&](RegId reg) {
         // 把和reg有关的 本来可能合并的mov指令冻结
-        // 有效的mov指令一定放在active或worklist movs中
         for (auto m : valid_mov_set(reg)) {
           if (active_moves.find(m) != active_moves.end()) {
             active_moves.erase(m);
@@ -373,8 +372,8 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
           }
           frozen_moves.insert(m);
 
+          // 冻结后 该mov指令的另一个结点可能变为mov无关
           auto v = m->rd_->reg_id_ == reg ? m->op2_->reg_->reg_id_ : m->rd_->reg_id_;
-          // 结点可能变为mov无关
           if (!move_related(v) && degree[v] < K) {
             freeze_worklist.erase(v);
             simplify_worklist.insert(v);
@@ -389,14 +388,16 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
         RegId reg = *freeze_worklist.begin();
         freeze_worklist.erase(reg);
         simplify_worklist.insert(reg);
-        // 把相关的mov指令也要冻结
+        // 相关的mov指令也要冻结
         freeze_moves(reg);
       };
 
       // TODO: 溢出代价计算
       auto select_spill = [&]() {
+        // select node with max degree (heuristic)
         RegId reg = *std::max_element(spill_worklist.begin(), spill_worklist.end(),
                                       [&](auto a, auto b) { return degree[a] < degree[b]; });
+        // 选择的结点可能mov有关也可能mov无关
         simplify_worklist.insert(reg);
         freeze_moves(reg);
         spill_worklist.erase(reg);
@@ -405,15 +406,11 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
       auto assign_colors = [&]() {
         // virtual reg到颜色的一个映射
         std::unordered_map<RegId, RegId> colored;
-
-        for (RegId i = 0; i < K - 1; ++i) {
+        for (RegId i = 0; i < 16; ++i) {
           colored.insert({i, i});
         }
-        auto lr = static_cast<RegId>(ArmReg::lr);
-        colored.insert({lr, lr});
 
-        // outfile << "选择栈中有" << select_stack.size() << "个结点"
-        //           << std::endl;
+        // outfile << "选择栈中有" << select_stack.size() << "个结点" << std::endl;
         while (!select_stack.empty()) {
           auto vreg = select_stack.back();
           // outfile << "现在为" << vreg << "分配寄存器:" << std::endl;
@@ -438,11 +435,7 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
           // 再删
           for (auto adj_reg : adj_list[vreg]) {
             auto real_reg = get_alias(adj_reg);
-            auto it = colored.find(real_reg);
-            if (it == colored.end()) {
-              ok_colors.erase(real_reg);
-              //   outfile << "erase:" << real_reg << std::endl;
-            } else {
+            if (colored.find(real_reg) != colored.end()) {
               ok_colors.erase(colored[real_reg]);
               //   outfile << "erase:" << colored[real_reg] << std::endl;
             }
@@ -450,11 +443,9 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
           // dbg_print_ok_colors("删完之后");
 
           // 最后分配
-          if (ok_colors.empty()) {
-            // 实际溢出？
+          if (ok_colors.empty()) {  // 实际溢出 不给它分配 继续进行其他结点的分配以找到全部的实际溢出结点
             spilled_nodes.insert(vreg);
-          } else {
-            // 可分配
+          } else {  // 可分配
             auto color = *std::min_element(ok_colors.begin(), ok_colors.end());
             if (color >= 4 && color <= 11) {
               used_callee_saved_regs.insert(color);
@@ -464,15 +455,13 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
           }
         }
 
-        // 实际溢出
-        if (!spill_worklist.empty()) {
+        if (!spill_worklist.empty()) {  // 有实际溢出的话 不继续分配
           return;
         }
 
         // 为合并了的结点分配颜色
         for (auto n : coalesced_nodes) {
-          auto a = get_alias(n);
-          colored[n] = colored[a];
+          colored[n] = colored[get_alias(n)];
         }
 
         // DEBUG PRINT
@@ -490,25 +479,27 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
             auto [def, use] = GetDefUsePtr(inst);
             // Reg *def;
             // std::vector<Reg *> use;
-            if (def && colored.find(def->reg_id_) != colored.end()) {
-              def->reg_id_ = colored[def->reg_id_];
+            for (auto &d : def) {
+              assert(nullptr != d && colored.find(d->reg_id_) != colored.end());
+              d->reg_id_ = colored[d->reg_id_];
             }
-
             for (auto &u : use) {
-              if (u && colored.find(u->reg_id_) != colored.end()) {
-                u->reg_id_ = colored[u->reg_id_];
-              }
+              assert(nullptr != u && colored.find(u->reg_id_) != colored.end());
+              // if (u && colored.find(u->reg_id_) != colored.end()) {
+              u->reg_id_ = colored[u->reg_id_];
+              // }
             }
           }
         }
       };
 
+      // outfile << "LivenessAnalysis Start:" << std::endl;
       ArmLivenessAnalysis::Run4Func(func);
+      // outfile << "LivenessAnalysis End." << std::endl;
 
-      // 机器寄存器预着色 每一个机器寄存器都不可简化 不可溢出
-      // 把这些寄存器的degree初始化为极大
+      // 机器寄存器预着色 每一个机器寄存器都不可简化 不可溢出 把这些寄存器的degree初始化为极大
       for (RegId i = 0; i < 16; ++i) {
-        degree[i] = 0x40000000;
+        degree[i] = 0x3f3f3f3f;
       }
 
       auto dbg_print_worklist = [&outfile](WorkList &wl, std::string msg) {
@@ -554,57 +545,23 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
       if (spilled_nodes.empty()) {
         done = true;
       } else {  // TODO: 实际溢出
-        done = true;
-        continue;
-
         // outfile << "actual spill" << std::endl;
         // rewrite program
         for (auto &n : spilled_nodes) {
           // allocate on stack
+          auto offset = func->stack_size_;
+          auto gen_offset = [&func, &offset]() {  // ldr/str with imm offset: +/-#<imm12>
+            if (offset < (1u << 12u)) {           // i.e. 4096
+              return new Operand2(offset);
+            } else {  // mov vreg, offset;
+              auto mov_inst = new Move(false, Cond::AL, new Reg(func->virtual_reg_max++), new Operand2(offset));
+            }
+          };
           for (auto bb : func->bb_list_) {
-            auto offset = func->stack_size_;
-            // auto offset_imm = MachineOperand::I(offset);
-
-            // auto generate_access_offset = [&](MIAccess *access_inst) {
-            //   if (offset < (1u << 12u)) {  // ldr / str has only imm12
-            //     access_inst->offset = offset_imm;
-            //   } else {
-            //     auto mv_inst = new MIMove(access_inst);  // insert before
-            //     access mv_inst->rhs = offset_imm; mv_inst->dst =
-            //     MachineOperand::V(f->virtual_reg_max++); access_inst->offset
-            //     = mv_inst->dst;
-            //   }
-            // };
-
             // generate a Load before first use, and a Store after last def
             Instruction *first_use = nullptr;
             Instruction *last_def = nullptr;
             RegId vreg = -1;
-            auto checkpoint = [&]() {
-              if (first_use) {
-                // auto load_inst = new MILoad(first_use);
-                // auto load_inst = new LdrStr(LdrStr::OpKind::LDR,
-                // LdrStr::Type::Norm, Cond::AL, ) load_inst->bb = bb;
-                // load_inst->addr = MachineOperand::R(ArmReg::sp);
-                // load_inst->shift = 0;
-                // generate_access_offset(load_inst);
-                // load_inst->dst = MachineOperand::V(vreg);
-                // first_use = nullptr;
-              }
-
-              if (last_def) {
-                // auto store_inst = new MIStore();
-                // store_inst->bb = bb;
-                // store_inst->addr = MachineOperand::R(ArmReg::sp);
-                // store_inst->shift = 0;
-                // bb->insts.insertAfter(store_inst, last_def);
-                // generate_access_offset(store_inst);
-                // store_inst->data = MachineOperand::V(vreg);
-                // last_def = nullptr;
-              }
-              vreg = -1;
-            };
-
             // 对于每条指令
             int i = 0;
             // 找到基本块中第一次定值和使用
@@ -612,15 +569,16 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
               auto [def, use] = GetDefUsePtr(orig_inst);
               //   Reg *def;
               //   std::vector<Reg *> use;
-              if (def && def->reg_id_ == n) {
-                // store
-                if (vreg == -1) {
-                  vreg = func->virtual_reg_max++;
+              for (auto &d : def) {
+                if (d->reg_id_ == n) {
+                  // store
+                  if (vreg == -1) {
+                    vreg = func->virtual_reg_max++;
+                  }
+                  d->reg_id_ = vreg;
+                  last_def = orig_inst;
                 }
-                def->reg_id_ = vreg;
-                last_def = orig_inst;
               }
-
               for (auto &u : use) {
                 if (u->reg_id_ == n) {
                   // load
@@ -633,21 +591,13 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
                   }
                 }
               }
-
-              if (i++ > 30) {
-                // don't span vreg for too long
-                checkpoint();
-              }
             }
-
-            checkpoint();
           }
           func->stack_size_ += 4;  // increase stack size
         }
         done = false;
       }
     }
-
     // 每一个函数确定了之后 添加push pop指令 找到push语句 添加或删除 找到pop语句 添加或删除 删除自己到自己的mov指令
     int offset_fixup_diff = used_callee_saved_regs.size() * 4;  // maybe -4
     if (func->IsLeaf()) {                                       //原本计算有lr
@@ -699,10 +649,13 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
     }
     // push和pop中添加了r4-r11 或者删除了lr和sp的话 需要修复栈中实参的位置
     for (auto inst : func->sp_arg_fixup_) {
-      assert(inst->offset_->is_imm_);
-      inst->offset_->imm_num_ += offset_fixup_diff;
+      // assert(inst->offset_->is_imm_);
+      // inst->offset_->imm_num_ += offset_fixup_diff;
+      // TODO:
+      assert(inst->is_offset_imm_);
+      inst->offset_imm_+=offset_fixup_diff;
     }
-
+    
     // TODO: 地址偏移立即数过大处理
 
   }  // end of func loop

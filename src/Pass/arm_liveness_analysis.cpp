@@ -7,6 +7,7 @@ std::pair<std::vector<RegId>, std::vector<RegId>> GetDefUse(Instruction *inst) {
   std::vector<RegId> use;
 
   auto process_op2 = [&use](Operand2 *op2) {
+    if (nullptr==op2) return ;
     if (op2->is_imm_) return;
     use.push_back(op2->reg_->reg_id_);
     if (nullptr != op2->shift_ && !op2->shift_->is_imm_) {
@@ -30,13 +31,10 @@ std::pair<std::vector<RegId>, std::vector<RegId>> GetDefUse(Instruction *inst) {
     // ret可视为对r0和lr的使用 但需要保证armcode是正确的 i.e. 如果前面有bl xxx指令的话 后面不能用bx lr指令返回
     // 如果b后面是个函数label就是call 如果b后面是lr就是ret
     auto &label = src_inst->label_;
-    if (src_inst->has_x_ && label == "lr") {  // bx lr
+    if (src_inst->IsRet()) {  // bx lr
       use.push_back(static_cast<RegId>(ArmReg::r0));
       use.push_back(static_cast<RegId>(ArmReg::lr));
-    } else if (ir::gFuncTable.find(label) != ir::gFuncTable.end() || label == "__aeabi_idivmod" ||
-               label == "__aeabi_idiv") {
-      // TODO: 这里用到了ir 之后优化掉 可能需要一个func_name到Function*的map
-      // call
+    } else if (src_inst->IsCall()) {  // call
       int callee_param_num = ir::gFuncTable[label].shape_list_.size();
       for (RegId i = 0; i < std::min(callee_param_num, 4); ++i) {
         use.push_back(i);
@@ -83,6 +81,7 @@ std::pair<std::vector<Reg *>, std::vector<Reg *>> GetDefUsePtr(Instruction *inst
   std::vector<Reg *> use;
 
   auto process_op2 = [&use](Operand2 *op2) {
+    if (nullptr == op2) return;
     if (op2->is_imm_) return;
     use.push_back(op2->reg_);
     if (nullptr != op2->shift_ && !op2->shift_->is_imm_) {

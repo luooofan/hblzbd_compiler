@@ -1,10 +1,13 @@
 #ifndef __ARM_H__
 #define __ARM_H__
+#include <cassert>
+
 #include "../include/ir_struct.h"
 
 namespace arm {
 // ref: https://en.wikipedia.org/wiki/Calling_convention#ARM_(A32)
 // ref: https://developer.arm.com/documentation/ihi0042/j/
+
 enum class ArmReg {
   // args and return value (caller saved)
   r0,
@@ -42,45 +45,31 @@ class Reg {
   explicit operator std::string() { return "r" + std::to_string(reg_id_); }
 };
 
+// TODO: 如果是RRX 不应该跟立即数或寄存器 其他移位类型立即数有相应限制
 class Shift {
  public:
   enum class OpCode {
-    // no shift, same as LSL #0
-    NONE,
-    // arithmetic right
-    ASR,
-    // logic left
-    LSL,
-    // logic right
-    LSR,
-    // rotate right
-    ROR,
-    // rotate right one bit with extend
-    RRX
+    ASR,  // arithmetic right
+    LSL,  // logic left
+    LSR,  // logic right
+    ROR,  // rotate right
+    RRX   // rotate right one bit with extend
   };
   OpCode opcode_;
   bool is_imm_;
   int shift_imm_;
   Reg* shift_reg_;
 
-  Shift()
-      : opcode_(OpCode::NONE),
-        is_imm_(true),
-        shift_imm_(0),
-        shift_reg_(nullptr) {}
-  Shift(OpCode opcode, Reg* shift_reg)
-      : opcode_(opcode), is_imm_(false), shift_reg_(shift_reg) {}
-  Shift(OpCode opcode, int shift)
-      : opcode_(opcode),
-        is_imm_(true),
-        shift_reg_(nullptr),
-        shift_imm_(shift) {}
-  bool IsNone() { return opcode_ == OpCode::NONE; }
+  Shift() : opcode_(OpCode::LSL), is_imm_(true), shift_imm_(0), shift_reg_(nullptr) {}
+  Shift(OpCode opcode, Reg* shift_reg) : opcode_(opcode), is_imm_(false), shift_reg_(shift_reg) {}
+  Shift(OpCode opcode, int shift) : opcode_(opcode), is_imm_(true), shift_reg_(nullptr), shift_imm_(shift) {}
+  bool IsNone() { return opcode_ == OpCode::LSL && is_imm_ && 0 == shift_imm_; }
   explicit operator std::string() {
+    if (IsNone()) {
+      return "";
+    }
     std::string opcode = "";
     switch (opcode_) {
-      case OpCode::NONE:
-        return "";
       case OpCode::ASR:
         opcode = "ASR";
         break;
@@ -94,38 +83,37 @@ class Shift {
         opcode = "ROR";
         break;
       case OpCode::RRX:
-        opcode = "RRX";
-        break;
+        return "RRX";
       default:
+        assert(0);
         break;
     }
     if (is_imm_) {
-      return " , " + opcode + " #" + std::to_string(shift_imm_);
+      return opcode + " #" + std::to_string(shift_imm_);
     } else {
-      return " , " + opcode + " " + std::string(*shift_reg_);
+      return opcode + " " + std::string(*shift_reg_);
     }
   }
 };
 
 // Operand2 is a flexible second operand.
 // Operand2 can be a:
-// - Constant.
-// - Register with optional shift.
+// - Constant. <imm8m>
+// - Register with optional shift. Reg {, <opsh>} or Reg, LSL/LSR/ASR/ROR Rs
 class Operand2 {
  public:
   bool is_imm_;
   int imm_num_;
   Reg* reg_;
   Shift* shift_;
-  Operand2(int imm_num)
-      : is_imm_(true), imm_num_(imm_num), reg_(nullptr), shift_(nullptr) {}
+  Operand2(int imm_num) : is_imm_(true), imm_num_(imm_num), reg_(nullptr), shift_(nullptr) {}
   Operand2(Reg* reg) : is_imm_(false), reg_(reg), shift_(nullptr) {}
   Operand2(Reg* reg, Shift* shift) : is_imm_(false), reg_(reg), shift_(shift) {}
   explicit operator std::string() {
     return is_imm_ ? ("#" + std::to_string(imm_num_))
-                   : ("" + std::string(*reg_) +
-                      (nullptr == shift_ ? "" : std::string(*shift_)));
+                   : (std::string(*reg_) + (nullptr == shift_ ? "" : ", " + std::string(*shift_)));
   }
+  static bool CheckImm8m(int imm);
 };
 
 enum class Cond {
@@ -184,21 +172,10 @@ class BinaryInst : public Instruction {
   Operand2* op2_;
 
   bool HasS() { return has_s_; }
-  BinaryInst(OpCode opcode, bool has_s, Cond cond, Reg* rd, Reg* rn,
-             Operand2* op2)
-      : Instruction(cond),
-        opcode_(opcode),
-        has_s_(has_s),
-        rd_(rd),
-        rn_(rn),
-        op2_(op2) {}
+  BinaryInst(OpCode opcode, bool has_s, Cond cond, Reg* rd, Reg* rn, Operand2* op2)
+      : Instruction(cond), opcode_(opcode), has_s_(has_s), rd_(rd), rn_(rn), op2_(op2) {}
   BinaryInst(OpCode opcode, Cond cond, Reg* rn, Operand2* op2)
-      : Instruction(cond),
-        opcode_(opcode),
-        has_s_(false),
-        rd_(nullptr),
-        rn_(rn),
-        op2_(op2) {
+      : Instruction(cond), opcode_(opcode), has_s_(false), rd_(nullptr), rn_(rn), op2_(op2) {
     // for TST TEQ CMP CMN: no rd. omit S.
   }
   virtual ~BinaryInst();
@@ -213,52 +190,51 @@ class Move : public Instruction {
   Reg* rd_;
   Operand2* op2_;
   bool HasS() { return has_s_; }
-  Move(bool has_s, Cond cond, Reg* rd, Operand2* op2)
-      : Instruction(cond), has_s_(has_s), rd_(rd), op2_(op2) {}
+  Move(bool has_s, Cond cond, Reg* rd, Operand2* op2) : Instruction(cond), has_s_(has_s), rd_(rd), op2_(op2) {}
   virtual ~Move();
   virtual void EmitCode(std::ostream& outfile = std::clog);
 };
 
-// Branch: B{L}{Cond} <label>
+// Branch: B{L}{Cond} <label> label can be "lr" or a func name or a normal label beginning with a dot.
 class Branch : public Instruction {
  public:
   std::string label_;
   bool has_l_;
   bool has_x_;
+  bool IsCall();
+  bool IsRet();
   Branch(bool has_l, bool has_x, Cond cond, std::string label)
       : Instruction(cond), has_l_(has_l), has_x_(has_x), label_(label) {}
   virtual ~Branch();
   virtual void EmitCode(std::ostream& outfile = std::clog);
 };
 
-// Load:
-// Store:
+// LoadStore: <op>/*{size}*/ rd, rn {, #<imm12>} OR rd , rn, +/- rm {, <opsh>}, i.e. a Operand2-style offset.
+//            OR a pseudo-ldr instruction: rd, =... ref: https://developer.arm.com/documentation/dui0041/c/Babbfdih
 class LdrStr : public Instruction {
  public:
   enum class OpKind { LDR, STR };
-  enum class Type { Pre, Norm, Post, PCrel };
+  enum class Type { Pre, Norm, Post, Pseudo, PCrel = Pseudo };
   OpKind opkind_;
   Type type_;
   Reg* rd_;
-  Reg* rn_;           // Base
-  Operand2* offset_;  // can be a imm, a reg, or a scaled reg(imm_shift)
+  Reg* rn_;  // Base
+  bool is_offset_imm_ = false;
+  int offset_imm_ = -1;
+  Operand2* offset_ = nullptr;  // a reg, or a scaled reg(imm_shift)
   std::string label_;
-  LdrStr(OpKind opkind, Type type, Cond cond, Reg* rd, Reg* rn,
-         Operand2* offset)
-      : Instruction(cond),
-        opkind_(opkind),
-        type_(type),
-        rd_(rd),
-        rn_(rn),
-        offset_(offset) {}
-  LdrStr(Reg* rd, std::string label)
-      : opkind_(OpKind::LDR), type_(Type::PCrel), rd_(rd), label_(label) {}
+  LdrStr(OpKind opkind, Type type, Cond cond, Reg* rd, Reg* rn, Operand2* offset)
+      : Instruction(cond), opkind_(opkind), type_(type), rd_(rd), rn_(rn), offset_(offset) {}
+  LdrStr(OpKind opkind, Type type, Cond cond, Reg* rd, Reg* rn, int offset)
+      : Instruction(cond), opkind_(opkind), type_(type), rd_(rd), rn_(rn), is_offset_imm_(true), offset_imm_(offset) {}
+  LdrStr(Reg* rd, std::string label) : opkind_(OpKind::LDR), type_(Type::Pseudo), rd_(rd), label_(label) {}
+  LdrStr(Reg* rd, int imm) : opkind_(OpKind::LDR), type_(Type::Pseudo), rd_(rd), label_(std::to_string(imm)) {}
   virtual ~LdrStr();
   virtual void EmitCode(std::ostream& outfile = std::clog);
+  static bool CheckImm12(int imm) { return (imm < 4096) && (imm > -4096); }  // -4095, +4095
 };
 
-// Push:
-// Pop:
+// PushPop: <op> <reglist>
 class PushPop : public Instruction {
  public:
   enum class OpKind { PUSH, POP };
