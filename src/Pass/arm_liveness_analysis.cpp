@@ -25,16 +25,14 @@ std::pair<std::vector<RegId>, std::vector<RegId>> GetDefUse(Instruction *inst) {
     def.push_back(src_inst->rd_->reg_id_);
     process_op2(src_inst->op2_);
   } else if (auto src_inst = dynamic_cast<Branch *>(inst)) {
-    // call可先视为对前面已经定义的参数寄存器的使用
-    // 再视作对调用者保护的寄存器的定义 不管之后这些寄存器有没有被使用
+    // call可先视为对前面已经定义的参数寄存器的使用 再视作对调用者保护的寄存器的定义 不管之后这些寄存器有没有被使用
     // caller save regs: r0-r3, lr, ip
-    // ret可视为对r0的使用 不能视为对lr的一次使用
+    // ret可视为对r0和lr的使用 但需要保证armcode是正确的 i.e. 如果前面有bl xxx指令的话 后面不能用bx lr指令返回
     // 如果b后面是个函数label就是call 如果b后面是lr就是ret
     auto &label = src_inst->label_;
-    if (label == "lr") {
-      // ret
-      assert(0);  // 暂时禁用 bx lr
+    if (src_inst->has_x_ && label == "lr") {  // bx lr
       use.push_back(static_cast<RegId>(ArmReg::r0));
+      use.push_back(static_cast<RegId>(ArmReg::lr));
     } else if (ir::gFuncTable.find(label) != ir::gFuncTable.end() || label == "__aeabi_idivmod" ||
                label == "__aeabi_idiv") {
       // TODO: 这里用到了ir 之后优化掉 可能需要一个func_name到Function*的map
@@ -80,8 +78,8 @@ std::pair<std::vector<RegId>, std::vector<RegId>> GetDefUse(Instruction *inst) {
   return {def, use};
 }
 
-std::pair<Reg *, std::vector<Reg *>> GetDefUsePtr(Instruction *inst) {
-  Reg *def;
+std::pair<std::vector<Reg *>, std::vector<Reg *>> GetDefUsePtr(Instruction *inst) {
+  std::vector<Reg *> def;
   std::vector<Reg *> use;
 
   auto process_op2 = [&use](Operand2 *op2) {
@@ -95,17 +93,21 @@ std::pair<Reg *, std::vector<Reg *>> GetDefUsePtr(Instruction *inst) {
 
   if (auto src_inst = dynamic_cast<BinaryInst *>(inst)) {
     if (nullptr != src_inst->rd_) {
-      def = (src_inst->rd_);
+      def.push_back(src_inst->rd_);
     }
     use.push_back(src_inst->rn_);
     process_op2(src_inst->op2_);
   } else if (auto src_inst = dynamic_cast<Move *>(inst)) {
-    def = (src_inst->rd_);
+    def.push_back(src_inst->rd_);
     process_op2(src_inst->op2_);
   } else if (auto src_inst = dynamic_cast<Branch *>(inst)) {
+    if (src_inst->has_x_ && src_inst->label_ == "lr") {  // bx lr 视为对r0和lr的使用
+      use.push_back(new Reg(ArmReg::r0));
+      use.push_back(new Reg(ArmReg::lr));
+    }
   } else if (auto src_inst = dynamic_cast<LdrStr *>(inst)) {
     if (src_inst->opkind_ == LdrStr::OpKind::LDR) {
-      def = (src_inst->rd_);
+      def.push_back(src_inst->rd_);
     } else {
       use.push_back(src_inst->rd_);
     }
@@ -122,13 +124,12 @@ std::pair<Reg *, std::vector<Reg *>> GetDefUsePtr(Instruction *inst) {
       for (auto reg : src_inst->reg_list_) {
         if (reg->reg_id_ == static_cast<RegId>(ArmReg::pc)) {
           // 此时作为ret语句 视为对r0的使用以及对pc的定义
-          use.push_back(reg);
+          use.push_back(new Reg(ArmReg::r0));
         }
-        def = (reg);
+        def.push_back(reg);
       }
     }
-  } else {
-    // 未实现其他指令
+  } else {  // 未实现其他指令
     assert(0);
   }
 

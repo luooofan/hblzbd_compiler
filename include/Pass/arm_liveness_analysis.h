@@ -5,7 +5,7 @@ using namespace arm;
 using RegId = int;
 
 std::pair<std::vector<RegId>, std::vector<RegId>> GetDefUse(Instruction *inst);
-std::pair<Reg *, std::vector<Reg *>> GetDefUsePtr(Instruction *inst);
+std::pair<std::vector<Reg *>, std::vector<Reg *>> GetDefUsePtr(Instruction *inst);
 
 class ArmLivenessAnalysis : public Analysis {
  public:
