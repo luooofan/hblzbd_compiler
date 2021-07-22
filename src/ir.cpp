@@ -51,7 +51,8 @@ void PrintFuncTable(std::ostream &outfile) {
 
 void SymbolTableItem::Print(std::ostream &outfile) {
   outfile << std::setw(10) << (this->is_array_ ? "√" : "×") << std::setw(10) << (this->is_const_ ? "√" : "×")
-          << std::setw(10) << this->offset_ << std::endl;
+          << std::setw(10) << this->offset_ << std::setw(10) << (this->is_arg_ ? "√" : "×") << std::setw(10)
+          << this->stack_offset_ << std::endl;
   // printf("%10s%10s%10d\n", (this->is_array_ ? "√" : "×"), (this->is_const_ ? "√" : "×"), this->offset_);
   if (this->is_array_) {
     // printf("%20s: ", "shape");
@@ -90,7 +91,7 @@ void Scope::Print(std::ostream &outfile) {
           << "  dyn_offset: " << this->dynamic_offset_ << std::endl;
   // printf("%10s%10s%10s%10s\n", "name", "is_array", "is_const", "offset");
   outfile << std::setw(10) << "name" << std::setw(10) << "is_array" << std::setw(10) << "is_const" << std::setw(10)
-          << "offset" << std::endl;
+          << "offset" << std::setw(10) << "is_arg" << std::setw(10) << "stack_offset" << std::endl;
   for (auto &symbol : this->symbol_table_) {
     // printf("%10s", symbol.first.c_str());
     outfile << std::setw(10) << symbol.first;

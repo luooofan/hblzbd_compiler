@@ -13,15 +13,22 @@ class SymbolTableItem {
  public:
   bool is_array_;
   bool is_const_;
-  int offset_;                // 函数栈中偏移(中间变量偏移为-1)
-  std::vector<int> shape_;    // int为空 否则表示数组的各个维度
-  std::vector<int> width_;    // int为空 否则表示数组的各个维度的宽度
-  std::vector<int> initval_;  // 用于记录全局变量的初始值 int为一个值
-                              // 数组则转换为一维数组存储
+  int offset_;              // 函数栈中偏移(中间变量偏移为-1) offset必须维护好
+  int stack_offset_ = 0;    // 实际在栈中的偏移 用于generate arm
+  std::vector<int> shape_;  // int为空 否则表示数组的各个维度
+  std::vector<int> width_;  // int为空 否则表示数组的各个维度的宽度
+  std::vector<int> initval_;  // 用于记录全局变量的初始值 int为一个值 // 数组则转换为一维数组存储
   SymbolTableItem(bool is_array, bool is_const, int offset)
       : is_array_(is_array), is_const_(is_const), offset_(offset) {}
   SymbolTableItem() {}
+  bool IsArg() { return is_arg_; }
+  bool IsTemp() { return -1 == offset_; }
+  void SetIsArg() { is_arg_ = true; }
+  bool IsHighArg() { return is_arg_ && offset_ > 4 * 3; }  // HighArg指参数位置>4
   void Print(std::ostream &outfile = std::clog);
+
+ private:
+  bool is_arg_ = false;
 };
 
 class FuncTableItem {
