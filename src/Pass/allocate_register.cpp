@@ -43,6 +43,7 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
   for (auto func : m->func_list_) {
     // outfile << "第" << i++ << "个函数: " << func->name_ << std::endl;
     std::set<RegId> used_callee_saved_regs;
+    int src_stack_size = func->stack_size_;
     bool done = false;
     while (!done) {
       used_callee_saved_regs.clear();
@@ -544,53 +545,66 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
       // outfile << "End." << std::endl;
       if (spilled_nodes.empty()) {
         done = true;
-      } else {  // TODO: 实际溢出
+      } else {
+        // NOTE: don't test.
         // outfile << "actual spill" << std::endl;
-        // rewrite program
-        for (auto &n : spilled_nodes) {
+        // rewrite program 会导致func的virtual reg max和stack size属性发生变化
+        for (auto &spill_reg : spilled_nodes) {
           // allocate on stack
           auto offset = func->stack_size_;
-          auto gen_offset = [&func, &offset]() {  // ldr/str with imm offset: +/-#<imm12>
-            if (offset < (1u << 12u)) {           // i.e. 4096
-              return new Operand2(offset);
-            } else {  // mov vreg, offset;
-              auto mov_inst = new Move(false, Cond::AL, new Reg(func->virtual_reg_max++), new Operand2(offset));
-            }
-          };
           for (auto bb : func->bb_list_) {
-            // generate a Load before first use, and a Store after last def
-            Instruction *first_use = nullptr;
-            Instruction *last_def = nullptr;
-            RegId vreg = -1;
-            // 对于每条指令
-            int i = 0;
-            // 找到基本块中第一次定值和使用
-            for (auto orig_inst : bb->inst_list_) {
-              auto [def, use] = GetDefUsePtr(orig_inst);
-              //   Reg *def;
-              //   std::vector<Reg *> use;
-              for (auto &d : def) {
-                if (d->reg_id_ == n) {
-                  // store
-                  if (vreg == -1) {
-                    vreg = func->virtual_reg_max++;
-                  }
-                  d->reg_id_ = vreg;
-                  last_def = orig_inst;
+            auto gen_ldrstr_inst = [&func, &offset, &bb, &spill_reg](std::vector<Instruction *>::iterator iter,
+                                                                     LdrStr::OpKind opkind) {
+              Instruction *inst;
+              if (LdrStr::CheckImm12(offset)) {
+                // NOTE: sp_vreg一定为r16
+                inst = static_cast<Instruction *>(
+                    new LdrStr(opkind, LdrStr::Type::Norm, Cond::AL, new Reg(spill_reg), new Reg(16), offset));
+                if (opkind == LdrStr::OpKind::LDR) {
+                  return bb->inst_list_.insert(iter, inst);
+                } else {
+                  return bb->inst_list_.insert(iter + 1, inst);
+                }
+              } else {
+                auto vreg = new Reg(func->virtual_reg_max++);
+                if (Operand2::CheckImm8m(offset)) {
+                  inst = static_cast<Instruction *>(new Move(false, Cond::AL, vreg, new Operand2(offset)));
+                  // } else if (offset < 0 && Operand2::CheckImm8m(-offset - 1)) {  // mvn
+                  //   assert(0);
+                  //   inst = static_cast<Instruction *>(new Move(false, Cond::AL, vreg, new Operand2(-offset - 1),
+                  //   true));
+                } else {
+                  inst = static_cast<Instruction *>(new LdrPseudo(Cond::AL, vreg, offset));
+                }
+                if (opkind == LdrStr::OpKind::LDR) {
+                  iter = bb->inst_list_.insert(iter, inst);
+                } else {
+                  iter = bb->inst_list_.insert(iter + 1, inst);
+                }
+                ++iter;
+                inst = static_cast<Instruction *>(new LdrStr(opkind, LdrStr::Type::Norm, Cond::AL, new Reg(spill_reg),
+                                                             new Reg(16), new Operand2(vreg)));
+                if (opkind == LdrStr::OpKind::LDR) {
+                  return bb->inst_list_.insert(iter, inst);
+                } else {
+                  return bb->inst_list_.insert(iter + 1, inst);
                 }
               }
+            };
+            // 找到基本块中每一次定值和使用 添加相应的ldr和str语句
+            for (auto iter = bb->inst_list_.begin(); iter != bb->inst_list_.end();) {
+              auto [def, use] = GetDefUsePtr(*iter);
               for (auto &u : use) {
-                if (u->reg_id_ == n) {
-                  // load
-                  if (vreg == -1) {
-                    vreg = func->virtual_reg_max++;
-                  }
-                  u->reg_id_ = vreg;
-                  if (!first_use && !last_def) {
-                    first_use = orig_inst;
-                  }
+                if (u->reg_id_ == spill_reg) {  // load
+                  iter = gen_ldrstr_inst(iter, LdrStr::OpKind::LDR);
                 }
               }
+              for (auto &d : def) {
+                if (d->reg_id_ == spill_reg) {  // store
+                  iter = gen_ldrstr_inst(iter, LdrStr::OpKind::STR);
+                }
+              }
+              ++iter;
             }
           }
           func->stack_size_ += 4;  // increase stack size
@@ -598,9 +612,10 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
         done = false;
       }
     }
-    // 每一个函数确定了之后 添加push pop指令 找到push语句 添加或删除 找到pop语句 添加或删除 删除自己到自己的mov指令
-    int offset_fixup_diff = used_callee_saved_regs.size() * 4;  // maybe -4
-    if (func->IsLeaf()) {                                       //原本计算有lr
+    // 每一个函数确定了之后 更改push/pop指令 更改add/sub sp sp stack_size指令 删除自己到自己的mov指令
+    int stack_size_diff = func->stack_size_ - src_stack_size;
+    int offset_fixup_diff = used_callee_saved_regs.size() * 4 + stack_size_diff;  // maybe -4
+    if (func->IsLeaf()) {                                                         //原本计算有lr
       offset_fixup_diff -= 4;
     }
     for (auto bb : func->bb_list_) {
@@ -649,14 +664,24 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
     }
     // push和pop中添加了r4-r11 或者删除了lr和sp的话 需要修复栈中实参的位置
     for (auto inst : func->sp_arg_fixup_) {
-      // assert(inst->offset_->is_imm_);
-      // inst->offset_->imm_num_ += offset_fixup_diff;
-      // TODO:
-      assert(inst->is_offset_imm_);
-      inst->offset_imm_+=offset_fixup_diff;
+      if (auto src_inst = dynamic_cast<Move *>(inst)) {
+        assert(src_inst->op2_->is_imm_);
+        if (src_inst->is_mvn_) {
+          src_inst->op2_->imm_num_ -= offset_fixup_diff;
+        } else {
+          src_inst->op2_->imm_num_ += offset_fixup_diff;
+        }
+      } else if (auto src_inst = dynamic_cast<LdrStr *>(inst)) {
+        assert(src_inst->is_offset_imm_);
+        src_inst->offset_imm_ += offset_fixup_diff;
+      } else if (auto src_inst = dynamic_cast<LdrPseudo *>(inst)) {
+        assert(src_inst->IsImm());
+        src_inst->imm_ += offset_fixup_diff;
+      } else if (auto src_inst = dynamic_cast<BinaryInst *>(inst)) {
+        assert(src_inst->op2_->is_imm_);
+        src_inst->op2_->imm_num_ += stack_size_diff;
+      }
     }
-    
-    // TODO: 地址偏移立即数过大处理
 
   }  // end of func loop
 }
