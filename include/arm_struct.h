@@ -18,6 +18,7 @@ class ArmModule : public Module {
  public:
   ArmModule(const std::string& name, ir::Scope& global_scope) : Module(name, global_scope) {}
   ArmModule(ir::Scope& global_scope) : Module(global_scope) {}
+  virtual ~ArmModule() {}
   void EmitCode(std::ostream& out = std::cout);
 };
 
@@ -31,6 +32,7 @@ class ArmFunction : public Function {
   std::vector<Instruction*> sp_fixup_;
 
   ArmFunction(const std::string& name, int arg_num, int stack_size) : Function(name, arg_num, stack_size) {}
+  virtual ~ArmFunction() {}
   bool IsLeaf() { return call_func_list_.empty(); }
   void EmitCode(std::ostream& out = std::cout);
 };
@@ -52,6 +54,7 @@ class ArmBasicBlock : public BasicBlock {
 
   ArmBasicBlock() : label_(nullptr) {}
   ArmBasicBlock(std::string* label) : label_(label) {}
+  virtual ~ArmBasicBlock() {}
 
   bool HasLabel() { return nullptr != label_; }
   void EmitCode(std::ostream& out = std::cout);

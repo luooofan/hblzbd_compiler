@@ -798,18 +798,8 @@ void FunctionActualParameterList::GenerateIR(ir::ContextInfo &ctx) {}
 //  4.对操作数是立即数的情况做了简化处理
 // 导致代码量过多
 void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
-  bool lhs_is_cond = false;
-  bool rhs_is_cond = false;
-  try {
-    dynamic_cast<ConditionExpression &>(this->lhs_);
-    lhs_is_cond = true;
-  } catch (std::bad_cast &e) {
-  }
-  try {
-    dynamic_cast<ConditionExpression &>(this->rhs_);
-    rhs_is_cond = true;
-  } catch (std::bad_cast &e) {
-  }
+  bool lhs_is_cond = nullptr != dynamic_cast<ConditionExpression *>(&this->lhs_);
+  bool rhs_is_cond = nullptr != dynamic_cast<ConditionExpression *>(&this->rhs_);
 
   std::string &true_label = ctx.true_label_.top();
   std::string &false_label = ctx.false_label_.top();

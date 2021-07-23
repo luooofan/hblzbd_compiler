@@ -90,7 +90,7 @@ class Opn {
   // Opn Type: Array
   Opn(Type type, std::string name, int scope_id, Opn *offset)
       : type_(type), name_(name), scope_id_(scope_id), offset_(offset) {}
-  Opn() {}
+  Opn() : type_(Type::Null), name_("-"), offset_(nullptr) { scope_id_ = -1; }
 };
 
 class IR {
@@ -122,9 +122,9 @@ class IR {
   OpKind op_;
   Opn opn1_, opn2_, res_;
   IR(OpKind op, Opn opn1, Opn opn2, Opn res) : op_(op), opn1_(opn1), opn2_(opn2), res_(res) {}
-  IR(OpKind op, Opn opn1, Opn res) : op_(op), opn1_(opn1), opn2_({Opn::Type::Null}), res_(res) {}
-  IR(OpKind op, Opn opn1) : op_(op), opn1_(opn1), opn2_({Opn::Type::Null}), res_({Opn::Type::Null}) {}
-  IR(OpKind op) : op_(op), opn1_({Opn::Type::Null}), opn2_({Opn::Type::Null}), res_({Opn::Type::Null}) {}
+  IR(OpKind op, Opn opn1, Opn res) : op_(op), opn1_(opn1), res_(res) {}
+  IR(OpKind op, Opn opn1) : op_(op), opn1_(opn1) {}
+  IR(OpKind op) : op_(op) {}
   IR() {}
   void PrintIR(std::ostream &outfile = std::clog);
 };
@@ -154,7 +154,7 @@ class ContextInfo {
   // Used for ArrayIdentifier []=
   bool is_assigned_ = false;
 
-  ContextInfo() : opn_({Opn::Type::Null}), scope_id_(0) {}
+  ContextInfo() : scope_id_(0) {}
 };
 
 extern Scopes gScopes;
