@@ -429,8 +429,9 @@ LAndExp: EqExp
     ;
 
 LOrExp: LAndExp {
-    // NOTE: ($1 || 0)
-    $$ = static_cast<ast::Expression*>(new ast::ConditionExpression(yyget_lineno(), OR, *$1, *(new ast::Number(yyget_lineno(), 0))));
+    if(auto ptr=dynamic_cast<ast::ConditionExpression*>($1)){ $$ = $1; }
+    else{// NOTE: ($1 || 0)
+        $$ = static_cast<ast::Expression*>(new ast::ConditionExpression(yyget_lineno(), OR, *$1, *(new ast::Number(yyget_lineno(), 0)))); }
 }
     | LOrExp OR LAndExp {
         $$=static_cast<ast::Expression*>(new ast::ConditionExpression(yyget_lineno(), $2,*$1,*$3));

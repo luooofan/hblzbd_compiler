@@ -511,8 +511,8 @@ static const yytype_uint16 yyrline[] =
      323,   327,   333,   340,   343,   349,   352,   355,   358,   363,
      366,   369,   374,   375,   378,   383,   386,   391,   395,   401,
      402,   407,   408,   413,   414,   419,   420,   425,   426,   431,
-     435,   440,   445,   450,   451,   454,   455,   456,   457,   460,
-     461,   464,   465,   466,   469,   470,   471
+     436,   441,   446,   451,   452,   455,   456,   457,   458,   461,
+     462,   465,   466,   467,   470,   471,   472
 };
 #endif
 
@@ -1974,38 +1974,39 @@ yyreduce:
   case 89:
 #line 431 "src/parser.y" /* yacc.c:1652  */
     {
-    // NOTE: ($1 || 0)
-    (yyval.expr) = static_cast<ast::Expression*>(new ast::ConditionExpression(yyget_lineno(), OR, *(yyvsp[0].expr), *(new ast::Number(yyget_lineno(), 0))));
+    if(auto ptr=dynamic_cast<ast::ConditionExpression*>((yyvsp[0].expr))){ (yyval.expr) = (yyvsp[0].expr); }
+    else{// NOTE: ($1 || 0)
+        (yyval.expr) = static_cast<ast::Expression*>(new ast::ConditionExpression(yyget_lineno(), OR, *(yyvsp[0].expr), *(new ast::Number(yyget_lineno(), 0)))); }
 }
-#line 1981 "src/parser.cpp" /* yacc.c:1652  */
+#line 1982 "src/parser.cpp" /* yacc.c:1652  */
     break;
 
   case 90:
-#line 435 "src/parser.y" /* yacc.c:1652  */
+#line 436 "src/parser.y" /* yacc.c:1652  */
     {
         (yyval.expr)=static_cast<ast::Expression*>(new ast::ConditionExpression(yyget_lineno(), (yyvsp[-1].token),*(yyvsp[-2].expr),*(yyvsp[0].expr)));
     }
-#line 1989 "src/parser.cpp" /* yacc.c:1652  */
+#line 1990 "src/parser.cpp" /* yacc.c:1652  */
     break;
 
   case 91:
-#line 440 "src/parser.y" /* yacc.c:1652  */
+#line 441 "src/parser.y" /* yacc.c:1652  */
     {
     (yyval.ident)=new ast::Identifier(yyget_lineno(), *(yyvsp[0].string));
 }
-#line 1997 "src/parser.cpp" /* yacc.c:1652  */
+#line 1998 "src/parser.cpp" /* yacc.c:1652  */
     break;
 
   case 92:
-#line 445 "src/parser.y" /* yacc.c:1652  */
+#line 446 "src/parser.y" /* yacc.c:1652  */
     {
     (yyval.number)=new ast::Number(yyget_lineno(), (yyvsp[0].token));
 }
-#line 2005 "src/parser.cpp" /* yacc.c:1652  */
+#line 2006 "src/parser.cpp" /* yacc.c:1652  */
     break;
 
 
-#line 2009 "src/parser.cpp" /* yacc.c:1652  */
+#line 2010 "src/parser.cpp" /* yacc.c:1652  */
       default: break;
     }
   /* User semantic actions sometimes alter yychar, and that requires
@@ -2236,4 +2237,4 @@ yyreturn:
 #endif
   return yyresult;
 }
-#line 474 "src/parser.y" /* yacc.c:1918  */
+#line 475 "src/parser.y" /* yacc.c:1918  */

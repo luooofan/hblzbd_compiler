@@ -798,6 +798,7 @@ void FunctionActualParameterList::GenerateIR(ir::ContextInfo &ctx) {}
 //  4.对操作数是立即数的情况做了简化处理
 // 导致代码量过多
 void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
+  // this->PrintNode(0, std::clog);
   bool lhs_is_cond = nullptr != dynamic_cast<ConditionExpression *>(&this->lhs_);
   bool rhs_is_cond = nullptr != dynamic_cast<ConditionExpression *>(&this->rhs_);
 
@@ -829,6 +830,7 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
   auto gen_ir = [&ctx](Expression &hs) { hs.GenerateIR(ctx); };
 
   if (lhs_is_cond && rhs_is_cond) {
+    // std::clog << "t t:" << true_label << " " << false_label << std::endl;
     // lhs_和rhs_都是CondExp
     switch (this->op_) {
       case AND: {
@@ -937,6 +939,7 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
       }
     }
   } else if (lhs_is_cond && !rhs_is_cond) {
+    // std::clog << "t f:" << true_label << " " << false_label << std::endl;
     switch (this->op_) {
       case AND: {
         if ("null" != false_label) {
@@ -1090,6 +1093,7 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
       }
     }
   } else if (!lhs_is_cond && rhs_is_cond) {
+    // std::clog << "f t:" << true_label << " " << false_label << std::endl;
     gen_ir(this->lhs_);
     CHECK_OPN_INT("condexp lhs exp");
     ir::Opn lhs_opn = ctx.opn_;
@@ -1216,6 +1220,7 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
       }
     }
   } else {
+    // std::clog << "f f:" << true_label << " " << false_label << std::endl;
     // lhs_和rhs_都不是CondExp
     gen_ir(this->lhs_);
     CHECK_OPN_INT("condexp lhs exp");
