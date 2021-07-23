@@ -11,7 +11,7 @@ if __name__ == '__main__':
   parser.add_argument("test_path", type=str, help="the path of the test cases. can be glob style.")
   parser.add_argument("-r", "--run", help="run the executable files.", action="store_true")
   parser.add_argument("-v", "--verbose", help="print compile time and/or exec time for every test case.", action="store_true")
-  parser.add_argument("-L", "--linked_library_path.", type=str, help="the path of the linked library", default=".")
+  parser.add_argument("-L", "--linked_library_path", type=str, help="the path of the linked library.", default=".")
   args = parser.parse_args()
 
   CompilerPath = './compiler'
