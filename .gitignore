@@ -10,9 +10,9 @@ test/*
 !test/test_*.sy
 docs/
 # .gitignore
-src/parser.cpp
-src/parser.hpp
-src/scanner.c
+# src/parser.cpp
+# src/parser.hpp
+# src/scanner.c
 src/struct.h
 src/asm.cpp
 src/main2.cpp
@@ -24,4 +24,4 @@ official_test/
 *.s
 temp*
 libsysy*
-*.c
+/test*
