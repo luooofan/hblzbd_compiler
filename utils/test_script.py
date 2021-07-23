@@ -9,8 +9,9 @@ import argparse
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description='Automaticly test')
   parser.add_argument("test_path", type=str, help="the path of the test cases. can be glob style.")
-  parser.add_argument("-L", "--linked_library_path", type=str, help="the path of the linked library", default=".")
-  parser.add_argument("-v", "--verbose", help="print compile time and exec time for every test case.", action="store_true")
+  parser.add_argument("-r", "--run", help="run the executable files.", action="store_true")
+  parser.add_argument("-v", "--verbose", help="print compile time and/or exec time for every test case.", action="store_true")
+  parser.add_argument("-L", "--linked_library_path.", type=str, help="the path of the linked library", default=".")
   args = parser.parse_args()
 
   CompilerPath = './compiler'
@@ -64,46 +65,50 @@ if __name__ == '__main__':
     link_time = (time_end - time_start) # s
     # print("{:10s}:{:.6f}s".format("link time",link_time))
 
-    # Exec
-    exec_cmd = f"{exec_file}"
-    if path.exists(stdin_file):
-      stdin = open(stdin_file, 'r')
+    if not args.run:
+      bug_num-=1
+      print("{:10s}:{}".format("status","OK!"))
     else:
-      stdin = None
-    subp = subprocess.Popen(exec_cmd.split(), bufsize=0, stdin=stdin, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding='utf-8')
-    exec_out, exec_err = subp.communicate()
-    ret_code = subp.returncode
-    exec_time = (re.search("[0-9]+H.*us",exec_err))
-    if exec_time != None:
-      exec_time=exec_time.group()
-    if args.verbose:
-      print("{:10s}:{}".format("exec time",exec_time))
+      # Exec
+      exec_cmd = f"{exec_file}"
+      if path.exists(stdin_file):
+        stdin = open(stdin_file, 'r')
+      else:
+        stdin = None
+      subp = subprocess.Popen(exec_cmd.split(), bufsize=0, stdin=stdin, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding='utf-8')
+      exec_out, exec_err = subp.communicate()
+      ret_code = subp.returncode
+      exec_time = (re.search("[0-9]+H.*us",exec_err))
+      if exec_time != None:
+        exec_time=exec_time.group()
+      if args.verbose:
+        print("{:10s}:{}".format("exec time",exec_time))
 
-    # Exec output
-    exec_out_list = exec_out.split()
-    exec_out_list.append(str(ret_code))
-    # print(exec_out_list)
+      # Exec output
+      exec_out_list = exec_out.split()
+      exec_out_list.append(str(ret_code))
+      # print(exec_out_list)
 
-    # Status
-    status=""
-    if not path.exists(stdout_file):
-      print("{:10s}:{}".format("exec out", exec_out_list))
-      print("output file not exist.")
-      continue
-    else:
-      # Standard output
-      with open(stdout_file, "r") as f:
-        stdout_list = f.read().split()
-        # print(stdout_list)
-        if exec_out_list == stdout_list:
-          status="OK!"
-          bug_num-=1
-        else:
-          status="ERROR!!!"
-          print("{:10s}:{}".format("std out", stdout_list))
-          print("{:10s}:{}".format("exec out", exec_out_list))
-          # print("{:10s}:{}".format("exec err", exec_err))
-    print("{:10s}:{}".format("status",status))
+      # Status
+      status=""
+      if not path.exists(stdout_file):
+        print("{:10s}:{}".format("exec out", exec_out_list))
+        print("output file not exist.")
+        continue
+      else:
+        # Standard output
+        with open(stdout_file, "r") as f:
+          stdout_list = f.read().split()
+          # print(stdout_list)
+          if exec_out_list == stdout_list:
+            status="OK!"
+            bug_num-=1
+          else:
+            status="ERROR!!!"
+            print("{:10s}:{}".format("std out", stdout_list))
+            print("{:10s}:{}".format("exec out", exec_out_list))
+            # print("{:10s}:{}".format("exec err", exec_err))
+      print("{:10s}:{}".format("status",status))
     print()
     
   print("{:10s}:{}".format("bug num",bug_num))
