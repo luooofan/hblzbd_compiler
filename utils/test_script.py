@@ -9,8 +9,8 @@ import argparse
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description='Automaticly test')
   parser.add_argument("test_path", type=str, help="the path of the test cases. can be glob style.")
-  parser.add_argument("-r", "--run", help="run the executable files.", action="store_true")
-  parser.add_argument("-v", "--verbose", help="print compile time and/or exec time for every test case.", action="store_true")
+  parser.add_argument("-r", "--run", help="link the asm files and run the executable files.", action="store_true")
+  parser.add_argument("-v", "--verbose", help="print compile time and/or(depend on the option [-r]) exec time for every test case.", action="store_true")
   parser.add_argument("-L", "--linked_library_path", type=str, help="the path of the linked library.", default=".")
   args = parser.parse_args()
 
@@ -55,20 +55,20 @@ if __name__ == '__main__':
     if args.verbose:
       print("{:10s}:{:.6f}s".format("compile tm",compile_time))
 
-    # GCC Link
-    link_cmd = f"gcc -o {exec_file} {GccArgs} {asm_file}"
-    time_start = time.time()
-    if subprocess.call(link_cmd.split()) != 0:
-      print("link failed.")
-      continue
-    time_end = time.time()
-    link_time = (time_end - time_start) # s
-    # print("{:10s}:{:.6f}s".format("link time",link_time))
-
     if not args.run:
       bug_num-=1
       print("{:10s}:{}".format("status","OK!"))
     else:
+      # GCC Link
+      link_cmd = f"gcc -o {exec_file} {GccArgs} {asm_file}"
+      time_start = time.time()
+      if subprocess.call(link_cmd.split()) != 0:
+        print("link failed.")
+        continue
+      time_end = time.time()
+      link_time = (time_end - time_start) # s
+      # print("{:10s}:{:.6f}s".format("link time",link_time))
+
       # Exec
       exec_cmd = f"{exec_file}"
       if path.exists(stdin_file):

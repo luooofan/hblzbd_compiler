@@ -16,7 +16,7 @@ make -j
 
 ## Test
 
-**Usage: test_script.py [-h] [-r] [-v] [-L LINKED_LIBRARY_PATH.] test_path**
+**Usage: test_script.py [-h] [-r] [-v] [-L LINKED_LIBRARY_PATH] test_path**
 
 ```shell
 python3 ./utils/test_script.py "./official_test/functional_test/*.sy" -r
