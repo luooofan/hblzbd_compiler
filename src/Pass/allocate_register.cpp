@@ -4,7 +4,7 @@
 using namespace arm;
 
 #define IS_PRECOLORED(i) (i < 16)
-// #define ASSERT_ENABLE
+#define ASSERT_ENABLE
 // assert(res);
 #ifdef ASSERT_ENABLE
 #define MyAssert(res)                                                    \
@@ -675,17 +675,17 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
     // push和pop中添加了r4-r11 或者删除了lr和sp的话 需要修复栈中实参的位置
     for (auto inst : func->sp_arg_fixup_) {
       if (auto src_inst = dynamic_cast<Move *>(inst)) {
-        MyAssert(src_inst->op2_->is_imm_);
+        // MyAssert(src_inst->op2_->is_imm_);
         if (src_inst->is_mvn_) {
           src_inst->op2_->imm_num_ -= offset_fixup_diff;
         } else {
           src_inst->op2_->imm_num_ += offset_fixup_diff;
         }
       } else if (auto src_inst = dynamic_cast<LdrStr *>(inst)) {
-        MyAssert(src_inst->is_offset_imm_);
+        // MyAssert(src_inst->is_offset_imm_);
         src_inst->offset_imm_ += offset_fixup_diff;
       } else if (auto src_inst = dynamic_cast<LdrPseudo *>(inst)) {
-        MyAssert(src_inst->IsImm());
+        // MyAssert(src_inst->IsImm());
         src_inst->imm_ += offset_fixup_diff;
       } else {
         MyAssert(0);
