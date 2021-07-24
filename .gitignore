@@ -23,7 +23,6 @@ arm_code.s
 official_test/
 *.s
 temp*
-libsysy*
 /test*
 *.zip
 *_test/
