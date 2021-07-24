@@ -556,6 +556,7 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
       if (spilled_nodes.empty()) {
         done = true;
       } else {
+        MyAssert(0);
         // NOTE: don't test.
         // outfile << "actual spill" << std::endl;
         // rewrite program 会导致func的virtual reg max和stack size属性发生变化
