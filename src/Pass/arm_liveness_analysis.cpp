@@ -72,7 +72,7 @@ std::pair<std::vector<RegId>, std::vector<RegId>> GetDefUse(Instruction *inst) {
   } else {  // 未实现其他指令
     // assert(0);
     if (1) {
-      std::cout << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
+      std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
       exit(1);
     }
   }
@@ -135,7 +135,7 @@ std::pair<std::vector<Reg *>, std::vector<Reg *>> GetDefUsePtr(Instruction *inst
   } else {  // 未实现其他指令
     // assert(0);
     if (1) {
-      std::cout << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
+      std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
       exit(1);
     }
   }
@@ -204,7 +204,7 @@ void ArmLivenessAnalysis::Run() {
   auto m = dynamic_cast<ArmModule *>(*(this->m_));
   // assert(nullptr != m);
   if (nullptr == m) {
-    std::cout << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
+    std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
     exit(1);
   }
   for (auto func : m->func_list_) {

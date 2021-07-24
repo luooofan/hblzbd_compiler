@@ -147,7 +147,7 @@ void LdrStr::EmitCode(std::ostream& outfile) {
     default: {
       // assert(0);
       if (1) {
-        std::cout << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
+        std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
         exit(1);
       }
       break;
@@ -176,7 +176,7 @@ PushPop::~PushPop() {}
 void PushPop::EmitCode(std::ostream& outfile) {
   // assert(!this->reg_list_.empty());
   if (this->reg_list_.empty()) {
-    std::cout << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
+    std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
     exit(1);
   }
   std::string opcode = this->opkind_ == OpKind::PUSH ? "push" : "pop";

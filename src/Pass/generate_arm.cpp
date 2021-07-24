@@ -109,7 +109,7 @@ void GenerateArm::AddEpilogue(ArmBasicBlock* armbb) {
 Reg* GenerateArm::LoadGlobalOpn2Reg(ArmBasicBlock* armbb, ir::Opn* opn) {
   // assert(0 == opn->scope_id_);
   if (0 != opn->scope_id_) {
-    std::cout << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
+    std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
     exit(1);
   }
   // 如果是全局变量就要重新ldr
@@ -188,7 +188,7 @@ void GenerateArm::ResolveResOpn2RdReg(ArmBasicBlock* armbb, ir::Opn* opn, Callab
   // 只能是Var类型 Assign不调用此函数
   // assert(opn->type_ == ir::Opn::Type::Var);
   if (opn->type_ != ir::Opn::Type::Var) {
-    std::cout << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
+    std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
     exit(1);
   }
   Reg* rd = nullptr;
@@ -226,7 +226,7 @@ void GenerateArm::ChangeOffset(std::string& func_name) {
   const auto& iter = ir::gFuncTable.find(func_name);
   // assert(iter != ir::gFuncTable.end());
   if (iter == ir::gFuncTable.end()) {
-    std::cout << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
+    std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
     exit(1);
   }
   int func_scope_id = iter->second.scope_id_;
@@ -284,7 +284,7 @@ void GenerateArm::AddPrologue(ArmFunction* func, ArmBasicBlock* first_bb) {
 void GenerateArm::GenCallCode(ArmBasicBlock* armbb, ir::IR& ir, int loc) {
   // assert(ir.opn1_.type_ == ir::Opn::Type::Func);
   if (ir.opn1_.type_ != ir::Opn::Type::Func) {
-    std::cout << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
+    std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
     exit(1);
   }
   // 处理param语句
@@ -531,7 +531,7 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
           case ir::IR::OpKind::LABEL: {  // 所有label语句都应该已经被跳过
                                          // assert(0);
             if (1) {
-              std::cout << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
+              std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
               exit(1);
             }
             break;
@@ -564,7 +564,7 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
           case ir::IR::OpKind::GOTO: {  // B label
                                         // assert(ir.opn1_.type_ == ir::Opn::Type::Label);
             if (ir.opn1_.type_ != ir::Opn::Type::Label) {
-              std::cout << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
+              std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
               exit(1);
             }
             armbb->inst_list_.push_back(static_cast<Instruction*>(new Branch(false, false, Cond::AL, ir.opn1_.name_)));
@@ -576,7 +576,7 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
             // 但是只有assign语句的rd可能是Array类型
             // assert(ir.opn2_.type_ == ir::Opn::Type::Null);
             if (ir.opn2_.type_ != ir::Opn::Type::Null) {
-              std::cout << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
+              std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
               exit(1);
             }
             Operand2* op2 = ResolveOpn2Operand2(armbb, &(ir.opn1_));
@@ -619,7 +619,7 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
             // (=[], array, -, temp-res) res一定是中间变量
             // assert(ir.opn2_.type_ == ir::Opn::Type::Null);
             if (ir.opn2_.type_ != ir::Opn::Type::Null) {
-              std::cout << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
+              std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
               exit(1);
             }
             Reg* rbase = nullptr;
@@ -655,7 +655,7 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
           case ir::IR::OpKind::JGE: {
             // assert(ir.res_.type_ == ir::Opn::Type::Label);
             if (ir.res_.type_ != ir::Opn::Type::Label) {
-              std::cout << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
+              std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
               exit(1);
             }
             // CMP rn op2; BEQ label;
@@ -673,7 +673,7 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
           case ir::IR::OpKind::VOID: {
             // assert(0);
             if (1) {
-              std::cout << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
+              std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
               exit(1);
             }
             break;
@@ -681,7 +681,7 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
           default: {
             // assert(0);
             if (1) {
-              std::cout << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
+              std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
               exit(1);
             }
             break;
@@ -718,7 +718,7 @@ void GenerateArm::Run() {
   auto m = dynamic_cast<IRModule*>(*(this->m_));
   // assert(nullptr != m);
   if (nullptr == m) {
-    std::cout << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
+    std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
     exit(1);
   }
   auto arm_m = this->GenCode(m);
