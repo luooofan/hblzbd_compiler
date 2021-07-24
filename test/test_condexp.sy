@@ -1,39 +1,43 @@
 int main()
 {
+    int a;
+    int b;
+    int c;
+    int d;
     //左右都是condexp
-    if(1<2 && 3>=4){
+    if(a<b && c>=d){
         int then1;
-		then1=1;
+		then1=a;
     }
     int next1;
-	next1=1;
-    if(1<2 || 3>=4){
+	next1=a;
+    if(a<b || c>=d){
         int then2;
-		then2=2;
+		then2=b;
     }
     int next2;
-	next2=2;
-    if(1<2 == 3>=4){
+	next2=b;
+    if(a<b == c>=d){
         int then3;
-		then3=3;
+		then3=c;
     }
     int next3;
-	next3=3;
+	next3=c;
 
     //左condexp右exp
-    if(1<2 && 3+4){
+    if(a<b && c+d){
         int then4;
-		then4=4;
+		then4=d;
     }
     int next4;
-	next4=4;
-    if(1<2 || 3+4){
+	next4=d;
+    if(a<b || c+d){
         int then5;
 		then5=5;
     }
     int next5;
 	next5=5;
-    if(1<2 == 3+4){
+    if(a<b == c+d){
         int then6;
 		then6=6;
     }
@@ -41,21 +45,21 @@ int main()
 	next6=6;
 
     //左exp右condexp
-    if(3+4 && 1<2){
+    if(c+d && a<b){
         int then7;
 		then7=7;
     }
     int next7;
 	next7=7;
 
-    if(3+4 || 1<2){
+    if(c+d || a<b){
         int then8;
 		then8=8;
     }
     int next8;
 	next8=8;
 
-    if(3+4 == 1<2){
+    if(c+d == a<b){
         int then9;
 		then9=9;
     }
@@ -64,21 +68,21 @@ int main()
 
 
     //左右都是exp
-    if(1-2 && 3+4){
+    if(a-b && c+d){
         int then10;
 		then10=10;
     }
     int next10;
 	next10=10;
 
-    if(1-2 || 3+4){
+    if(a-b || c+d){
         int then11;
 		then11=11;
     }
     int next11;
 	next11=11;
 
-    if(1-2 == 3+4){
+    if(a-b == c+d){
         int then12;
 		then12=12;
     }
@@ -91,90 +95,90 @@ int main()
 
 // IRList:
 // (     label,      main,         -,         -)
-// (       jge,        #1,        #2,    label0)
-// (       jlt,        #3,        #4,    label0)
-// (    assign,        #1,         -,     then1)
+// (       jge,        #a,        #b,    label0)
+// (       jlt,        #c,        #d,    label0)
+// (    assign,        #a,         -,     then1)
 // (     label,    label0,         -,         -)
-// (    assign,        #1,         -,     next1)
-// (       jlt,        #1,        #2,    label2)
-// (       jlt,        #3,        #4,    label1)
+// (    assign,        #a,         -,     next1)
+// (       jlt,        #a,        #b,    label2)
+// (       jlt,        #c,        #d,    label1)
 // (     label,    label2,         -,         -)
-// (    assign,        #2,         -,     then2)
+// (    assign,        #b,         -,     then2)
 // (     label,    label1,         -,         -)
-// (    assign,        #2,         -,     next2)
+// (    assign,        #b,         -,     next2)
 // (    assign,        #0,         -,    temp-0)
-// (       jge,        #1,        #2,    label4)
-// (    assign,        #1,         -,    temp-0)
+// (       jge,        #a,        #b,    label4)
+// (    assign,        #a,         -,    temp-0)
 // (     label,    label4,         -,         -)
-// (    assign,        #0,         -,    temp-1)
-// (       jlt,        #3,        #4,    label5)
-// (    assign,        #1,         -,    temp-1)
+// (    assign,        #0,         -,    temp-a)
+// (       jlt,        #c,        #d,    label5)
+// (    assign,        #a,         -,    temp-a)
 // (     label,    label5,         -,         -)
-// (       jne,    temp-0,    temp-1,    label3)
-// (    assign,        #3,         -,     then3)
+// (       jne,    temp-0,    temp-a,    label3)
+// (    assign,        #c,         -,     then3)
 // (     label,    label3,         -,         -)
-// (    assign,        #3,         -,     next3)
-// (       jge,        #1,        #2,    label6)
-// (       add,        #3,        #4,    temp-2)
-// (       jeq,    temp-2,        #0,    label6)
-// (    assign,        #4,         -,     then4)
+// (    assign,        #c,         -,     next3)
+// (       jge,        #a,        #b,    label6)
+// (       add,        #c,        #d,    temp-b)
+// (       jeq,    temp-b,        #0,    label6)
+// (    assign,        #d,         -,     then4)
 // (     label,    label6,         -,         -)
-// (    assign,        #4,         -,     next4)
-// (       jlt,        #1,        #2,    label8)
-// (       add,        #3,        #4,    temp-3)
-// (       jeq,    temp-3,        #0,    label7)
+// (    assign,        #d,         -,     next4)
+// (       jlt,        #a,        #b,    label8)
+// (       add,        #c,        #d,    temp-c)
+// (       jeq,    temp-c,        #0,    label7)
 // (     label,    label8,         -,         -)
 // (    assign,        #5,         -,     then5)
 // (     label,    label7,         -,         -)
 // (    assign,        #5,         -,     next5)
-// (    assign,        #0,         -,    temp-4)
-// (       jge,        #1,        #2,   label10)
-// (    assign,        #1,         -,    temp-4)
+// (    assign,        #0,         -,    temp-d)
+// (       jge,        #a,        #b,   label10)
+// (    assign,        #a,         -,    temp-d)
 // (     label,   label10,         -,         -)
-// (       add,        #3,        #4,    temp-5)
-// (       jne,    temp-4,    temp-5,    label9)
+// (       add,        #c,        #d,    temp-5)
+// (       jne,    temp-d,    temp-5,    label9)
 // (    assign,        #6,         -,     then6)
 // (     label,    label9,         -,         -)
 // (    assign,        #6,         -,     next6)
-// (       add,        #3,        #4,    temp-6)
+// (       add,        #c,        #d,    temp-6)
 // (       jeq,    temp-6,        #0,   label11)
-// (       jge,        #1,        #2,   label11)
+// (       jge,        #a,        #b,   label11)
 // (    assign,        #7,         -,     then7)
 // (     label,   label11,         -,         -)
 // (    assign,        #7,         -,     next7)
-// (       add,        #3,        #4,    temp-7)
+// (       add,        #c,        #d,    temp-7)
 // (       jne,    temp-7,        #0,   label13)
-// (       jge,        #1,        #2,   label12)
+// (       jge,        #a,        #b,   label12)
 // (     label,   label13,         -,         -)
 // (    assign,        #8,         -,     then8)
 // (     label,   label12,         -,         -)
 // (    assign,        #8,         -,     next8)
-// (       add,        #3,        #4,    temp-8)
+// (       add,        #c,        #d,    temp-8)
 // (    assign,        #0,         -,    temp-9)
-// (       add,        #3,        #4,   temp-10)
-// (    assign,        #1,         -,    temp-9)
+// (       add,        #c,        #d,   temp-10)
+// (    assign,        #a,         -,    temp-9)
 // (     label,   label15,         -,         -)
 // (       jne,    temp-8,    temp-9,   label14)
 // (    assign,        #9,         -,     then9)
 // (     label,   label14,         -,         -)
 // (    assign,        #9,         -,     next9)
-// (       sub,        #1,        #2,   temp-11)
+// (       sub,        #a,        #b,   temp-11)
 // (       jeq,   temp-11,        #0,   label16)
-// (       add,        #3,        #4,   temp-12)
+// (       add,        #c,        #d,   temp-12)
 // (       jeq,   temp-12,        #0,   label16)
 // (    assign,       #10,         -,    then10)
 // (     label,   label16,         -,         -)
 // (    assign,       #10,         -,    next10)
-// (       sub,        #1,        #2,   temp-13)
+// (       sub,        #a,        #b,   temp-13)
 // (       jne,   temp-13,        #0,   label18)
-// (       add,        #3,        #4,   temp-14)
+// (       add,        #c,        #d,   temp-14)
 // (       jeq,   temp-14,        #0,   label17)
 // (     label,   label18,         -,         -)
 // (    assign,       #11,         -,    then11)
 // (     label,   label17,         -,         -)
 // (    assign,       #11,         -,    next11)
-// (       sub,        #1,        #2,   temp-15)
-// (       add,        #3,        #4,   temp-16)
+// (       sub,        #a,        #b,   temp-15)
+// (       add,        #c,        #d,   temp-16)
 // (       jne,   temp-15,   temp-16,   label19)
 // (    assign,       #12,         -,    then12)
 // (     label,   label19,         -,         -)

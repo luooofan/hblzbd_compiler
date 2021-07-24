@@ -40,6 +40,7 @@ if __name__ == '__main__':
     filename_noext, _=path.splitext(filename)
     asm_file = OutputFolder+"/"+filename_noext+".s"
     exec_file = OutputFolder+"/"+filename_noext+".o"
+    log_file = OutputFolder+"/"+filename_noext+".log"
     stdin_file = filepath_noext+".in"
     stdout_file = filepath_noext+".out"
 
@@ -47,7 +48,7 @@ if __name__ == '__main__':
 
     # Compile
     time_start = time.time()
-    if subprocess.call(f"{CompilerPath} {file} -o {asm_file} {CompileArgs}".split()) != 0:
+    if subprocess.call(f"{CompilerPath} {file} -o {asm_file} {CompileArgs} -l {log_file}".split()) != 0:
       print("compile failed.")
       continue
     time_end = time.time()

@@ -25,3 +25,6 @@ official_test/
 temp*
 libsysy*
 /test*
+*.zip
+*_test/
+*_out/

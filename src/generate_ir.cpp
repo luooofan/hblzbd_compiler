@@ -301,22 +301,24 @@ void FunctionCall::GenerateIR(ir::ContextInfo &ctx) {
   // for (int i = args_.arg_list_.size() - 1; i >= 0; --i) {
   for (int i = 0; i < args_.arg_list_.size(); ++i) {
     args_.arg_list_[i]->GenerateIR(ctx);
-    if (ctx.shape_.size() != func_item.shape_list_[i].size()) {
-      // std::cerr << ctx.shape_.size() << ' ' << func_item.shape_list_[i].size() << std::endl;
-      ir::SemanticError(line_no_, "函数调用参数类型不匹配");
-      return;
-    } else {
-      for (int j = 1; j < ctx.shape_.size(); j++) {
-        if (ctx.shape_[j] != func_item.shape_list_[i][j]) {
-          ir::SemanticError(line_no_, "函数调用参数类型不匹配");
-          return;
+    if (name_.name_ != "putarray") {  // NOTE: putarray不检查参数的合法性
+      if (ctx.shape_.size() != func_item.shape_list_[i].size()) {
+        // std::cerr << ctx.shape_.size() << ' ' << func_item.shape_list_[i].size() << std::endl;
+        ir::SemanticError(line_no_, "函数调用参数类型不匹配");
+        return;
+      } else {
+        for (int j = 1; j < ctx.shape_.size(); j++) {
+          if (ctx.shape_[j] != func_item.shape_list_[i][j]) {
+            ir::SemanticError(line_no_, "函数调用参数类型不匹配");
+            return;
+          }
         }
       }
     }
 
     ir::SymbolTableItem *s = nullptr;
     int scope_id = ir::FindSymbol(ctx.scope_id_, ctx.opn_.name_, s);
-    if (s && s->is_array_ && s->is_const_) {
+    if (name_.name_ != "putarray" && s && s->is_array_ && s->is_const_) {
       ir::SemanticError(line_no_, "实参不能是const数组");
       return;
     }
@@ -1316,7 +1318,7 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
 
           auto &rhs_opn = ctx.opn_;
           if (rhs_opn.type_ == OpnType::Imm) {
-            if (rhs_opn.imm_num_ != 0) {
+            if (rhs_opn.imm_num_ == 0) {
               // genir(goto,falselabel)
               ir::gIRList.push_back({IROpKind::GOTO, false_label_opn});
             }
