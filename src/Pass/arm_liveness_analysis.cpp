@@ -1,7 +1,7 @@
 #include "../../include/Pass/arm_liveness_analysis.h"
 
 #include <cassert>
-// #define ASSERT_ENABLE
+#define ASSERT_ENABLE
 // assert(res);
 #ifdef ASSERT_ENABLE
 #define MyAssert(res)                                                    \

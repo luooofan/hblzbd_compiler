@@ -687,9 +687,27 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
       } else if (auto src_inst = dynamic_cast<LdrPseudo *>(inst)) {
         MyAssert(src_inst->IsImm());
         src_inst->imm_ += offset_fixup_diff;
+      } else {
+        MyAssert(0);
+      }
+    }
+    // 针对sp的修复
+    for (auto inst : func->sp_fixup_) {
+      if (auto src_inst = dynamic_cast<Move *>(inst)) {
+        MyAssert(src_inst->op2_->is_imm_);
+        if (src_inst->is_mvn_) {
+          src_inst->op2_->imm_num_ -= stack_size_diff;
+        } else {
+          src_inst->op2_->imm_num_ += stack_size_diff;
+        }
+      } else if (auto src_inst = dynamic_cast<LdrPseudo *>(inst)) {
+        MyAssert(src_inst->IsImm());
+        src_inst->imm_ += stack_size_diff;
       } else if (auto src_inst = dynamic_cast<BinaryInst *>(inst)) {
         MyAssert(src_inst->op2_->is_imm_);
         src_inst->op2_->imm_num_ += stack_size_diff;
+      } else {
+        MyAssert(0);
       }
     }
 

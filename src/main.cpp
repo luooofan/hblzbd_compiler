@@ -18,7 +18,7 @@ extern int yyparse();
 extern int yylex_destroy();
 extern void yyset_lineno(int _line_number);
 
-// #define ASSERT_ENABLE
+#define ASSERT_ENABLE
 // assert(res);
 #ifdef ASSERT_ENABLE
 #define MyAssert(res)                                                    \

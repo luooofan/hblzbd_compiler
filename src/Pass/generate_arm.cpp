@@ -4,7 +4,7 @@
 #include <cassert>
 #include <functional>
 
-// #define ASSERT_ENABLE
+#define ASSERT_ENABLE
 // assert(res);
 #ifdef ASSERT_ENABLE
 #define MyAssert(res)                                                    \
