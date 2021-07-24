@@ -100,7 +100,11 @@ void Scope::Print(std::ostream &outfile) {
 }
 
 bool Scope::IsSubScope(int scope_id) {
-  assert(scope_id >= 0);  // <0无意义
+  // assert(scope_id >= 0);
+  if (scope_id < 0) {
+    std::cout << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
+    exit(1);
+  }  // <0无意义
   int sid = this->scope_id_;
   while (-1 != sid) {
     if (sid == scope_id) {

@@ -65,7 +65,11 @@ int main(int argc, char **argv) {
   yyparse();  // if success, ast_root is valid
   yylex_destroy();
 
-  assert(nullptr != ast_root);
+  // assert(nullptr != ast_root);
+  if (nullptr == ast_root) {
+    std::cout << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
+    exit(1);
+  }
   if (logfile.is_open()) {
     logfile << "PrintNode:" << std::endl;
     ast_root->PrintNode(0, logfile);
@@ -101,8 +105,11 @@ int main(int argc, char **argv) {
     pm.Run();
   }
 
-  assert(typeid(*module_ptr) == typeid(ArmModule));
-
+  // assert(typeid(*module_ptr) == typeid(ArmModule));
+  if (typeid(*module_ptr) != typeid(ArmModule)) {
+    std::cout << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
+    exit(1);
+  }
   {
     std::ofstream outfile;
     std::string file_name = "";

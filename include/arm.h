@@ -85,7 +85,11 @@ class Shift {
       case OpCode::RRX:
         return "RRX";
       default:
-        assert(0);
+        // assert(0);
+        if (1) {
+          std::cout << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
+          exit(1);
+        }
         break;
     }
     if (is_imm_) {
