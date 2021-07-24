@@ -73,7 +73,7 @@ std::pair<std::vector<RegId>, std::vector<RegId>> GetDefUse(Instruction *inst) {
     // assert(0);
     if (1) {
       std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
-      exit(1);
+      exit(255);
     }
   }
 
@@ -136,7 +136,7 @@ std::pair<std::vector<Reg *>, std::vector<Reg *>> GetDefUsePtr(Instruction *inst
     // assert(0);
     if (1) {
       std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
-      exit(1);
+      exit(255);
     }
   }
 
@@ -205,7 +205,7 @@ void ArmLivenessAnalysis::Run() {
   // assert(nullptr != m);
   if (nullptr == m) {
     std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
-    exit(1);
+    exit(255);
   }
   for (auto func : m->func_list_) {
     this->Run4Func(func);

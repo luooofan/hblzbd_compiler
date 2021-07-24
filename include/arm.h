@@ -88,7 +88,7 @@ class Shift {
         // assert(0);
         if (1) {
           std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
-          exit(1);
+          exit(255);
         }
         break;
     }

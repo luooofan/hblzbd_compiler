@@ -103,7 +103,7 @@ bool Scope::IsSubScope(int scope_id) {
   // assert(scope_id >= 0);
   if (scope_id < 0) {
     std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
-    exit(1);
+    exit(255);
   }  // <0无意义
   int sid = this->scope_id_;
   while (-1 != sid) {
@@ -255,12 +255,12 @@ void IR::PrintIR(std::ostream &outfile) {
 
 void SemanticError(int line_no, const std::string &&error_msg) {
   std::cerr << "语义错误 at line " << line_no << " : " << error_msg << std::endl;
-  exit(1);
+  exit(255);
 }
 
 void RuntimeError(const std::string &&error_msg) {
   std::cerr << "运行时错误: " << error_msg << std::endl;
-  exit(1);
+  exit(255);
 }
 
 }  // namespace ir

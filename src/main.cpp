@@ -68,7 +68,7 @@ int main(int argc, char **argv) {
   // assert(nullptr != ast_root);
   if (nullptr == ast_root) {
     std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
-    exit(1);
+    exit(255);
   }
   if (logfile.is_open()) {
     logfile << "PrintNode:" << std::endl;
@@ -108,7 +108,7 @@ int main(int argc, char **argv) {
   // assert(typeid(*module_ptr) == typeid(ArmModule));
   if (typeid(*module_ptr) != typeid(ArmModule)) {
     std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
-    exit(1);
+    exit(255);
   }
   {
     std::ofstream outfile;

@@ -47,7 +47,7 @@ class PassManager {
       passes_.push_back(pass);
     } catch (...) {
       std::cerr << "ERROR class type:" << typeid(PassTy).name() << " be passed to AddPass();" << std::endl;
-      exit(1);
+      exit(255);
     }
   }
 
