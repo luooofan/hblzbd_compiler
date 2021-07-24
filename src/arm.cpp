@@ -1,6 +1,12 @@
 #include "../include/arm.h"
 
 #include <cassert>
+// assert(res);
+#define MyAssert(res)                                                    \
+  if (!(res)) {                                                          \
+    std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl; \
+    exit(255);                                                           \
+  }
 namespace arm {
 
 std::string CondToString(Cond cond) {
@@ -145,11 +151,7 @@ void LdrStr::EmitCode(std::ostream& outfile) {
       break;
     }
     default: {
-      // assert(0);
-      if (1) {
-        std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
-        exit(255);
-      }
+      MyAssert(0);
       break;
     }
   }
@@ -174,11 +176,7 @@ void LdrPseudo::EmitCode(std::ostream& outfile) {
 
 PushPop::~PushPop() {}
 void PushPop::EmitCode(std::ostream& outfile) {
-  // assert(!this->reg_list_.empty());
-  if (this->reg_list_.empty()) {
-    std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
-    exit(255);
-  }
+  MyAssert(!this->reg_list_.empty());
   std::string opcode = this->opkind_ == OpKind::PUSH ? "push" : "pop";
   outfile << "\t" << opcode << " { " << std::string(*(this->reg_list_[0]));
   for (auto iter = this->reg_list_.begin() + 1; iter != this->reg_list_.end(); ++iter) {
@@ -188,3 +186,5 @@ void PushPop::EmitCode(std::ostream& outfile) {
 }
 
 }  // namespace arm
+
+#undef MyAssert

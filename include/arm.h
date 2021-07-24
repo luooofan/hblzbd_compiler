@@ -3,6 +3,12 @@
 #include <cassert>
 
 #include "../include/ir_struct.h"
+// assert(res);
+#define MyAssert(res)                                                    \
+  if (!(res)) {                                                          \
+    std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl; \
+    exit(255);                                                           \
+  }
 
 namespace arm {
 // ref: https://en.wikipedia.org/wiki/Calling_convention#ARM_(A32)
@@ -85,7 +91,7 @@ class Shift {
       case OpCode::RRX:
         return "RRX";
       default:
-        // assert(0);
+        MyAssert(0);
         if (1) {
           std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
           exit(255);
@@ -266,3 +272,5 @@ class PushPop : public Instruction {
 }  // namespace arm
 
 #endif
+
+#undef MyAssert

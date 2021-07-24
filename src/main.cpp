@@ -18,7 +18,15 @@ extern int yyparse();
 extern int yylex_destroy();
 extern void yyset_lineno(int _line_number);
 
+// assert(res);
+#define MyAssert(res)                                                    \
+  if (!(res)) {                                                          \
+    std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl; \
+    exit(255);                                                           \
+  }
+
 int main(int argc, char **argv) {
+  // MyAssert(0);
   bool opt = false, print_usage = false;
   char *src = nullptr, *output = nullptr, *log_file = nullptr;
   // parse command line options and check
@@ -65,11 +73,7 @@ int main(int argc, char **argv) {
   yyparse();  // if success, ast_root is valid
   yylex_destroy();
 
-  // assert(nullptr != ast_root);
-  if (nullptr == ast_root) {
-    std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
-    exit(255);
-  }
+  MyAssert(nullptr != ast_root);
   if (logfile.is_open()) {
     logfile << "PrintNode:" << std::endl;
     ast_root->PrintNode(0, logfile);
@@ -105,11 +109,7 @@ int main(int argc, char **argv) {
     pm.Run();
   }
 
-  // assert(typeid(*module_ptr) == typeid(ArmModule));
-  if (typeid(*module_ptr) != typeid(ArmModule)) {
-    std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
-    exit(255);
-  }
+  MyAssert(typeid(*module_ptr) == typeid(ArmModule));
   {
     std::ofstream outfile;
     std::string file_name = "";
@@ -139,3 +139,5 @@ int main(int argc, char **argv) {
 
   return 0;
 }
+
+#undef MyAssert

@@ -4,6 +4,12 @@
 using namespace arm;
 
 #define IS_PRECOLORED(i) (i < 16)
+// assert(res);
+#define MyAssert(res)                                                    \
+  if (!(res)) {                                                          \
+    std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl; \
+    exit(255);                                                           \
+  }
 
 void dbg_print_worklist(RegAlloc::WorkList &wl, std::ostream &outfile) {
   for (auto item : wl) {
@@ -33,11 +39,7 @@ RegAlloc::WorkList RegAlloc::ValidAdjacentSet(RegId reg, AdjList &adj_list, std:
 
 void RegAlloc::Run() {
   auto m = dynamic_cast<ArmModule *>(*(this->m_));
-  // assert(nullptr != m);
-  if (nullptr == m) {
-    std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
-    exit(255);
-  }
+  MyAssert(nullptr != m);
   this->AllocateRegister(m);
 }
 
@@ -277,11 +279,7 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
       // George: a->b a的每一个adj t 要么和b冲突 要么低度数 用于一个virtual reg要合并到precolored reg的情况 a->b
       // called OK() in paper.
       auto george_coalesce_test = [&](RegId a, RegId b) {
-        // assert(IS_PRECOLORED(b));
-        if (!IS_PRECOLORED(b)) {
-          std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
-          exit(255);
-        }
+        MyAssert(IS_PRECOLORED(b));
         auto &&valid_adj_regs = ValidAdjacentSet(a, adj_list, select_stack, coalesced_nodes);
         for (auto adj_reg : valid_adj_regs) {
           if (degree[adj_reg] < K || IS_PRECOLORED(adj_reg) || adj_set.find({adj_reg, b}) != adj_set.end()) {
@@ -489,19 +487,11 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
             // Reg *def;
             // std::vector<Reg *> use;
             for (auto &d : def) {
-              // assert(nullptr != d && colored.find(d->reg_id_) != colored.end());
-              if (nullptr == d || colored.find(d->reg_id_) == colored.end()) {
-                std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
-                exit(255);
-              }
+              MyAssert(nullptr != d && colored.find(d->reg_id_) != colored.end());
               d->reg_id_ = colored[d->reg_id_];
             }
             for (auto &u : use) {
-              // assert(nullptr != u && colored.find(u->reg_id_) != colored.end());
-              if (nullptr == u || colored.find(u->reg_id_) == colored.end()) {
-                std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
-                exit(255);
-              }
+              MyAssert(nullptr != u && colored.find(u->reg_id_) != colored.end());
               // if (u && colored.find(u->reg_id_) != colored.end()) {
               u->reg_id_ = colored[u->reg_id_];
               // }
@@ -586,11 +576,7 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
                 if (Operand2::CheckImm8m(offset)) {
                   inst = static_cast<Instruction *>(new Move(false, Cond::AL, vreg, new Operand2(offset)));
                   // } else if (offset < 0 && Operand2::CheckImm8m(-offset - 1)) {  // mvn
-                  //   // assert(0);
-                  // if (1) {
-                  //   std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
-                  //   exit(255);
-                  // }
+                  //   MyAssert(0);
                   //   inst = static_cast<Instruction *>(new Move(false, Cond::AL, vreg, new Operand2(-offset - 1),
                   //   true));
                 } else {
@@ -685,39 +671,25 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
     // push和pop中添加了r4-r11 或者删除了lr和sp的话 需要修复栈中实参的位置
     for (auto inst : func->sp_arg_fixup_) {
       if (auto src_inst = dynamic_cast<Move *>(inst)) {
-        // assert(src_inst->op2_->is_imm_);
-        if (!src_inst->op2_->is_imm_) {
-          std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
-          exit(255);
-        }
+        MyAssert(src_inst->op2_->is_imm_);
         if (src_inst->is_mvn_) {
           src_inst->op2_->imm_num_ -= offset_fixup_diff;
         } else {
           src_inst->op2_->imm_num_ += offset_fixup_diff;
         }
       } else if (auto src_inst = dynamic_cast<LdrStr *>(inst)) {
-        // assert(src_inst->is_offset_imm_);
-        if (!src_inst->is_offset_imm_) {
-          std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
-          exit(255);
-        }
+        MyAssert(src_inst->is_offset_imm_);
         src_inst->offset_imm_ += offset_fixup_diff;
       } else if (auto src_inst = dynamic_cast<LdrPseudo *>(inst)) {
-        // assert(src_inst->IsImm());
-        if (!src_inst->IsImm()) {
-          std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
-          exit(255);
-        }
+        MyAssert(src_inst->IsImm());
         src_inst->imm_ += offset_fixup_diff;
       } else if (auto src_inst = dynamic_cast<BinaryInst *>(inst)) {
-        // assert(src_inst->op2_->is_imm_);
-        if (!src_inst->op2_->is_imm_) {
-          std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
-          exit(255);
-        }
+        MyAssert(src_inst->op2_->is_imm_);
         src_inst->op2_->imm_num_ += stack_size_diff;
       }
     }
 
   }  // end of func loop
 }
+
+#undef MyAssert

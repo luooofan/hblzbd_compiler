@@ -1,6 +1,12 @@
 #include "../../include/Pass/arm_liveness_analysis.h"
 
 #include <cassert>
+// assert(res);
+#define MyAssert(res)                                                    \
+  if (!(res)) {                                                          \
+    std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl; \
+    exit(255);                                                           \
+  }
 
 std::pair<std::vector<RegId>, std::vector<RegId>> GetDefUse(Instruction *inst) {
   std::vector<RegId> def;
@@ -70,11 +76,7 @@ std::pair<std::vector<RegId>, std::vector<RegId>> GetDefUse(Instruction *inst) {
       }
     }
   } else {  // 未实现其他指令
-    // assert(0);
-    if (1) {
-      std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
-      exit(255);
-    }
+    MyAssert(0);
   }
 
   return {def, use};
@@ -133,11 +135,7 @@ std::pair<std::vector<Reg *>, std::vector<Reg *>> GetDefUsePtr(Instruction *inst
       }
     }
   } else {  // 未实现其他指令
-    // assert(0);
-    if (1) {
-      std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
-      exit(255);
-    }
+    MyAssert(0);
   }
 
   return {def, use};
@@ -202,12 +200,10 @@ void ArmLivenessAnalysis::Run4Func(ArmFunction *f) {
 
 void ArmLivenessAnalysis::Run() {
   auto m = dynamic_cast<ArmModule *>(*(this->m_));
-  // assert(nullptr != m);
-  if (nullptr == m) {
-    std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
-    exit(255);
-  }
+  MyAssert(nullptr != m);
   for (auto func : m->func_list_) {
     this->Run4Func(func);
   }
 }
+
+#undef MyAssert

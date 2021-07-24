@@ -4,6 +4,13 @@
 #include <cassert>
 #include <functional>
 
+// assert(res);
+#define MyAssert(res)                                                    \
+  if (!(res)) {                                                          \
+    std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl; \
+    exit(255);                                                           \
+  }
+
 using namespace arm;
 // TODO: 用sp不用vreg会出问题 一堆赋值语句看能不能改
 
@@ -107,11 +114,7 @@ void GenerateArm::AddEpilogue(ArmBasicBlock* armbb) {
 };
 
 Reg* GenerateArm::LoadGlobalOpn2Reg(ArmBasicBlock* armbb, ir::Opn* opn) {
-  // assert(0 == opn->scope_id_);
-  if (0 != opn->scope_id_) {
-    std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
-    exit(255);
-  }
+  MyAssert(0 == opn->scope_id_);
   // 如果是全局变量就要重新ldr
   Reg* rglo = NewVirtualReg();
   // 把全局量基址ldr到某寄存器中
@@ -186,11 +189,7 @@ Operand2* GenerateArm::ResolveOpn2Operand2(ArmBasicBlock* armbb, ir::Opn* opn) {
 template <typename CallableObjTy>
 void GenerateArm::ResolveResOpn2RdReg(ArmBasicBlock* armbb, ir::Opn* opn, CallableObjTy f) {
   // 只能是Var类型 Assign不调用此函数
-  // assert(opn->type_ == ir::Opn::Type::Var);
-  if (opn->type_ != ir::Opn::Type::Var) {
-    std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
-    exit(255);
-  }
+  MyAssert(opn->type_ == ir::Opn::Type::Var);
   Reg* rd = nullptr;
   // Var offset为-1或者以temp-开头表示中间变量 是中间变量则只生成一条运算指令
   auto& symbol = ir::gScopes[opn->scope_id_].symbol_table_[opn->name_];
@@ -224,11 +223,7 @@ void GenerateArm::ChangeOffset(std::string& func_name) {
   // 对于局部int array量改为stack_size-offset-array.width[0] 中间变量仍为-1
   // 首先拿到函数的作用域id
   const auto& iter = ir::gFuncTable.find(func_name);
-  // assert(iter != ir::gFuncTable.end());
-  if (iter == ir::gFuncTable.end()) {
-    std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
-    exit(255);
-  }
+  MyAssert(iter != ir::gFuncTable.end());
   int func_scope_id = iter->second.scope_id_;
   // 遍历所有作用域 修改偏移 改后的偏移为针对sp的偏移
   for (auto& scope : ir::gScopes) {
@@ -282,11 +277,7 @@ void GenerateArm::AddPrologue(ArmFunction* func, ArmBasicBlock* first_bb) {
 }
 
 void GenerateArm::GenCallCode(ArmBasicBlock* armbb, ir::IR& ir, int loc) {
-  // assert(ir.opn1_.type_ == ir::Opn::Type::Func);
-  if (ir.opn1_.type_ != ir::Opn::Type::Func) {
-    std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
-    exit(255);
-  }
+  MyAssert(ir.opn1_.type_ == ir::Opn::Type::Func);
   // 处理param语句
   // ir[start-1] is call
   // NOTE: 需要确保IR中函数调用表现为一系列PARAM+一条CALL
@@ -529,11 +520,7 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
             break;
           }
           case ir::IR::OpKind::LABEL: {  // 所有label语句都应该已经被跳过
-                                         // assert(0);
-            if (1) {
-              std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
-              exit(255);
-            }
+            MyAssert(0);
             break;
           }
           case ir::IR::OpKind::PARAM: {  // 所有param语句放到call的时候处理
@@ -562,11 +549,7 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
             break;
           }
           case ir::IR::OpKind::GOTO: {  // B label
-                                        // assert(ir.opn1_.type_ == ir::Opn::Type::Label);
-            if (ir.opn1_.type_ != ir::Opn::Type::Label) {
-              std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
-              exit(255);
-            }
+            MyAssert(ir.opn1_.type_ == ir::Opn::Type::Label);
             armbb->inst_list_.push_back(static_cast<Instruction*>(new Branch(false, false, Cond::AL, ir.opn1_.name_)));
             break;
           }
@@ -574,11 +557,7 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
             // NOTE:
             // 很多四元式类型的op1和op2都可以是Array类型
             // 但是只有assign语句的rd可能是Array类型
-            // assert(ir.opn2_.type_ == ir::Opn::Type::Null);
-            if (ir.opn2_.type_ != ir::Opn::Type::Null) {
-              std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
-              exit(255);
-            }
+            MyAssert(ir.opn2_.type_ == ir::Opn::Type::Null);
             Operand2* op2 = ResolveOpn2Operand2(armbb, &(ir.opn1_));
             // 使res如果是全局变量的话 一定有基址寄存器
             if (ir.res_.type_ == ir::Opn::Type::Array) {
@@ -617,11 +596,7 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
           }
           case ir::IR::OpKind::ASSIGN_OFFSET: {
             // (=[], array, -, temp-res) res一定是中间变量
-            // assert(ir.opn2_.type_ == ir::Opn::Type::Null);
-            if (ir.opn2_.type_ != ir::Opn::Type::Null) {
-              std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
-              exit(255);
-            }
+            MyAssert(ir.opn2_.type_ == ir::Opn::Type::Null);
             Reg* rbase = nullptr;
             Reg* vreg = NewVirtualReg();
             var_map[ir.res_.name_][ir.res_.scope_id_] = vreg;
@@ -653,11 +628,7 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
           case ir::IR::OpKind::JLE:
           case ir::IR::OpKind::JGT:
           case ir::IR::OpKind::JGE: {
-            // assert(ir.res_.type_ == ir::Opn::Type::Label);
-            if (ir.res_.type_ != ir::Opn::Type::Label) {
-              std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
-              exit(255);
-            }
+            MyAssert(ir.res_.type_ == ir::Opn::Type::Label);
             // CMP rn op2; BEQ label;
             Reg* rn = nullptr;
             Operand2* op2 = nullptr;
@@ -671,19 +642,11 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
             break;
           }
           case ir::IR::OpKind::VOID: {
-            // assert(0);
-            if (1) {
-              std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
-              exit(255);
-            }
+            MyAssert(0);
             break;
           }
           default: {
-            // assert(0);
-            if (1) {
-              std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
-              exit(255);
-            }
+            MyAssert(0);
             break;
           }
         }
@@ -716,12 +679,10 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
 
 void GenerateArm::Run() {
   auto m = dynamic_cast<IRModule*>(*(this->m_));
-  // assert(nullptr != m);
-  if (nullptr == m) {
-    std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl;
-    exit(255);
-  }
+  MyAssert(nullptr != m);
   auto arm_m = this->GenCode(m);
   *(this->m_) = static_cast<Module*>(arm_m);
   delete m;
 }
+
+#undef MyAssert
