@@ -552,7 +552,7 @@ void FunctionDefine::GenerateIR(ir::ContextInfo &ctx) {
                         this->name_.name_ + ": function's return type is INT,but does not return anything");
     }
     // 保证函数执行流最后会有一条ret语句 方便汇编生成
-    if (return_type_ == VOID && ctx.has_return == false) {
+    if (return_type_ == VOID /*&& ctx.has_return == false*/) {
       ir::gIRList.push_back({IROpKind::RET});
     }
 
