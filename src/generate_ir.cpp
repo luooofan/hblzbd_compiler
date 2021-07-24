@@ -385,19 +385,18 @@ void VariableDefineWithInit::GenerateIR(ir::ContextInfo &ctx) {
   auto &symbol_table = scope.symbol_table_;
   const auto &var_iter = symbol_table.find(this->name_.name_);
   if (var_iter == symbol_table.end()) {
-    auto tmp = new ir::SymbolTableItem(false, is_const_, scope.dynamic_offset_);
+    symbol_table.insert({this->name_.name_, ir::SymbolTableItem(false, is_const_, scope.dynamic_offset_)});
     scope.dynamic_offset_ += ir::kIntWidth;
+    auto &tmp = symbol_table.find(this->name_.name_)->second;
     // NOTE: 如果是全局量或者常量 需要填写initval 如果是局部变量 生成一条赋值语句
     if (ctx.scope_id_ == 0 || this->is_const_) {
       value_.Evaluate(ctx);
-      tmp->initval_.push_back(ctx.opn_.imm_num_);
+      tmp.initval_.push_back(ctx.opn_.imm_num_);
     } else {
       value_.GenerateIR(ctx);
       ir::Opn lhs_opn = ir::Opn(OpnType::Var, name_.name_, ctx.scope_id_);
       ir::gIRList.push_back({IROpKind::ASSIGN, ctx.opn_, lhs_opn});
     }
-    symbol_table.insert({this->name_.name_, *tmp});
-    delete tmp;
   } else {
     ir::SemanticError(this->line_no_, this->name_.name_ + ": variable redefined");
   }
@@ -440,7 +439,8 @@ void ArrayDefineWithInit::GenerateIR(ir::ContextInfo &ctx) {
   // NOTE: 只需在当前作用域查找即可 找到则重定义
   const auto &array_iter = symbol_table.find(name);
   if (array_iter == symbol_table.end()) {
-    ir::SymbolTableItem symbol_item(true, this->is_const_, scope.dynamic_offset_);
+    symbol_table.insert({name, ir::SymbolTableItem(true, this->is_const_, scope.dynamic_offset_)});
+    auto &symbol_item = symbol_table.find(name)->second;
     // 填shape
     for (const auto &shape : this->name_.shape_list_) {
       shape->Evaluate(ctx);
@@ -462,7 +462,6 @@ void ArrayDefineWithInit::GenerateIR(ir::ContextInfo &ctx) {
       symbol_item.width_.push_back(temp_width.top());
       temp_width.pop();
     }
-    symbol_table.insert({name, symbol_item});
 
     // 完成赋值操作 或者 填写initval(global or const)
     // prepare for arrayinitval
