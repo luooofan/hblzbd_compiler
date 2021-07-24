@@ -4,13 +4,17 @@
 using namespace arm;
 
 #define IS_PRECOLORED(i) (i < 16)
+// #define ASSERT_ENABLE
 // assert(res);
+#ifdef ASSERT_ENABLE
 #define MyAssert(res)                                                    \
   if (!(res)) {                                                          \
     std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl; \
     exit(255);                                                           \
   }
-
+#else
+#define MyAssert(res) ;
+#endif
 void dbg_print_worklist(RegAlloc::WorkList &wl, std::ostream &outfile) {
   for (auto item : wl) {
     outfile << item << " ";
@@ -693,3 +697,6 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
 }
 
 #undef MyAssert
+#ifdef ASSERT_ENABLE
+#undef ASSERT_ENABLE
+#endif

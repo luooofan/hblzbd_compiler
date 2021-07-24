@@ -18,12 +18,17 @@ extern int yyparse();
 extern int yylex_destroy();
 extern void yyset_lineno(int _line_number);
 
+// #define ASSERT_ENABLE
 // assert(res);
+#ifdef ASSERT_ENABLE
 #define MyAssert(res)                                                    \
   if (!(res)) {                                                          \
     std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl; \
     exit(255);                                                           \
   }
+#else
+#define MyAssert(res) ;
+#endif
 
 int main(int argc, char **argv) {
   // MyAssert(0);
@@ -141,3 +146,6 @@ int main(int argc, char **argv) {
 }
 
 #undef MyAssert
+#ifdef ASSERT_ENABLE
+#undef ASSERT_ENABLE
+#endif
