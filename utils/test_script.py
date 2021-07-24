@@ -62,12 +62,12 @@ if __name__ == '__main__':
     else:
       # GCC Link
       link_cmd = f"gcc -o {exec_file} {asm_file} {GccArgs}"
-      time_start = time.time()
+      # time_start = time.time()
       if subprocess.call(link_cmd.split()) != 0:
         print("link failed.")
         continue
       time_end = time.time()
-      link_time = (time_end - time_start) # s
+      # link_time = (time_end - time_start) # s
       # print("{:10s}:{:.6f}s".format("link time",link_time))
 
       # Exec
@@ -76,14 +76,19 @@ if __name__ == '__main__':
         stdin = open(stdin_file, 'r')
       else:
         stdin = None
+      time_start = time.time()
       subp = subprocess.Popen(exec_cmd.split(), bufsize=0, stdin=stdin, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding='utf-8')
       exec_out, exec_err = subp.communicate()
       ret_code = subp.returncode
+      time_end = time.time()
+      run_time = (time_end - time_start) # s
       exec_time = (re.search("[0-9]+H.*us",exec_err))
-      if exec_time != None:
-        exec_time=exec_time.group()
+      
       if args.verbose:
-        print("{:10s}:{}".format("exec time",exec_time))
+        print("{:10s}:{:.6f}s".format("run time",run_time))
+        if exec_time != None:
+          exec_time=exec_time.group()
+          print("{:10s}:{}".format("exec time",exec_time))
 
       # Exec output
       exec_out_list = exec_out.split()
