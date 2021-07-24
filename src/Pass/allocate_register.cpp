@@ -491,11 +491,11 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
             // Reg *def;
             // std::vector<Reg *> use;
             for (auto &d : def) {
-              MyAssert(nullptr != d && colored.find(d->reg_id_) != colored.end());
+              // MyAssert(nullptr != d && colored.find(d->reg_id_) != colored.end());
               d->reg_id_ = colored[d->reg_id_];
             }
             for (auto &u : use) {
-              MyAssert(nullptr != u && colored.find(u->reg_id_) != colored.end());
+              // MyAssert(nullptr != u && colored.find(u->reg_id_) != colored.end());
               // if (u && colored.find(u->reg_id_) != colored.end()) {
               u->reg_id_ = colored[u->reg_id_];
               // }
