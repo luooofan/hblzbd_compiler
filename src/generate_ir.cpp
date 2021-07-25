@@ -428,8 +428,12 @@ void VariableDefineWithInit::GenerateIR(ir::ContextInfo &ctx) {
   auto &symbol_table = scope.symbol_table_;
   const auto &var_iter = symbol_table.find(this->name_.name_);
   if (var_iter == symbol_table.end()) {
-    symbol_table.insert({this->name_.name_, ir::SymbolTableItem(false, is_const_, scope.dynamic_offset_)});
-    scope.dynamic_offset_ += ir::kIntWidth;
+    if (this->is_const_) {
+      symbol_table.insert({this->name_.name_, ir::SymbolTableItem(false, true, -1)});
+    } else {
+      symbol_table.insert({this->name_.name_, ir::SymbolTableItem(false, false, scope.dynamic_offset_)});
+      scope.dynamic_offset_ += ir::kIntWidth;
+    }
     auto &tmp = symbol_table.find(this->name_.name_)->second;
     // NOTE: 如果是全局量或者常量 需要填写initval 如果是局部变量 生成一条赋值语句
     if (ctx.scope_id_ == 0 || this->is_const_) {
@@ -482,7 +486,11 @@ void ArrayDefineWithInit::GenerateIR(ir::ContextInfo &ctx) {
   // NOTE: 只需在当前作用域查找即可 找到则重定义
   const auto &array_iter = symbol_table.find(name);
   if (array_iter == symbol_table.end()) {
-    symbol_table.insert({name, ir::SymbolTableItem(true, this->is_const_, scope.dynamic_offset_)});
+    if (this->is_const_) {
+      symbol_table.insert({name, ir::SymbolTableItem(true, true, -1)});
+    } else {
+      symbol_table.insert({name, ir::SymbolTableItem(true, false, scope.dynamic_offset_)});
+    }
     auto &symbol_item = symbol_table.find(name)->second;
     // 填shape
     for (const auto &shape : this->name_.shape_list_) {
@@ -500,7 +508,7 @@ void ArrayDefineWithInit::GenerateIR(ir::ContextInfo &ctx) {
       width *= *reiter;
       temp_width.push(width);
     }
-    scope.dynamic_offset_ += temp_width.top();
+    if (!this->is_const_) scope.dynamic_offset_ += temp_width.top();
     while (!temp_width.empty()) {
       symbol_item.width_.push_back(temp_width.top());
       temp_width.pop();
@@ -825,17 +833,18 @@ void ArrayInitVal::GenerateIR(ir::ContextInfo &ctx) {
         }
       }
       // 补0补到finaloffset
-      while (offset < final_offset) {
-        // genir([]=,0,-,arrayname offset)
-        // ir::gIRList.push_back({IROpKind::/*OFFSET_*/ ASSIGN,
-        //                        IMM_0_OPN,
-        //                        {OpnType::Array, ctx.array_name_, ctx.scope_id_,
-        //                         new ir::Opn(OpnType::Imm, (offset++ * 4), ctx.scope_id_)}});
-        ++offset;
-      }
+      // while (offset < final_offset) {
+      //   // genir([]=,0,-,arrayname offset)
+      //   // ir::gIRList.push_back({IROpKind::/*OFFSET_*/ ASSIGN,
+      //   //                        IMM_0_OPN,
+      //   //                        {OpnType::Array, ctx.array_name_, ctx.scope_id_,
+      //   //                         new ir::Opn(OpnType::Imm, (offset++ * 4), ctx.scope_id_)}});
+      //   ++offset;
+      // }
       if (offset > final_offset) {
         ir::SemanticError(this->line_no_, "初始值设定项值太多");
       }
+      offset = final_offset;
     }
   }
 }
