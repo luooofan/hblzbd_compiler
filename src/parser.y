@@ -3,7 +3,6 @@
 #include "../include/ast.h"
 #include <cstdio>
 #include <cstdlib>
-#include <cassert>
 
 #define YYERROR_VERBOSE true
 #define YYDEBUG 1

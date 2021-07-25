@@ -24,7 +24,7 @@ if __name__ == '__main__':
   else:
     os.system(f"rm -rf {OutputFolder}/*")
 
-  make_res = subprocess.call("make -j", shell=True)
+  make_res = subprocess.call("make -j8", shell=True)
   if make_res != 0:
     print("build compiler failed.")
     exit()
