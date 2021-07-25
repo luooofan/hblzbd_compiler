@@ -1,6 +1,7 @@
 #include "../include/arm.h"
 
 #include <cassert>
+#include <unordered_set>
 #define ASSERT_ENABLE
 // assert(res);
 #ifdef ASSERT_ENABLE
@@ -13,7 +14,7 @@
 #define MyAssert(res) ;
 #endif
 namespace arm {
-
+std::unordered_set<std::string> gAllLabel;
 std::string CondToString(Cond cond) {
   switch (cond) {
     case Cond::AL:
@@ -30,6 +31,9 @@ std::string CondToString(Cond cond) {
       return "lt";
     case Cond::LE:
       return "le";
+    default:
+      MyAssert(0);
+      break;
   }
   return "";
 }
@@ -67,9 +71,6 @@ void BinaryInst::EmitCode(std::ostream& outfile) {
     case OpCode::RSB:
       opcode = "rsb";
       break;
-    case OpCode::SDIV:
-      opcode = "sdiv";
-      break;
     case OpCode::MUL:
       opcode = "mul";
       break;
@@ -101,7 +102,7 @@ void BinaryInst::EmitCode(std::ostream& outfile) {
       opcode = "teq";
       break;
     default:
-      opcode = "none";
+      MyAssert(0);
       break;
   }
   if (this->HasS()) opcode += "s";

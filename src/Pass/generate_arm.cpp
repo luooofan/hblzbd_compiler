@@ -313,6 +313,7 @@ void GenerateArm::GenCallCode(ArmBasicBlock* armbb, ir::IR& ir, std::vector<ir::
   }
   // BL label
   armbb->inst_list_.push_back(static_cast<Instruction*>(new Branch(true, false, Cond::AL, ir.opn1_.name_)));
+  arm::gAllLabel.insert(ir.opn1_.name_);
   if (ir.res_.type_ != ir::Opn::Type::Null) {
     // NOTE: 这里必须生成一条mov语句 会存在两个call ir接连出现的情况
     // 并且只能放在这个基本块中或新建一个基本块不能放到下一个基本块中
@@ -352,9 +353,13 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
 
   auto div_func = new ArmFunction("__aeabi_idiv", 2, 0);
   auto mod_func = new ArmFunction("__aeabi_idivmod", 2, 0);
+  arm::gAllLabel.insert("__aeabi_idiv");
+  arm::gAllLabel.insert("__aeabi_idivmod");
 
   // for every ir func
   for (auto func : module->func_list_) {
+    arm::gAllLabel.insert(func->name_);
+
     ArmFunction* armfunc = new ArmFunction(func->name_, func->arg_num_, func->stack_size_);
     func_map.insert({func, armfunc});
     armmodule->func_list_.push_back(armfunc);
@@ -389,6 +394,8 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
       // 处理所有label语句
       auto first_ir = bb->ir_list_.front();
       if (first_ir->op_ == ir::IR::OpKind::LABEL) {
+        // TODO:
+        arm::gAllLabel.insert(first_ir->opn1_.name_);
         if (first_ir->opn1_.type_ == ir::Opn::Type::Label) {  // 如果是label就把label赋给这个bb的label
           armbb->label_ = new std::string(first_ir->opn1_.name_);
         }  // 如果是func label不用管 直接删了就行
@@ -554,6 +561,7 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
           }
           case ir::IR::OpKind::GOTO: {  // B label
             MyAssert(ir.opn1_.type_ == ir::Opn::Type::Label);
+            arm::gAllLabel.insert(ir.opn1_.name_);
             armbb->inst_list_.push_back(static_cast<Instruction*>(new Branch(false, false, Cond::AL, ir.opn1_.name_)));
             break;
           }
@@ -633,6 +641,7 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
           case ir::IR::OpKind::JGT:
           case ir::IR::OpKind::JGE: {
             MyAssert(ir.res_.type_ == ir::Opn::Type::Label);
+            arm::gAllLabel.insert(ir.res_.name_);
             // CMP rn op2; BEQ label;
             Reg* rn = nullptr;
             Operand2* op2 = nullptr;

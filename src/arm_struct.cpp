@@ -19,6 +19,10 @@ void ArmModule::EmitCode(std::ostream& out) {
     // out << std::endl;
     // TODO: order?
     for (auto& symbol : global_symtab) {
+      if (symbol.first == "_sysy_idx" || symbol.first == "_sysy_l1" || symbol.first == "_sysy_l2" ||
+          symbol.first == "_sysy_h" || symbol.first == "_sysy_m" || symbol.first == "_sysy_s" ||
+          symbol.first == "_sysy_us")
+        continue;
       bool in_bss = true;
       int last_not0 = 0;
       for (int i = 0; i < symbol.second.initval_.size(); ++i) {
@@ -59,6 +63,9 @@ void ArmModule::EmitCode(std::ostream& out) {
     out << std::endl;
   }
 }
+void ArmModule::Check() {
+  for (auto func : func_list_) func->Check();
+}
 
 void ArmFunction::EmitCode(std::ostream& out) {
   out << ".global " << this->name_ << std::endl;
@@ -80,6 +87,9 @@ void ArmFunction::EmitCode(std::ostream& out) {
     out << std::endl;
   }
   out << "@ Function End." << std::endl;
+}
+void ArmFunction::Check() {
+  for (auto bb : bb_list_) bb->Check();
 }
 
 void ArmBasicBlock::EmitCode(std::ostream& out) {
@@ -121,4 +131,7 @@ void ArmBasicBlock::EmitCode(std::ostream& out) {
     inst->EmitCode(out);
   }
   out << "  @ BasicBlock End." << std::endl;
+}
+void ArmBasicBlock::Check() {
+  for (auto inst : inst_list_) inst->Check();
 }

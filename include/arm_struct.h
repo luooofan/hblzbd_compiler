@@ -20,6 +20,7 @@ class ArmModule : public Module {
   ArmModule(ir::Scope& global_scope) : Module(global_scope) {}
   virtual ~ArmModule() {}
   void EmitCode(std::ostream& out = std::cout);
+  void Check();
 };
 
 class ArmFunction : public Function {
@@ -35,6 +36,7 @@ class ArmFunction : public Function {
   virtual ~ArmFunction() {}
   bool IsLeaf() { return call_func_list_.empty(); }
   void EmitCode(std::ostream& out = std::cout);
+  void Check();
 };
 
 class ArmBasicBlock : public BasicBlock {
@@ -58,6 +60,7 @@ class ArmBasicBlock : public BasicBlock {
 
   bool HasLabel() { return nullptr != label_; }
   void EmitCode(std::ostream& out = std::cout);
+  void Check();
 };
 
 #endif

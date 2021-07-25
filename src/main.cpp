@@ -133,6 +133,7 @@ int main(int argc, char **argv) {
 #endif
 
   MyAssert(typeid(*module_ptr) == typeid(ArmModule));
+  dynamic_cast<ArmModule *>(module_ptr)->Check();
 #ifdef DEBUG_PROCESS
   std::cout << "Emit Start:" << std::endl;
 #endif

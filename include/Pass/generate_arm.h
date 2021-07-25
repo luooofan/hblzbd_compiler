@@ -1,3 +1,5 @@
+#include <unordered_set>
+
 #include "../arm.h"
 #include "../arm_struct.h"
 #include "pass_manager.h"

@@ -1,6 +1,7 @@
 #ifndef __ARM_H__
 #define __ARM_H__
 #include <cassert>
+#include <unordered_set>
 
 #include "../include/ir_struct.h"
 #define ASSERT_ENABLE
@@ -18,6 +19,7 @@
 namespace arm {
 // ref: https://en.wikipedia.org/wiki/Calling_convention#ARM_(A32)
 // ref: https://developer.arm.com/documentation/ihi0042/j/
+extern std::unordered_set<std::string> gAllLabel;
 
 enum class ArmReg {
   // args and return value (caller saved)
@@ -54,6 +56,7 @@ class Reg {
   Reg(int reg_id) : reg_id_(reg_id) {}
   Reg(ArmReg armreg) : reg_id_(static_cast<int>(armreg)) {}
   explicit operator std::string() { return "r" + std::to_string(reg_id_); }
+  void Check() { MyAssert(reg_id_ >= 0 && reg_id_ < 16); }  // NOTE: only used for final check.
 };
 
 // TODO: 如果是RRX 不应该跟立即数或寄存器 其他移位类型立即数有相应限制
@@ -109,6 +112,7 @@ class Shift {
       return opcode + " " + std::string(*shift_reg_);
     }
   }
+  void Check() { MyAssert(0); }  // NOTE: 目前还没用过移位
 };
 
 // Operand2 is a flexible second operand.
@@ -129,6 +133,15 @@ class Operand2 {
                    : (std::string(*reg_) + (nullptr == shift_ ? "" : ", " + std::string(*shift_)));
   }
   static bool CheckImm8m(int imm);
+  void Check() {
+    if (is_imm_) {
+      MyAssert(CheckImm8m(imm_num_));
+    } else {
+      MyAssert(nullptr != reg_);
+      reg_->Check();
+      if (nullptr != shift_) shift_->Check();
+    }
+  }
 };
 
 enum class Cond {
@@ -151,18 +164,17 @@ class Instruction {
   Instruction() : cond_(Cond::AL) {}
   virtual ~Instruction() = default;
   virtual void EmitCode(std::ostream& outfile = std::clog) = 0;
+  virtual void Check() = 0;
 };
 
 // BinaryInstruction: <OpCode>{S}{Cond} {Rd,} Rn, <Operand2>
 class BinaryInst : public Instruction {
  public:
   enum class OpCode {
-    ADD,   // 减法
-    SUB,   // 减法
-    RSB,   // 反向减法 working for imm - Rn
-    MUL,   // Operand2 can only be Rs.
-    SDIV,  // 有符号除
-    // MOD,
+    ADD,  // 减法
+    SUB,  // 减法
+    RSB,  // 反向减法 working for imm - Rn
+    MUL,  // Operand2 can only be Rs.
 
     // Logical
     AND,  // 与
@@ -195,6 +207,18 @@ class BinaryInst : public Instruction {
   }
   virtual ~BinaryInst();
   virtual void EmitCode(std::ostream& outfile = std::clog);
+  virtual void Check() {
+    if (nullptr != rd_) {
+      MyAssert(opcode_ == OpCode::ADD || opcode_ == OpCode::SUB || opcode_ == OpCode::RSB ||
+               (opcode_ == OpCode::MUL && !op2_->is_imm_));
+      rd_->Check();
+    } else {
+      MyAssert(opcode_ == OpCode::CMP);
+    }
+    MyAssert(nullptr != rn_ && nullptr != op2_);
+    rn_->Check();
+    op2_->Check();
+  }
 };
 
 // Move: MOV{S}{Cond} Rd, <Operand2>
@@ -209,6 +233,11 @@ class Move : public Instruction {
       : Instruction(cond), has_s_(has_s), rd_(rd), op2_(op2), is_mvn_(is_mvn) {}
   virtual ~Move();
   virtual void EmitCode(std::ostream& outfile = std::clog);
+  virtual void Check() {
+    MyAssert(nullptr != rd_ && nullptr != op2_);
+    rd_->Check();
+    op2_->Check();
+  }
 };
 
 // Branch: B{L}{Cond} <label> label can be "lr" or a func name or a normal label beginning with a dot.
@@ -223,6 +252,15 @@ class Branch : public Instruction {
       : Instruction(cond), has_l_(has_l), has_x_(has_x), label_(label) {}
   virtual ~Branch();
   virtual void EmitCode(std::ostream& outfile = std::clog);
+  virtual void Check() {
+    MyAssert(label_ != "" && label_ != "putf");  // 要么以点开头 要么是函数名
+    // std::cout << label_ << std::endl;
+    if (label_ != "lr") MyAssert(arm::gAllLabel.find(label_) != arm::gAllLabel.end());
+    // this->EmitCode();
+    if (has_x_) {
+      MyAssert(label_ == "lr");
+    }  // 目前没有blx bx只能是bx lr
+  }
 };
 
 // LoadStore: <op>/*{size}*/ rd, rn {, #<imm12>} OR rd , rn, +/- rm {, <opsh>}, i.e. a Operand2-style offset.
@@ -243,7 +281,18 @@ class LdrStr : public Instruction {
       : Instruction(cond), opkind_(opkind), type_(type), rd_(rd), rn_(rn), is_offset_imm_(true), offset_imm_(offset) {}
   virtual ~LdrStr();
   virtual void EmitCode(std::ostream& outfile = std::clog);
-  static bool CheckImm12(int imm) { return (imm < 4096) && (imm > -4096); }
+  static bool CheckImm12(int imm) { return (imm < 4092) && (imm > -4092); }  // TODO: should be 4096
+  virtual void Check() {
+    MyAssert(nullptr != rd_ && nullptr != rn_);
+    rd_->Check();
+    rn_->Check();
+    if (is_offset_imm_) {
+      MyAssert(CheckImm12(offset_imm_));
+    } else {
+      MyAssert(nullptr != offset_);
+      offset_->Check();
+    }
+  }
 };
 
 // ldr-pseudo inst: ref: https://developer.arm.com/documentation/dui0041/c/Babbfdih
@@ -259,6 +308,12 @@ class LdrPseudo : public Instruction {
   bool IsImm() { return is_imm_; }
   virtual ~LdrPseudo();
   virtual void EmitCode(std::ostream& outfile = std::clog);
+  virtual void Check() {
+    MyAssert(nullptr != rd_);
+    rd_->Check();
+    MyAssert(IsImm() || (ir::gScopes[0].symbol_table_.find(literal_) !=
+                         ir::gScopes[0].symbol_table_.end()));  // NOTE: literal_应该能在全局表中找到 TODO!!!
+  }
 
  private:
   bool is_imm_;
@@ -273,6 +328,12 @@ class PushPop : public Instruction {
   PushPop(OpKind opkind, Cond cond) : Instruction(cond), opkind_(opkind) {}
   virtual ~PushPop();
   virtual void EmitCode(std::ostream& outfile = std::clog);
+  virtual void Check() {
+    MyAssert(!reg_list_.empty());
+    for (auto reg : reg_list_) {
+      reg->Check();
+    }
+  }
 };
 }  // namespace arm
 

@@ -20,6 +20,18 @@
     ir::SemanticError(this->line_no_, ctx.opn_.name_ + ": " + locstr + " type not int"); \
   }
 
+#define ASSERT_ENABLE
+// assert(res);
+#ifdef ASSERT_ENABLE
+#define MyAssert(res)                                                    \
+  if (!(res)) {                                                          \
+    std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl; \
+    exit(255);                                                           \
+  }
+#else
+#define MyAssert(res) ;
+#endif
+
 namespace ast {
 
 using OpnType = ir::Opn::Type;
@@ -46,6 +58,19 @@ void Root::GenerateIR(ir::ContextInfo &ctx) {
 
   // 创建一张全局符号表 全局作用域id为0 父作用域id为-1 当前dynamic_offset为0
   ir::gScopes.push_back({0, -1, 0});
+  auto &extern_glo_symtab = ir::gScopes[0].symbol_table_;
+  extern_glo_symtab.insert({"_sysy_idx", {false, false, 0}});
+  auto general_extern_array = ir::SymbolTableItem(true, false, 0);
+  general_extern_array.shape_.push_back(1024);
+  general_extern_array.width_.push_back(1024 * 4);
+  general_extern_array.width_.push_back(4);
+  general_extern_array.initval_ = std::vector<int>(1024, 0);
+  extern_glo_symtab.insert({"_sysy_l1", general_extern_array});
+  extern_glo_symtab.insert({"_sysy_l2", general_extern_array});
+  extern_glo_symtab.insert({"_sysy_h", general_extern_array});
+  extern_glo_symtab.insert({"_sysy_m", general_extern_array});
+  extern_glo_symtab.insert({"_sysy_s", general_extern_array});
+  extern_glo_symtab.insert({"_sysy_us", general_extern_array});
 
   // 初始化上下文信息中的当前作用域id
   ctx.scope_id_ = 0;
@@ -196,7 +221,8 @@ void BinaryExpression::GenerateIR(ir::ContextInfo &ctx) {
         result = num1 % num2;
         break;
       default:
-        printf("mystery operator code: %d", op_);
+        // printf("mystery operator code: %d", op_);
+        MyAssert(0);
         break;
     }
     ctx.opn_ = ir::Opn(OpnType::Imm, result, ctx.scope_id_);
@@ -218,7 +244,8 @@ void BinaryExpression::GenerateIR(ir::ContextInfo &ctx) {
         op = IROpKind::MOD;
         break;
       default:
-        printf("mystery operator code: %d", op_);
+        // printf("mystery operator code: %d", op_);
+        MyAssert(0);
         break;
     }
     std::string res_temp_var = ir::NewTemp();
@@ -251,7 +278,8 @@ void UnaryExpression::GenerateIR(ir::ContextInfo &ctx) {
         result = !num1;
         break;
       default:
-        printf("mystery operator code: %d", op_);
+        // printf("mystery operator code: %d", op_);
+        MyAssert(0);
         break;
     }
     ctx.opn_ = ir::Opn(OpnType::Imm, result, ctx.scope_id_);
@@ -269,7 +297,8 @@ void UnaryExpression::GenerateIR(ir::ContextInfo &ctx) {
         op = IROpKind::NOT;
         break;
       default:
-        printf("mystery operator code: %d", op_);
+        // printf("mystery operator code: %d", op_);
+        MyAssert(0);
         break;
     }
     std::string rhs_temp_var = ir::NewTemp();
@@ -1442,3 +1471,8 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
 }
 
 }  // namespace ast
+
+#undef MyAssert
+#ifdef ASSERT_ENABLE
+#undef ASSERT_ENABLE
+#endif
