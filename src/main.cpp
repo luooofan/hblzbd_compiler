@@ -18,6 +18,8 @@ extern int yyparse();
 extern int yylex_destroy();
 extern void yyset_lineno(int _line_number);
 
+// #define DEBUG_PROCESS
+
 #define ASSERT_ENABLE
 // assert(res);
 #ifdef ASSERT_ENABLE
@@ -73,9 +75,15 @@ int main(int argc, char **argv) {
   if (nullptr != log_file) {
     logfile.open(log_file);
   }
-  // std::cout << "Start Parser:" << std::endl;
+
+#ifdef DEBUG_PROCESS
+  std::cout << "Parser Start:" << std::endl;
+#endif
   yyset_lineno(1);
   yyparse();  // if success, ast_root is valid
+#ifdef DEBUG_PROCESS
+  std::cout << "Parser End." << std::endl;
+#endif
   yylex_destroy();
 
   MyAssert(nullptr != ast_root);
@@ -84,10 +92,14 @@ int main(int argc, char **argv) {
     ast_root->PrintNode(0, logfile);
   }
 
-  // std::cout << "Generate IR:" << std::endl;
+#ifdef DEBUG_PROCESS
+  std::cout << "Generate IR Start:" << std::endl;
+#endif
   ir::ContextInfo ctx;
   ast_root->GenerateIR(ctx);
-
+#ifdef DEBUG_PROCESS
+  std::cout << "Generate IR End." << std::endl;
+#endif
   delete ast_root;
 
   if (logfile.is_open()) {
@@ -105,6 +117,9 @@ int main(int argc, char **argv) {
   // module_ptr->EmitCode(std::cout);
   Module **const module_ptr_addr = &module_ptr;
 
+#ifdef DEBUG_PROCESS
+  std::cout << "Passes Start:" << std::endl;
+#endif
   PassManager pm(module_ptr_addr);
   pm.AddPass<GenerateArm>(false);
   pm.AddPass<RegAlloc>(false);
@@ -113,8 +128,14 @@ int main(int argc, char **argv) {
   } else {
     pm.Run();
   }
+#ifdef DEBUG_PROCESS
+  std::cout << "Passes End." << std::endl;
+#endif
 
   MyAssert(typeid(*module_ptr) == typeid(ArmModule));
+#ifdef DEBUG_PROCESS
+  std::cout << "Emit Start:" << std::endl;
+#endif
   {
     std::ofstream outfile;
     std::string file_name = "";
@@ -133,6 +154,9 @@ int main(int argc, char **argv) {
     }
     outfile.close();
   }
+#ifdef DEBUG_PROCESS
+  std::cout << "Emit End." << std::endl;
+#endif
 
   if (logfile.is_open()) {
     logfile.close();
