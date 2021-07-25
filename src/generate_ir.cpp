@@ -53,6 +53,11 @@ void Root::GenerateIR(ir::ContextInfo &ctx) {
   ir::gFuncTable.insert({"_sysy_stoptime", func_item_void});
   func_item_void.shape_list_.push_back({-1});
   ir::gFuncTable.insert({"putarray", func_item_void});
+  ir::FuncTableItem memset_func_item = {VOID, -1};
+  memset_func_item.shape_list_.push_back({-1});
+  memset_func_item.shape_list_.push_back({});
+  memset_func_item.shape_list_.push_back({});
+  ir::gFuncTable.insert({"memset", memset_func_item});
   // TODO: string type and putf function
   // ir::gFuncTable.insert({"putf", {VOID}});
 
@@ -330,7 +335,7 @@ void FunctionCall::GenerateIR(ir::ContextInfo &ctx) {
   // for (int i = args_.arg_list_.size() - 1; i >= 0; --i) {
   for (int i = 0; i < args_.arg_list_.size(); ++i) {
     args_.arg_list_[i]->GenerateIR(ctx);
-    if (name_.name_ != "putarray") {  // NOTE: putarray不检查参数的合法性
+    if (name_.name_ != "putarray" && name_.name_ != "memset") {  // NOTE: putarray和memset不检查参数的合法性
       if (ctx.shape_.size() != func_item.shape_list_[i].size()) {
         // std::cerr << ctx.shape_.size() << ' ' << func_item.shape_list_[i].size() << std::endl;
         ir::SemanticError(line_no_, "函数调用参数类型不匹配");
@@ -515,6 +520,18 @@ void ArrayDefineWithInit::GenerateIR(ir::ContextInfo &ctx) {
     if (ctx.scope_id_ == 0 || this->is_const_) {
       this->value_.Evaluate(ctx);
     } else {
+      // NOTE: 先生成一颗functioncall树 生成相关代码后再genir并且=0的不用再生成ir
+      ir::gIRList.push_back({IROpKind::PARAM, {OpnType::Imm, symbol_item.width_[0], ctx.scope_id_}});
+      ir::gIRList.push_back({IROpKind::PARAM, IMM_0_OPN});
+      ir::gIRList.push_back(
+          {IROpKind::PARAM, {OpnType::Array, name, ctx.scope_id_, new ir::Opn(OpnType::Imm, 0, ctx.scope_id_)}});
+      ir::Opn temp = ir::Opn(OpnType::Null);
+      // ctx.opn_ = temp;
+      // ctx.shape_.clear();
+      // TODO: 这里用name会导致段错误
+      auto opn1 = ir::Opn(OpnType::Func, std::string("memset"), ctx.scope_id_);
+      auto opn2 = ir::Opn(OpnType::Imm, 3, ctx.scope_id_);
+      ir::gIRList.push_back({IROpKind::CALL, opn1, opn2, temp});
       this->value_.GenerateIR(ctx);
     }
   } else {
@@ -771,11 +788,12 @@ void ArrayInitVal::GenerateIR(ir::ContextInfo &ctx) {
     this->value_->GenerateIR(ctx);
     CHECK_OPN_INT("exp")
     // genir([]=,expvalue,-,arrayname offset)
-    ir::gIRList.push_back({IROpKind::/*OFFSET_*/ ASSIGN,
-                           ctx.opn_,
-                           {OpnType::Array, ctx.array_name_, ctx.scope_id_,
-                            new ir::Opn(OpnType::Imm, ctx.array_offset_ * 4, ctx.scope_id_)}});
-
+    if (ctx.opn_.type_ != OpnType::Imm || 0 != ctx.opn_.imm_num_) {
+      ir::gIRList.push_back({IROpKind::/*OFFSET_*/ ASSIGN,
+                             ctx.opn_,
+                             {OpnType::Array, ctx.array_name_, ctx.scope_id_,
+                              new ir::Opn(OpnType::Imm, ctx.array_offset_ * 4, ctx.scope_id_)}});
+    }
     ctx.array_offset_ += 1;
   } else {
     // 此时该结点表示一对大括号 {}
@@ -809,10 +827,11 @@ void ArrayInitVal::GenerateIR(ir::ContextInfo &ctx) {
       // 补0补到finaloffset
       while (offset < final_offset) {
         // genir([]=,0,-,arrayname offset)
-        ir::gIRList.push_back({IROpKind::/*OFFSET_*/ ASSIGN,
-                               IMM_0_OPN,
-                               {OpnType::Array, ctx.array_name_, ctx.scope_id_,
-                                new ir::Opn(OpnType::Imm, (offset++ * 4), ctx.scope_id_)}});
+        // ir::gIRList.push_back({IROpKind::/*OFFSET_*/ ASSIGN,
+        //                        IMM_0_OPN,
+        //                        {OpnType::Array, ctx.array_name_, ctx.scope_id_,
+        //                         new ir::Opn(OpnType::Imm, (offset++ * 4), ctx.scope_id_)}});
+        ++offset;
       }
       if (offset > final_offset) {
         ir::SemanticError(this->line_no_, "初始值设定项值太多");

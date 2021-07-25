@@ -24,6 +24,7 @@ IRModule* ConstructModule(const std::string& module_name) {
   label2func.insert({"putarray", new IRFunction("putarray", 1, 0)});
   label2func.insert({"_sysy_starttime", new IRFunction("_sysy_starttime", 1, 0)});
   label2func.insert({"_sysy_stoptime", new IRFunction("_sysy_stoptime", 1, 0)});
+  label2func.insert({"memset", new IRFunction("memset", 3, 0)});
 
   IRModule* module = new IRModule(module_name, gScopes[0]);
 
