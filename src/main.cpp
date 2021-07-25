@@ -153,6 +153,7 @@ int main(int argc, char **argv) {
       logfile << "Emitting code to file: " << file_name << std::endl;
     }
     module_ptr->EmitCode(outfile);
+    MyAssert(outfile.is_open());
     if (logfile.is_open()) {
       logfile << "EmitCode finish." << std::endl;
     }
