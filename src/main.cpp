@@ -154,6 +154,7 @@ int main(int argc, char **argv) {
     }
     module_ptr->EmitCode(outfile);
     MyAssert(outfile.is_open());
+    outfile << std::endl;
     if (logfile.is_open()) {
       logfile << "EmitCode finish." << std::endl;
     }

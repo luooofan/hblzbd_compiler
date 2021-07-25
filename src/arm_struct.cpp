@@ -10,7 +10,13 @@ void ArmModule::EmitCode(std::ostream& out) {
   out << ".arm" << std::endl;
   out << "@ module: " << this->name_ << std::endl;
   out << std::endl;
-
+  out << R"(
+.macro mov32, reg, val
+    movw \reg, #:lower16:\val
+    movt \reg, #:upper16:\val
+.endm
+  )" << std::endl;
+  out << std::endl;
   // .data
   auto& global_symtab = this->global_scope_.symbol_table_;
   if (!global_symtab.empty()) {
@@ -41,8 +47,17 @@ void ArmModule::EmitCode(std::ostream& out) {
         out << "\t.align 4" << std::endl;
         out << "\t.type " << symbol.first << ", %object" << std::endl;
         out << symbol.first << ":" << std::endl;
+        int cnt0 = 0;
         for (int i = 0; i < symbol.second.initval_.size(); ++i) {
-          out << "\t.word " << symbol.second.initval_[i] << std::endl;
+          if (0 == symbol.second.initval_[i]) {
+            ++cnt0;
+          } else {
+            if (0 != cnt0) {
+              out << "\t.space " << cnt0 * 4 << std::endl;
+              cnt0 = 0;
+            }
+            out << "\t.word " << symbol.second.initval_[i] << std::endl;
+          }
           if (i == last_not0) break;
         }
         int space = (symbol.second.initval_.size() - last_not0 - 1) * 4;
@@ -97,35 +112,35 @@ void ArmBasicBlock::EmitCode(std::ostream& out) {
     out << *this->label_ << ":" << std::endl;
   }
   out << "  @ BasicBlock Begin:" << std::endl;
-  out << "  @ pred: ";
-  for (auto pred : this->pred_) {
-    out << GET_BB_LABEL_STR(pred) << " ";
-  }
-  // out << std::endl;
-  out << "  @ succ: ";
-  for (auto succ : this->succ_) {
-    out << GET_BB_LABEL_STR(succ) << " ";
-  }
-  // out << std::endl;
-  out << "  @ use: ";
-  for (auto use : this->use_) {
-    out << "r" << use << " ";
-  }
-  // out << std::endl;
-  out << "  @ def: ";
-  for (auto def : this->def_) {
-    out << "r" << def << " ";
-  }
-  // out << std::endl;
-  out << "  @ livein: ";
-  for (auto livein : this->livein_) {
-    out << "r" << livein << " ";
-  }
-  // out << std::endl;
-  out << "  @ liveout: ";
-  for (auto liveout : this->liveout_) {
-    out << "r" << liveout << " ";
-  }
+  // out << "  @ pred: ";
+  // for (auto pred : this->pred_) {
+  //   out << GET_BB_LABEL_STR(pred) << " ";
+  // }
+  // // out << std::endl;
+  // out << "  @ succ: ";
+  // for (auto succ : this->succ_) {
+  //   out << GET_BB_LABEL_STR(succ) << " ";
+  // }
+  // // out << std::endl;
+  // out << "  @ use: ";
+  // for (auto use : this->use_) {
+  //   out << "r" << use << " ";
+  // }
+  // // out << std::endl;
+  // out << "  @ def: ";
+  // for (auto def : this->def_) {
+  //   out << "r" << def << " ";
+  // }
+  // // out << std::endl;
+  // out << "  @ livein: ";
+  // for (auto livein : this->livein_) {
+  //   out << "r" << livein << " ";
+  // }
+  // // out << std::endl;
+  // out << "  @ liveout: ";
+  // for (auto liveout : this->liveout_) {
+  //   out << "r" << liveout << " ";
+  // }
   out << std::endl;
   for (auto inst : this->inst_list_) {
     inst->EmitCode(out);

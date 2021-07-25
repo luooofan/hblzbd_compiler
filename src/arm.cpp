@@ -168,16 +168,22 @@ LdrPseudo::~LdrPseudo() {}
 void LdrPseudo::EmitCode(std::ostream& outfile) {
   // convert ldr-pseudo inst to movw&movt
   // https://community.arm.com/developer/ip-products/processors/b/processors-ip-blog/posts/how-to-load-constants-in-assembly-for-arm-architecture
-  if (!this->is_imm_ || 0 != (this->imm_ & 0xFFFF)) {
-    outfile << "\tmovw " << std::string(*(this->rd_)) + ", #";
-    outfile << (this->is_imm_ ? std::to_string(this->imm_ & 0xFFFF) : ":lower16:" + this->literal_);
-    outfile << std::endl;
-  }
-  if (!this->is_imm_ || 0 != ((this->imm_ >> 16) & 0xFFFF)) {
-    outfile << "\tmovt " << std::string(*(this->rd_)) + ", #";
-    outfile << (this->is_imm_ ? std::to_string((this->imm_ >> 16) & 0xFFFF) : ":upper16:" + this->literal_);
-    outfile << std::endl;
-  }
+  // if (!this->is_imm_) {
+  //   outfile << "\tmov32 " << std::string(*(this->rd_)) + ", " + this->literal_ << std::endl;
+  // } else if (0 == this->imm_) {
+  //   outfile << "\tmovw " << std::string(*(this->rd_)) + ", #0" << std::endl;
+  // } else {
+  //   if (0 != (this->imm_ & 0xFFFF)) {
+  //     outfile << "\tmovw " << std::string(*(this->rd_)) + ", #" << std::to_string(this->imm_ & 0xFFFF) <<
+  //     std::endl;
+  //   }
+  //   if (0 != ((this->imm_ >> 16) & 0xFFFF)) {
+  //     outfile << "\tmovt " << std::string(*(this->rd_)) + ", #" << std::to_string((this->imm_ >> 16) & 0xFFFF)
+  //             << std::endl;
+  //   }
+  // }
+  outfile << "\tmov32 " << std::string(*(this->rd_)) << ", "
+          << (this->is_imm_ ? std::to_string(this->imm_) : this->literal_) << std::endl;
 }
 
 PushPop::~PushPop() {}
