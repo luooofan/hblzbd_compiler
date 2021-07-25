@@ -636,12 +636,12 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
             // 找到rbase后 来一条ldr语句
             if (opn->offset_->type_ == ir::Opn::Type::Imm) {
               this->GenImmLdrStrInst(armbb, LdrStr::OpKind::LDR, vreg, rbase, opn->offset_->imm_num_);
-            }else{
+            } else {
               armbb->inst_list_.push_back(
                   static_cast<Instruction*>(new LdrStr(LdrStr::OpKind::LDR, LdrStr::Type::Norm, Cond::AL, vreg, rbase,
                                                        ResolveOpn2Operand2(armbb, opn->offset_))));
             }
-            
+
             break;
           }
           case ir::IR::OpKind::JEQ:
