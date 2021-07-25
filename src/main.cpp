@@ -81,6 +81,7 @@ int main(int argc, char **argv) {
 #endif
   yyset_lineno(1);
   yyparse();  // if success, ast_root is valid
+  // MyAssert(0);
 #ifdef DEBUG_PROCESS
   std::cout << "Parser End." << std::endl;
 #endif
@@ -100,6 +101,7 @@ int main(int argc, char **argv) {
 #ifdef DEBUG_PROCESS
   std::cout << "Generate IR End." << std::endl;
 #endif
+  MyAssert(0);
   delete ast_root;
 
   if (logfile.is_open()) {
