@@ -164,14 +164,16 @@ void ArrayInitVal::Evaluate(ir::ContextInfo& ctx) {
         }
       }
       // 补0补到finaloffset
-      while (offset < final_offset) {
-        symbol_item.initval_.push_back(0);
-        ++offset;
-      }
+      // while (offset < final_offset) {
+      //   symbol_item.initval_.push_back(0);
+      //   ++offset;
+      // }
       // 语义检查
       if (offset > final_offset) {  // 语义错误 初始值设定项值太多
         ir::SemanticError(this->line_no_, "初始值设定项值太多");
       }
+      symbol_item.initval_.insert(symbol_item.initval_.end(), final_offset - offset, 0);
+      offset = final_offset;
     }
   }
 }

@@ -79,12 +79,12 @@ void SymbolTableItem::Print(std::ostream &outfile) {
   }
   if (!this->initval_.empty()) {
     // printf("%20s: ", "initval");
-    outfile << std::setw(20) << "initval"
-            << ": ";
-    for (const auto &initval : this->initval_) {
-      // printf("%3d ", initval);
-      outfile << std::setw(3) << initval;
-    }
+    // outfile << std::setw(20) << "initval"
+    //         << ": ";
+    // for (const auto &initval : this->initval_) {
+    //   // printf("%3d ", initval);
+    //   outfile << std::setw(3) << initval;
+    // }
     // printf("\n");
     outfile << std::endl;
   }
