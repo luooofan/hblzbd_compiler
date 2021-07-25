@@ -130,7 +130,7 @@ int main(int argc, char **argv) {
   } else {
     pm.Run();
   }
-  MyAssert(0);
+  // MyAssert(0);
 #ifdef DEBUG_PROCESS
   std::cout << "Passes End." << std::endl;
 #endif
@@ -169,7 +169,7 @@ int main(int argc, char **argv) {
   // release the arm module space.
   delete module_ptr;
   module_ptr = nullptr;
-
+  MyAssert(0);
   return 0;
 }
 
