@@ -29,7 +29,8 @@ void ArmModule::EmitCode(std::ostream& out) {
           symbol.first == "_sysy_h" || symbol.first == "_sysy_m" || symbol.first == "_sysy_s" ||
           symbol.first == "_sysy_us")
         continue;
-      if (symbol.second.is_const_) continue;
+      // NOTE: 数组常量不能删 可能会用到变量下标
+      if (symbol.second.is_const_ && !symbol.second.is_array_) continue;
       bool in_bss = true;
       int last_not0 = 0;
       for (int i = 0; i < symbol.second.initval_.size(); ++i) {

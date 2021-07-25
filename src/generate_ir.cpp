@@ -352,7 +352,7 @@ void FunctionCall::GenerateIR(ir::ContextInfo &ctx) {
 
     ir::SymbolTableItem *s = nullptr;
     int scope_id = ir::FindSymbol(ctx.scope_id_, ctx.opn_.name_, s);
-    if (name_.name_ != "putarray" && s && s->is_array_ && s->is_const_) {
+    if (name_.name_ != "putarray" && name_.name_ != "memset" && s && s->is_array_ && s->is_const_) {
       ir::SemanticError(line_no_, "实参不能是const数组");
       return;
     }
@@ -486,11 +486,12 @@ void ArrayDefineWithInit::GenerateIR(ir::ContextInfo &ctx) {
   // NOTE: 只需在当前作用域查找即可 找到则重定义
   const auto &array_iter = symbol_table.find(name);
   if (array_iter == symbol_table.end()) {
-    if (this->is_const_) {
-      symbol_table.insert({name, ir::SymbolTableItem(true, true, -1)});
-    } else {
-      symbol_table.insert({name, ir::SymbolTableItem(true, false, scope.dynamic_offset_)});
-    }
+    // NOTE: 常量数组不一定能删 因为可能会有变量下标
+    // if (this->is_const_) {
+    // symbol_table.insert({name, ir::SymbolTableItem(true, true, -1)});
+    // } else {
+    symbol_table.insert({name, ir::SymbolTableItem(true, this->is_const_, scope.dynamic_offset_)});
+    // }
     auto &symbol_item = symbol_table.find(name)->second;
     // 填shape
     for (const auto &shape : this->name_.shape_list_) {
@@ -508,7 +509,8 @@ void ArrayDefineWithInit::GenerateIR(ir::ContextInfo &ctx) {
       width *= *reiter;
       temp_width.push(width);
     }
-    if (!this->is_const_) scope.dynamic_offset_ += temp_width.top();
+    // if (!this->is_const_) scope.dynamic_offset_ += temp_width.top();
+    scope.dynamic_offset_ += temp_width.top();
     while (!temp_width.empty()) {
       symbol_item.width_.push_back(temp_width.top());
       temp_width.pop();

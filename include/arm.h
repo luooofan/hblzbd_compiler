@@ -287,7 +287,7 @@ class LdrStr : public Instruction {
     rd_->Check();
     rn_->Check();
     if (is_offset_imm_) {
-      MyAssert(CheckImm12(offset_imm_));
+      MyAssert(CheckImm12(offset_imm_) && nullptr == offset_);
     } else {
       MyAssert(nullptr != offset_);
       offset_->Check();
