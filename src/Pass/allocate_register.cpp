@@ -495,7 +495,7 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
               d->reg_id_ = colored[d->reg_id_];
             }
             for (auto &u : use) {
-              // MyAssert(nullptr != u && colored.find(u->reg_id_) != colored.end());
+              MyAssert(nullptr != u && colored.find(u->reg_id_) != colored.end());
               // if (u && colored.find(u->reg_id_) != colored.end()) {
               u->reg_id_ = colored[u->reg_id_];
               // }
