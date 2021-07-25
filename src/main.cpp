@@ -101,7 +101,7 @@ int main(int argc, char **argv) {
 #ifdef DEBUG_PROCESS
   std::cout << "Generate IR End." << std::endl;
 #endif
-  MyAssert(0);
+  // MyAssert(0);
   delete ast_root;
 
   if (logfile.is_open()) {
@@ -130,6 +130,7 @@ int main(int argc, char **argv) {
   } else {
     pm.Run();
   }
+  MyAssert(0);
 #ifdef DEBUG_PROCESS
   std::cout << "Passes End." << std::endl;
 #endif
