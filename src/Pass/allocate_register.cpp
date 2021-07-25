@@ -492,6 +492,12 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
             // std::vector<Reg *> use;
             for (auto &d : def) {
               // MyAssert(nullptr != d && colored.find(d->reg_id_) != colored.end());
+              if (nullptr == d) {
+                exit(233);
+              }
+              if (colored.find(d->reg_id_) == colored.end()) {
+                exit(234);
+              }
               d->reg_id_ = colored[d->reg_id_];
             }
             for (auto &u : use) {
@@ -676,39 +682,39 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
     // push和pop中添加了r4-r11 或者删除了lr和sp的话 需要修复栈中实参的位置
     for (auto inst : func->sp_arg_fixup_) {
       if (auto src_inst = dynamic_cast<Move *>(inst)) {
-        // MyAssert(src_inst->op2_->is_imm_);
+        MyAssert(src_inst->op2_->is_imm_);
         if (src_inst->is_mvn_) {
           src_inst->op2_->imm_num_ -= offset_fixup_diff;
         } else {
           src_inst->op2_->imm_num_ += offset_fixup_diff;
         }
       } else if (auto src_inst = dynamic_cast<LdrStr *>(inst)) {
-        // MyAssert(src_inst->is_offset_imm_);
+        MyAssert(src_inst->is_offset_imm_);
         src_inst->offset_imm_ += offset_fixup_diff;
       } else if (auto src_inst = dynamic_cast<LdrPseudo *>(inst)) {
-        // MyAssert(src_inst->IsImm());
+        MyAssert(src_inst->IsImm());
         src_inst->imm_ += offset_fixup_diff;
       } else {
-        // MyAssert(0);
+        MyAssert(0);
       }
     }
     // 针对sp的修复
     for (auto inst : func->sp_fixup_) {
       if (auto src_inst = dynamic_cast<Move *>(inst)) {
-        // MyAssert(src_inst->op2_->is_imm_);
+        MyAssert(src_inst->op2_->is_imm_);
         if (src_inst->is_mvn_) {
           src_inst->op2_->imm_num_ -= stack_size_diff;
         } else {
           src_inst->op2_->imm_num_ += stack_size_diff;
         }
       } else if (auto src_inst = dynamic_cast<LdrPseudo *>(inst)) {
-        // MyAssert(src_inst->IsImm());
+        MyAssert(src_inst->IsImm());
         src_inst->imm_ += stack_size_diff;
       } else if (auto src_inst = dynamic_cast<BinaryInst *>(inst)) {
-        // MyAssert(src_inst->op2_->is_imm_);
+        MyAssert(src_inst->op2_->is_imm_);
         src_inst->op2_->imm_num_ += stack_size_diff;
       } else {
-        // MyAssert(0);
+        MyAssert(0);
       }
     }
 
