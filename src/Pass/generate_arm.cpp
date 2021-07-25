@@ -594,9 +594,14 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
                   this->GenImmLdrStrInst(armbb, LdrStr::OpKind::LDR, rbase, sp_vreg, symbol.stack_offset_);
                 }
               }
-              armbb->inst_list_.push_back(
-                  static_cast<Instruction*>(new LdrStr(LdrStr::OpKind::STR, LdrStr::Type::Norm, Cond::AL, rd, rbase,
-                                                       ResolveOpn2Operand2(armbb, ir.res_.offset_))));
+              if (ir.res_.offset_->type_ == ir::Opn::Type::Imm) {
+                this->GenImmLdrStrInst(armbb, LdrStr::OpKind::STR, rd, rbase, ir.res_.offset_->imm_num_);
+              } else {
+                armbb->inst_list_.push_back(
+                    static_cast<Instruction*>(new LdrStr(LdrStr::OpKind::STR, LdrStr::Type::Norm, Cond::AL, rd, rbase,
+                                                         ResolveOpn2Operand2(armbb, ir.res_.offset_))));
+              }
+
             } else {
               // 把一个op2 mov到某变量中
               auto gen_mov_inst = [&armbb, &op2](Reg* rd) {
@@ -629,9 +634,14 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
               }
             }
             // 找到rbase后 来一条ldr语句
-            armbb->inst_list_.push_back(
-                static_cast<Instruction*>(new LdrStr(LdrStr::OpKind::LDR, LdrStr::Type::Norm, Cond::AL, vreg, rbase,
-                                                     ResolveOpn2Operand2(armbb, opn->offset_))));
+            if (opn->offset_->type_ == ir::Opn::Type::Imm) {
+              this->GenImmLdrStrInst(armbb, LdrStr::OpKind::LDR, vreg, rbase, opn->offset_->imm_num_);
+            }else{
+              armbb->inst_list_.push_back(
+                  static_cast<Instruction*>(new LdrStr(LdrStr::OpKind::LDR, LdrStr::Type::Norm, Cond::AL, vreg, rbase,
+                                                       ResolveOpn2Operand2(armbb, opn->offset_))));
+            }
+            
             break;
           }
           case ir::IR::OpKind::JEQ:
