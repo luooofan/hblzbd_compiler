@@ -281,7 +281,7 @@ void GenerateArm::AddPrologue(ArmFunction* func, ArmBasicBlock* first_bb) {
   }
 }
 
-void GenerateArm::GenCallCode(ArmBasicBlock* armbb, ir::IR& ir, int loc) {
+void GenerateArm::GenCallCode(ArmBasicBlock* armbb, ir::IR& ir, std::vector<ir::IR*>::iterator ir_iter) {
   MyAssert(ir.opn1_.type_ == ir::Opn::Type::Func);
   // 处理param语句
   // ir[start-1] is call
@@ -296,9 +296,9 @@ void GenerateArm::GenCallCode(ArmBasicBlock* armbb, ir::IR& ir, int loc) {
                        ResolveImm2Operand2(armbb, (param_num - 4) * 4))));
   }
 
-  int param_start = loc - 1 - param_num;
+  auto param_start = ir_iter - param_num;
   for (int i = 0; i < param_num; ++i) {  // i表示当前正在看第几条param语句 也即倒数第几个参数 start from 0
-    auto& param_ir = ir::gIRList[param_start + i];
+    auto& param_ir = **(param_start + i);
     int order = param_num - 1 - i;  // order表示正数第几个参数 start from 0
     if (order < 4) {
       // r0-r3. MOV rx, op2
@@ -386,14 +386,13 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
     for (auto bb : func->bb_list_) {
       auto armbb = bb_map[bb];
 
-      // 如果第一条ir是label label 就转成armbb的label 从而过滤所有label语句 这里假设bb的start一定有效(start<end)
-      int start = bb->start_;
-      if (ir::gIRList[start].op_ == ir::IR::OpKind::LABEL) {
-        auto& opn1 = ir::gIRList[start].opn1_;
-        if (opn1.type_ == ir::Opn::Type::Label) {
-          armbb->label_ = new std::string(opn1.name_);
-        }
-        ++start;
+      // 处理所有label语句
+      auto first_ir = bb->ir_list_.front();
+      if (first_ir->op_ == ir::IR::OpKind::LABEL) {
+        if (first_ir->opn1_.type_ == ir::Opn::Type::Label) {  // 如果是label就把label赋给这个bb的label
+          armbb->label_ = new std::string(first_ir->opn1_.name_);
+        }  // 如果是func label不用管 直接删了就行
+        bb->ir_list_.erase(bb->ir_list_.begin());
       }
 
       auto dbg_print_var_map = [this]() {
@@ -427,12 +426,12 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
 
       // valid ir: gIRList[start,end_)
       // for every ir
-      while (start < bb->end_) {
+      for (auto ir_iter = bb->ir_list_.begin(); ir_iter != bb->ir_list_.end(); ++ir_iter) {
         // 对于每条有原始变量(非中间变量)的四元式 为了保证正确性 必须生成对使用变量的ldr指令
         // 因为无法确认程序执行流 无法确认当前使用的变量的上一个定值点 也就无法确认到底在哪个寄存器中
         // 所以需要ldr到一个新的虚拟寄存器中 为了保证逻辑与存储的一致性 必须生成对定值变量的str指令
         // 寄存器分配期间也无法删除这些ldr和str指令 这些虚拟寄存器对应的活跃区间也非常短
-        auto& ir = ir::gIRList[start++];
+        auto& ir = **ir_iter;
         switch (ir.op_) {
           // NOTE: 只有assign类型ir的res可能是局部变量 全局变量 也可能是数组类型 其他情况的res都是中间变量
           case ir::IR::OpKind::ADD: {
@@ -532,7 +531,7 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
             break;
           }
           case ir::IR::OpKind::CALL: {
-            this->GenCallCode(armbb, ir, start);
+            this->GenCallCode(armbb, ir, ir_iter);
             break;
           }
           case ir::IR::OpKind::RET: {

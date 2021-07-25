@@ -42,7 +42,7 @@ class GenerateArm : public Transform {
   void ChangeOffset(std::string& func_name);
   void AddPrologue(ArmFunction* func, ArmBasicBlock* first_bb);
   void AddEpilogue(ArmBasicBlock* armbb);
-  void GenCallCode(ArmBasicBlock* armbb, ir::IR& ir, int loc);
+  void GenCallCode(ArmBasicBlock* armbb, ir::IR& ir, std::vector<ir::IR*>::iterator ir_iter);
   Reg* LoadGlobalOpn2Reg(ArmBasicBlock* armbb, ir::Opn* opn);
   Reg* ResolveOpn2Reg(ArmBasicBlock* armbb, ir::Opn* opn);
   Operand2* ResolveOpn2Operand2(ArmBasicBlock* armbb, ir::Opn* opn);

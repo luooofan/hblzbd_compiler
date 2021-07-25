@@ -10,9 +10,6 @@ IRModule* ConstructModule(const std::string& module_name) {
   //  所以首指令为每个label和每个跳转语句(call,ret,goto,jxx)的下一句
   //  (即便不一定为真正的首指令也可以接受)
 
-  // TODO: 函数的第一个基本块需要和调用处的基本块链接吗
-  // TODO: 假设函数之间的基本块是毫无关系的
-
   // 先遍历一遍IR 把所有func和有label的BB创建完成 创建两个map
   std::unordered_map<std::string, IRBasicBlock*> label2bb;
   std::unordered_map<std::string, IRFunction*> label2func;
@@ -30,14 +27,15 @@ IRModule* ConstructModule(const std::string& module_name) {
 
   IRModule* module = new IRModule(module_name, gScopes[0]);
 
+  // fill label2bb label2func. every bb has its first ir. every func has it first bb. module has all funs.
   for (int i = 0; i < gIRList.size(); ++i) {
     auto& ir = gIRList[i];
     if (ir.op_ == IR::OpKind::LABEL) {
       auto& label_name = ir.opn1_.name_;
-      IRBasicBlock* bb = new IRBasicBlock(i);
+      IRBasicBlock* bb = new IRBasicBlock();
+      bb->ir_list_.push_back(&ir);
       label2bb.insert({label_name, bb});
-      if (ir.opn1_.type_ == Opn::Type::Func) {
-        // is a function begin
+      if (ir.opn1_.type_ == Opn::Type::Func) {  // is a function begin
         auto& func_item = (*ir::gFuncTable.find(label_name)).second;
         IRFunction* func = new IRFunction(label_name, func_item.shape_list_.size(), func_item.size_);
         func->bb_list_.push_back(bb);
@@ -46,22 +44,19 @@ IRModule* ConstructModule(const std::string& module_name) {
       }
     }
   }
-  // 此时module的所有func已经放好 func的第一个基本块已经放好
+
   bool is_leader = false;
   IRFunction* curr_func = nullptr;
   IRBasicBlock* pre_bb = nullptr;
   IRBasicBlock* curr_bb = nullptr;
+  // for every ir
   for (int i = 0; i < gIRList.size(); ++i) {
     auto& ir = gIRList[i];
     if (ir.op_ == IR::OpKind::LABEL) {
-      is_leader = true;
+      is_leader = true;  // 表示这条一定是首指令
     }
-    if (is_leader) {
-      // 当前ir是一条首指令 意味着上一个BB的结束和一个新的BB的开始
+    if (is_leader) {  // 一定已经或者将要把该ir放入到基本块中
       pre_bb = curr_bb;
-      if (nullptr != pre_bb) {
-        pre_bb->end_ = i;
-      }
       // 更新curr_bb curr_func
       if (ir.op_ == IR::OpKind::LABEL) {
         curr_bb = label2bb[ir.opn1_.name_];
@@ -72,24 +67,24 @@ IRModule* ConstructModule(const std::string& module_name) {
         }
       } else {
         // new BB
-        curr_bb = new IRBasicBlock(i);
+        curr_bb = new IRBasicBlock();
+        curr_bb->ir_list_.push_back(&ir);
       }
       curr_func->bb_list_.push_back(curr_bb);
-      // 维护前一个基本块的终点 维护两个基本块之间的关系
+      // 维护两个基本块之间的关系
       if (nullptr != pre_bb) {
-        // pre_bb->end_ = i;
         pre_bb->succ_.push_back(curr_bb);
         curr_bb->pred_.push_back(pre_bb);
       }
+    } else {
+      curr_bb->ir_list_.push_back(&ir);
     }
-    // 此时is_leader表示下一条ir是否为首指令
-    // 维护当前基本块和跳转目标基本块之间的关系 维护is_leader
+    // 维护当前基本块和跳转目标基本块之间的关系 维护is_leader 之后is_leader表示下一条ir是否为首指令
     switch (ir.op_) {
       case IR::OpKind::RET:
         is_leader = true;
         break;
-      case IR::OpKind::CALL:
-        // NOTE: 此时不维护调用双方两个基本块之间的关系
+      case IR::OpKind::CALL:  // NOTE: 此时不维护调用双方两个基本块之间的关系 TODO: call语句的下一条语句是首指令吗
         curr_func->call_func_list_.push_back(label2func[ir.opn1_.name_]);
         is_leader = true;
         break;
@@ -117,7 +112,6 @@ IRModule* ConstructModule(const std::string& module_name) {
         break;
     }
   }
-  curr_bb->end_ = gIRList.size();
 
   return module;
 }

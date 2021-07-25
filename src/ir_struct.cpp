@@ -10,8 +10,7 @@ void IRModule::EmitCode(std::ostream& out) {
 }
 
 void IRFunction::EmitCode(std::ostream& out) {
-  out << "@ Function: " << this->name_ << " size:" << this->stack_size_
-      << std::endl;
+  out << "@ Function: " << this->name_ << " size:" << this->stack_size_ << std::endl;
   out << "@ call_func: ";
   for (auto func : this->call_func_list_) {
     out << func->name_ << " ";
@@ -25,17 +24,19 @@ void IRFunction::EmitCode(std::ostream& out) {
 }
 
 void IRBasicBlock::EmitCode(std::ostream& out) {
-  out << "@ BasicBlock: start_ir: " << start_ << " end_ir: " << end_
-      << std::endl;
-  out << "@ pred bbs: " << std::endl;
-  for (auto pred : this->pred_) {
-    out << "\t@ " << pred->start_ << " " << pred->end_ << std::endl;
-  }
-  out << "@ succ bbs: " << std::endl;
-  for (auto succ : this->succ_) {
-    out << "\t@ " << succ->start_ << " " << succ->end_ << std::endl;
-  }
-  for (int i = start_; i < end_; ++i) {
-    ir::gIRList[i].PrintIR();
+  out << "@ BasicBlock:" << std::endl;
+  // out << "@ pred bbs: " << std::endl;
+  // for (auto pred : this->pred_) {
+  //   out << "\t@ " << pred->start_ << " " << pred->end_ << std::endl;
+  // }
+  // out << "@ succ bbs: " << std::endl;
+  // for (auto succ : this->succ_) {
+  //   out << "\t@ " << succ->start_ << " " << succ->end_ << std::endl;
+  // }
+  // for (int i = start_; i < end_; ++i) {
+  //   ir::gIRList[i].PrintIR();
+  // }
+  for (auto ir : this->ir_list_) {
+    ir->PrintIR();
   }
 }

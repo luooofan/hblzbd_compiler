@@ -36,13 +36,12 @@ class IRFunction : public Function {
 class IRBasicBlock : public BasicBlock {
  public:
   // all irs
-  int start_;  // close
-  int end_;    // open
+  std::vector<ir::IR*> ir_list_;
 
   std::vector<IRBasicBlock*> pred_;
   std::vector<IRBasicBlock*> succ_;
 
-  IRBasicBlock(int start) : start_(start), end_(-1) {}
+  IRBasicBlock() {}
   virtual ~IRBasicBlock() {}
   void EmitCode(std::ostream& out = std::cout);
 };
