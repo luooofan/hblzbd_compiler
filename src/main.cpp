@@ -169,7 +169,7 @@ int main(int argc, char **argv) {
   // release the arm module space.
   delete module_ptr;
   module_ptr = nullptr;
-  MyAssert(0);
+  // MyAssert(0);
   return 0;
 }
 
