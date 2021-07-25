@@ -1,11 +1,38 @@
-compiler:./src/parser.cpp ./src/scanner.c ./src/ast.cpp ./src/main.cpp ./src/generate_ir.cpp ./src/ir.cpp ./src/evaluate.cpp ./src/ir_struct.cpp ./src/construct_ir_module.cpp ./src/arm.cpp ./src/arm_struct.cpp ./src/Pass/generate_arm.cpp ./src/Pass/arm_liveness_analysis.cpp ./src/Pass/allocate_register.cpp
-	clang++ -std=c++17 -O2 -o $@ $^
+vpath %.cpp src
+vpath %.cpp src/Pass
 
-./src/parser.cpp: ./src/parser.y
-	bison -o $@ -d $<
+CC := clang++
+CPPFLAGS := -std=c++17 -O2
+SOURCES := $(wildcard src/*.cpp src/Pass/*.cpp)
+OBJECTS := $(patsubst %.cpp,build/%.o,$(notdir $(SOURCES)))
+DEPENDS := $(patsubst %.o,%.d,$(OBJECTS))
+TARGETS := compiler
+$(shell mkdir -p build)
 
-./src/scanner.c: ./src/scanner.l
-	flex -o $@ $<
+.PHONY:all
+all: $(TARGETS)
+	@echo Build Successfully.
 
+$(TARGETS):$(OBJECTS)
+	$(CC) $(CPPFLAGS) -lm  $^ -o $@
+
+src/parser.cpp: src/parser.y
+	bison -o $@ -d $< 
+
+src/scanner.cpp: src/scanner.l
+	flex -o $@ $< 
+
+build/%.o: %.cpp
+	$(CC) $(CPPFLAGS) -c $< -o $@
+
+-include $(DEPENDS)
+
+build/%.d: %.cpp
+	@set -e; rm -f $@; \
+	$(CC) -MM $< > $@.$$$$; \
+	sed 's,\($*\)\.o[ :]*,build/\1.o $@ : ,g' < $@.$$$$ > $@; \
+	rm -f $@.$$$$
+
+.PHONY:clean
 clean:
-	rm compiler ./src/scanner.c ./src/parser.hpp ./src/parser.cpp
+	rm -f build/*

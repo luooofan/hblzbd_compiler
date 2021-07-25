@@ -23,12 +23,17 @@
   if (res_.type_ == Opn::Type::Array) outfile << " " << res_.offset_->name_;                                 \
   outfile << std::endl;
 
+#define ASSERT_ENABLE
 // assert(res);
+#ifdef ASSERT_ENABLE
 #define MyAssert(res)                                                    \
   if (!(res)) {                                                          \
     std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl; \
     exit(255);                                                           \
   }
+#else
+#define MyAssert(res) ;
+#endif
 
 namespace ir {
 
@@ -270,3 +275,6 @@ void RuntimeError(const std::string &&error_msg) {
 }  // namespace ir
 
 #undef MyAssert
+#ifdef ASSERT_ENABLE
+#undef ASSERT_ENABLE
+#endif

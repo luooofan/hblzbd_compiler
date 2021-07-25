@@ -1,6 +1,6 @@
-#line 2 "src/scanner.c"
+#line 2 "src/scanner.cpp"
 
-#line 4 "src/scanner.c"
+#line 4 "src/scanner.cpp"
 
 #define  YY_INT_ALIGNED short int
 
@@ -634,8 +634,8 @@ int cal8(char *s);
 int cal10(char *s);
 int cal16(char *s);
 
-#line 638 "src/scanner.c"
-#line 639 "src/scanner.c"
+#line 638 "src/scanner.cpp"
+#line 639 "src/scanner.cpp"
 
 #define INITIAL 0
 #define COMMENT 1
@@ -857,7 +857,7 @@ YY_DECL
 #line 22 "src/scanner.l"
 
 
-#line 861 "src/scanner.c"
+#line 861 "src/scanner.cpp"
 
 	while ( /*CONSTCOND*/1 )		/* loops until end-of-file is reached */
 		{
@@ -1182,7 +1182,7 @@ YY_RULE_SETUP
 #line 86 "src/scanner.l"
 YY_FATAL_ERROR( "flex scanner jammed" );
 	YY_BREAK
-#line 1186 "src/scanner.c"
+#line 1186 "src/scanner.cpp"
 case YY_STATE_EOF(INITIAL):
 	yyterminate();
 
@@ -2227,51 +2227,5 @@ int cal16(char *s)
     }
     return ans;
 }
-
-
-/* main 		{ printf("MAIN: %d %s\n", MAIN, yytext); return MAIN; }*/
-
-
-// int main(int argc, char ** argv)
-// {
-// 	int i;
-	
-// 	if(argc < 2){
-// 		//curfilename = "(stdin)";
-// 		yylineno = 1;
-// 		while(ENDF != yylex()){
-// 			yytokentype next = yylex();
-// 			if(next != WHITESPACE || next != SEMI)
-// 			{
-// 				printf("mystery chacators in %d lines: %s\n", yylineno, yytext);
-// 			}
-// 		}
-// 	}
-// 	else for(i = 1; i < argc; ++i)
-// 	{
-// 		FILE *f = fopen(argv[i], "r");
-		
-// 		if(!f){
-// 			perror(argv[i]);
-// 			return 1;             
-// 		}
-// 		//curfilename = argv[i];  
-		
-		
-// 		yyrestart(f);
-// 		yylineno = 1;
-// 		while(ENDF != yylex()){
-// 			yytokentype next = yylex();
-// 			if(next != WHITESPACE || next != SEMI)
-// 			{
-// 				printf("mystery chacators in %d lines: %s\n", yylineno, yytext);
-// 			}
-// 		}
-// 		fclose(f);
-// 	}
-	
-// 	//printrefs();
-// 	return 0;
-// }
 
 // "putf"[ \t\n]*"("                   FIX_LINE; yylval.string = new std::string("printf"); *yy_cp = yy_hold_char; yy_hold_char='(';yy_cp--; yyleng--; yy_c_buf_p--; return IDENTIFIER;

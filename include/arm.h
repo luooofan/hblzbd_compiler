@@ -3,12 +3,17 @@
 #include <cassert>
 
 #include "../include/ir_struct.h"
+#define ASSERT_ENABLE
 // assert(res);
+#ifdef ASSERT_ENABLE
 #define MyAssert(res)                                                    \
   if (!(res)) {                                                          \
     std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl; \
     exit(255);                                                           \
   }
+#else
+#define MyAssert(res) ;
+#endif
 
 namespace arm {
 // ref: https://en.wikipedia.org/wiki/Calling_convention#ARM_(A32)
@@ -274,3 +279,6 @@ class PushPop : public Instruction {
 #endif
 
 #undef MyAssert
+#ifdef ASSERT_ENABLE
+#undef ASSERT_ENABLE
+#endif

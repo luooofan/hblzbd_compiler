@@ -92,7 +92,7 @@ extern int yydebug;
 
 union YYSTYPE
 {
-#line 26 "src/parser.y" /* yacc.c:1921  */
+#line 25 "src/parser.y" /* yacc.c:1921  */
 
     int token;
     std::string* string;

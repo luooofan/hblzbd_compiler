@@ -4,13 +4,17 @@
 using namespace arm;
 
 #define IS_PRECOLORED(i) (i < 16)
+#define ASSERT_ENABLE
 // assert(res);
+#ifdef ASSERT_ENABLE
 #define MyAssert(res)                                                    \
   if (!(res)) {                                                          \
     std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl; \
     exit(255);                                                           \
   }
-
+#else
+#define MyAssert(res) ;
+#endif
 void dbg_print_worklist(RegAlloc::WorkList &wl, std::ostream &outfile) {
   for (auto item : wl) {
     outfile << item << " ";
@@ -402,8 +406,11 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
       // TODO: 溢出代价计算
       auto select_spill = [&]() {
         // select node with max degree (heuristic)
-        RegId reg = *std::max_element(spill_worklist.begin(), spill_worklist.end(),
-                                      [&](auto a, auto b) { return degree[a] < degree[b]; });
+        RegId reg = *std::max_element(spill_worklist.begin(), spill_worklist.end(), [&](auto a, auto b) {
+          if (16 == a) return true;  // regard r16 as min
+          if (16 == b) return false;
+          return degree[a] < degree[b];
+        });
         // 选择的结点可能mov有关也可能mov无关
         simplify_worklist.insert(reg);
         freeze_moves(reg);
@@ -462,7 +469,7 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
           }
         }
 
-        if (!spill_worklist.empty()) {  // 有实际溢出的话 不继续分配
+        if (!spilled_nodes.empty()) {  // 有实际溢出的话 不继续分配
           return;
         }
 
@@ -488,6 +495,13 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
             // std::vector<Reg *> use;
             for (auto &d : def) {
               MyAssert(nullptr != d && colored.find(d->reg_id_) != colored.end());
+              // if (nullptr == d) {
+              // exit(233);
+              // }
+              // if (colored.find(d->reg_id_) == colored.end()) {
+              // std::cout << d->reg_id_ << " " << func->virtual_reg_max << std::endl;
+              // exit(234);
+              // }
               d->reg_id_ = colored[d->reg_id_];
             }
             for (auto &u : use) {
@@ -552,22 +566,30 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
       if (spilled_nodes.empty()) {
         done = true;
       } else {
+        // MyAssert(0);
         // NOTE: don't test.
+#ifdef DEBUG_SPILL
+        std::cout << "Actual Spill." << std::endl;
+#endif
         // outfile << "actual spill" << std::endl;
         // rewrite program 会导致func的virtual reg max和stack size属性发生变化
         for (auto &spill_reg : spilled_nodes) {
-          // allocate on stack
+#ifdef DEBUG_SPILL
+          std::cout << "process spill node:" << spill_reg << std::endl;
+#endif
+          // allocate on stack spill reg一定是virtual reg
           auto offset = func->stack_size_;
           for (auto bb : func->bb_list_) {
             auto gen_ldrstr_inst = [&func, &offset, &bb, &spill_reg](std::vector<Instruction *>::iterator iter,
                                                                      LdrStr::OpKind opkind) {
+              // 插入str语句后iter指向str语句 插入ldr语句后iter指向原语句
               Instruction *inst;
               if (LdrStr::CheckImm12(offset)) {
                 // NOTE: sp_vreg一定为r16
                 inst = static_cast<Instruction *>(
                     new LdrStr(opkind, LdrStr::Type::Norm, Cond::AL, new Reg(spill_reg), new Reg(16), offset));
                 if (opkind == LdrStr::OpKind::LDR) {
-                  return bb->inst_list_.insert(iter, inst);
+                  return bb->inst_list_.insert(iter, inst) + 1;
                 } else {
                   return bb->inst_list_.insert(iter + 1, inst);
                 }
@@ -582,17 +604,13 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
                 } else {
                   inst = static_cast<Instruction *>(new LdrPseudo(Cond::AL, vreg, offset));
                 }
-                if (opkind == LdrStr::OpKind::LDR) {
-                  iter = bb->inst_list_.insert(iter, inst);
-                } else {
-                  iter = bb->inst_list_.insert(iter + 1, inst);
-                }
-                ++iter;
                 inst = static_cast<Instruction *>(new LdrStr(opkind, LdrStr::Type::Norm, Cond::AL, new Reg(spill_reg),
                                                              new Reg(16), new Operand2(vreg)));
                 if (opkind == LdrStr::OpKind::LDR) {
-                  return bb->inst_list_.insert(iter, inst);
+                  iter = bb->inst_list_.insert(iter, inst) + 1;
+                  return bb->inst_list_.insert(iter, inst) + 1;
                 } else {
+                  iter = bb->inst_list_.insert(iter + 1, inst);
                   return bb->inst_list_.insert(iter + 1, inst);
                 }
               }
@@ -603,11 +621,13 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
               for (auto &u : use) {
                 if (u->reg_id_ == spill_reg) {  // load
                   iter = gen_ldrstr_inst(iter, LdrStr::OpKind::LDR);
+                  break;  // 应该只有一次使用 多次使用也只需要ldr一次即可
                 }
               }
               for (auto &d : def) {
                 if (d->reg_id_ == spill_reg) {  // store
                   iter = gen_ldrstr_inst(iter, LdrStr::OpKind::STR);
+                  break;  // 最多一次定值
                 }
               }
               ++iter;
@@ -615,6 +635,9 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
           }
           func->stack_size_ += 4;  // increase stack size
         }
+#ifdef DEBUG_SPILL
+        std::cout << "Rewrite Finish." << std::endl;
+#endif
         done = false;
       }
     }
@@ -683,9 +706,27 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
       } else if (auto src_inst = dynamic_cast<LdrPseudo *>(inst)) {
         MyAssert(src_inst->IsImm());
         src_inst->imm_ += offset_fixup_diff;
+      } else {
+        MyAssert(0);
+      }
+    }
+    // 针对sp的修复
+    for (auto inst : func->sp_fixup_) {
+      if (auto src_inst = dynamic_cast<Move *>(inst)) {
+        MyAssert(src_inst->op2_->is_imm_);
+        if (src_inst->is_mvn_) {
+          src_inst->op2_->imm_num_ -= stack_size_diff;
+        } else {
+          src_inst->op2_->imm_num_ += stack_size_diff;
+        }
+      } else if (auto src_inst = dynamic_cast<LdrPseudo *>(inst)) {
+        MyAssert(src_inst->IsImm());
+        src_inst->imm_ += stack_size_diff;
       } else if (auto src_inst = dynamic_cast<BinaryInst *>(inst)) {
         MyAssert(src_inst->op2_->is_imm_);
         src_inst->op2_->imm_num_ += stack_size_diff;
+      } else {
+        MyAssert(0);
       }
     }
 
@@ -693,3 +734,6 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
 }
 
 #undef MyAssert
+#ifdef ASSERT_ENABLE
+#undef ASSERT_ENABLE
+#endif

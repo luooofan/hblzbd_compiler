@@ -4,12 +4,17 @@
 #include <cassert>
 #include <functional>
 
+#define ASSERT_ENABLE
 // assert(res);
+#ifdef ASSERT_ENABLE
 #define MyAssert(res)                                                    \
   if (!(res)) {                                                          \
     std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl; \
     exit(255);                                                           \
   }
+#else
+#define MyAssert(res) ;
+#endif
 
 using namespace arm;
 // TODO: 用sp不用vreg会出问题 一堆赋值语句看能不能改
@@ -686,3 +691,6 @@ void GenerateArm::Run() {
 }
 
 #undef MyAssert
+#ifdef ASSERT_ENABLE
+#undef ASSERT_ENABLE
+#endif

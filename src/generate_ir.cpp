@@ -329,6 +329,15 @@ void FunctionCall::GenerateIR(ir::ContextInfo &ctx) {
       opn1 = ir::Opn(OpnType::Array, opn1.name_, opn1.scope_id_, offset);
     }
 
+    // NOTE: 全局变量需要先赋值到一个temp中
+    if (0 == scope_id) {
+      std::string temp = ir::NewTemp();
+      ir::gScopes[ctx.scope_id_].symbol_table_.insert({temp, {false, false, -1}});
+      auto temp_opn = ir::Opn(OpnType::Var, temp, ctx.scope_id_);
+      ir::gIRList.push_back({IROpKind::ASSIGN, opn1, temp_opn});
+      opn1 = temp_opn;
+    }
+
     param_list.push(ir::IR(IROpKind::PARAM, opn1));
   }
 
