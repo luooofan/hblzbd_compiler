@@ -658,7 +658,7 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
     int stack_size_diff = func->stack_size_ - src_stack_size;
     int offset_fixup_diff = used_callee_saved_regs.size() * 4 + stack_size_diff;  // maybe -4
     bool is_lr_used = used_callee_saved_regs.find((int)ArmReg::lr) != used_callee_saved_regs.end();
-    if (func->IsLeaf() && !is_lr_used) {  // 是leaf func并且函数中未使用lr 说明不用push/pop lr 只需bx lr
+    if (is_lr_used || func->IsLeaf()) {  // 用过说明肯定算了两次lr只算一次就行 没用过只算了一次 是leaf func则不用算
       offset_fixup_diff -= 4;
     }
     for (auto bb : func->bb_list_) {
