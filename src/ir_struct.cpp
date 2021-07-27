@@ -2,7 +2,7 @@
 
 void IRModule::EmitCode(std::ostream& out) {
   out << "@ module: " << this->name_ << std::endl;
-  this->global_scope_.Print();
+  // this->global_scope_.Print(out);
   for (auto func : this->func_list_) {
     func->EmitCode(out);
     out << std::endl;
@@ -23,6 +23,16 @@ void IRFunction::EmitCode(std::ostream& out) {
   out << "@ Function End." << std::endl;
 }
 
+// 该bb是不是被这个参数bb所支配 或者说参数bb是不是该bb的必经结点
+bool IRBasicBlock::IsByDom(IRBasicBlock* bb) {
+  auto n = this;
+  while (nullptr != n) {
+    if (bb == n) return true;
+    n = n->idom_;
+  }
+  return false;
+}
+
 void IRBasicBlock::EmitCode(std::ostream& out) {
   out << "@ BasicBlock:" << std::endl;
   // out << "@ pred bbs: " << std::endl;
@@ -37,6 +47,6 @@ void IRBasicBlock::EmitCode(std::ostream& out) {
   //   ir::gIRList[i].PrintIR();
   // }
   for (auto ir : this->ir_list_) {
-    ir->PrintIR();
+    ir->PrintIR(out);
   }
 }

@@ -2,6 +2,7 @@
 #define __IR_STRUCT_H__
 #include <iostream>
 #include <string>
+#include <unordered_set>
 
 #include "../include/general_struct.h"
 #include "../include/ir.h"
@@ -40,6 +41,14 @@ class IRBasicBlock : public BasicBlock {
 
   std::vector<IRBasicBlock*> pred_;
   std::vector<IRBasicBlock*> succ_;
+
+  // used for ssa
+  IRBasicBlock* idom_ = nullptr;          // 直接支配结点 即支配结点树中的父节点
+  std::vector<IRBasicBlock*> doms_;       // 所直接支配的结点 即支配结点树中的子节点
+  std::unordered_set<IRBasicBlock*> df_;  // 支配节点边界
+  // std::unordered_set<IRBasicBlock*> dom_by_;
+  // int dom_level_;
+  bool IsByDom(IRBasicBlock* bb);  // 该bb是不是被这个参数bb所支配 或者说参数bb是不是该bb的必经结点
 
   IRBasicBlock() {}
   virtual ~IRBasicBlock() {}

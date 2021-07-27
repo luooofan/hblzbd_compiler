@@ -5,8 +5,10 @@
 
 #include "../include/Pass/allocate_register.h"
 #include "../include/Pass/arm_liveness_analysis.h"
+#include "../include/Pass/dominant.h"
 #include "../include/Pass/generate_arm.h"
 #include "../include/Pass/pass_manager.h"
+#include "../include/Pass/ssa.h"
 #include "../include/arm.h"
 #include "../include/arm_struct.h"
 #include "../include/ast.h"
@@ -123,6 +125,7 @@ int main(int argc, char **argv) {
   std::cout << "Passes Start:" << std::endl;
 #endif
   PassManager pm(module_ptr_addr);
+  pm.AddPass<ComputeDominance>(false);
   pm.AddPass<GenerateArm>(false);
   pm.AddPass<RegAlloc>(false);
   if (logfile.is_open()) {
