@@ -373,6 +373,7 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
       ArmBasicBlock* armbb = new ArmBasicBlock();
       bb_map.insert({bb, armbb});
       armfunc->bb_list_.push_back(armbb);
+      armbb->func_ = armfunc;
     }
     // maintain pred and succ
     for (auto bb : func->bb_list_) {

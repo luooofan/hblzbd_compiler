@@ -42,6 +42,9 @@ class ArmFunction : public Function {
 class ArmBasicBlock : public BasicBlock {
  public:
   std::string* label_;
+  // only used for emitting
+  ArmFunction* func_;
+
   // all instructions
   std::vector<arm::Instruction*> inst_list_;
 
@@ -61,6 +64,7 @@ class ArmBasicBlock : public BasicBlock {
   bool HasLabel() { return nullptr != label_; }
   void EmitCode(std::ostream& out = std::cout);
   void Check();
+  int IndexInFunc();
 };
 
 #endif

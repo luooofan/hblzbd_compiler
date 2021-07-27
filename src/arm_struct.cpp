@@ -1,9 +1,14 @@
 #include "../include/arm_struct.h"
 
+#include <algorithm>
 #include <iostream>
 #include <string>
 
+#define ASSERT_ENABLE
+#include "../include/myassert.h"
+
 #define GET_BB_LABEL_STR(bb_ptr) (nullptr != bb_ptr->label_ ? (*(bb_ptr->label_)) : ("UnamedBB"))
+#define GET_BB_IDENT(bb_ptr) (GET_BB_LABEL_STR(bb_ptr) + ":" + std::to_string(bb_ptr->IndexInFunc()))
 
 void ArmModule::EmitCode(std::ostream& out) {
   out << ".arch armv7ve" << std::endl;
@@ -113,36 +118,37 @@ void ArmBasicBlock::EmitCode(std::ostream& out) {
   if (this->HasLabel()) {
     out << *this->label_ << ":" << std::endl;
   }
+  out << "  @ ID: " << this->IndexInFunc() << std::endl;
   out << "  @ BasicBlock Begin:" << std::endl;
-  // out << "  @ pred: ";
-  // for (auto pred : this->pred_) {
-  //   out << GET_BB_LABEL_STR(pred) << " ";
-  // }
-  // // out << std::endl;
-  // out << "  @ succ: ";
-  // for (auto succ : this->succ_) {
-  //   out << GET_BB_LABEL_STR(succ) << " ";
-  // }
-  // // out << std::endl;
-  // out << "  @ use: ";
-  // for (auto use : this->use_) {
-  //   out << "r" << use << " ";
-  // }
-  // // out << std::endl;
-  // out << "  @ def: ";
-  // for (auto def : this->def_) {
-  //   out << "r" << def << " ";
-  // }
-  // // out << std::endl;
-  // out << "  @ livein: ";
-  // for (auto livein : this->livein_) {
-  //   out << "r" << livein << " ";
-  // }
-  // // out << std::endl;
-  // out << "  @ liveout: ";
-  // for (auto liveout : this->liveout_) {
-  //   out << "r" << liveout << " ";
-  // }
+  out << "  @ pred: ";
+  for (auto pred : this->pred_) {
+    out << GET_BB_IDENT(pred) << " ";
+  }
+  // out << std::endl;
+  out << "  @ succ: ";
+  for (auto succ : this->succ_) {
+    out << GET_BB_IDENT(succ) << " ";
+  }
+  // out << std::endl;
+  out << "  @ use: ";
+  for (auto use : this->use_) {
+    out << "r" << use << " ";
+  }
+  // out << std::endl;
+  out << "  @ def: ";
+  for (auto def : this->def_) {
+    out << "r" << def << " ";
+  }
+  // out << std::endl;
+  out << "  @ livein: ";
+  for (auto livein : this->livein_) {
+    out << "r" << livein << " ";
+  }
+  // out << std::endl;
+  out << "  @ liveout: ";
+  for (auto liveout : this->liveout_) {
+    out << "r" << liveout << " ";
+  }
   out << std::endl;
   for (auto inst : this->inst_list_) {
     inst->EmitCode(out);
@@ -152,3 +158,11 @@ void ArmBasicBlock::EmitCode(std::ostream& out) {
 void ArmBasicBlock::Check() {
   for (auto inst : inst_list_) inst->Check();
 }
+int ArmBasicBlock::IndexInFunc() {
+  MyAssert(nullptr != this->func_);
+  auto& bbs = this->func_->bb_list_;
+  MyAssert(std::find(bbs.begin(), bbs.end(), this) != bbs.end());
+  return std::distance(bbs.begin(), std::find(bbs.begin(), bbs.end(), this));
+}
+
+#undef ASSERT_ENABLE  // disable assert. this should be placed at the end of every file.
