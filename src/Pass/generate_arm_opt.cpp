@@ -162,7 +162,7 @@ Reg* GenerateArmOpt::ResolveOpn2Reg(ArmBasicBlock* armbb, ir::Opn* opn) {
         return (*iter2).second;
       }
     }
-    // FIX: 如果没找到的话说明是未定义先使用
+    // FIX: 如果没找到的话可能是未定义先使用
     Reg* vreg = NewVirtualReg();
     var_map[opn->name_][opn->scope_id_] = vreg;
     return vreg;
@@ -225,6 +225,7 @@ void GenerateArmOpt::ChangeOffset(std::string& func_name) {
           symbol.stack_offset_ = -1;  // useless
         } else if (symbol.IsArg()) {  // 参数
           // OPT: 维护varmap r17...
+          MyAssert(scope.scope_id_ == func_scope_id);
           var_map[item.first][scope.scope_id_] = new Reg(17 + (symbol.offset_ / 4));
           symbol.offset_ = -1;
         } else if (symbol.is_array_) {  // 非参数局部数组量
@@ -577,7 +578,7 @@ ArmModule* GenerateArmOpt::GenCode(IRModule* module) {
                 auto& symbol = ir::gScopes[ir.res_.scope_id_].symbol_table_[ir.res_.name_];
                 if (!symbol.IsArg()) {
                   rbase = NewVirtualReg();
-                  var_map[ir.res_.name_][ir.res_.scope_id_] = rbase;
+                  // FIX: DEL var_map[ir.res_.name_][ir.res_.scope_id_] = rbase;
                   armbb->inst_list_.push_back(
                       static_cast<Instruction*>(new BinaryInst(BinaryInst::OpCode::ADD, false, Cond::AL, rbase, sp_vreg,
                                                                ResolveImm2Operand2(armbb, symbol.stack_offset_))));
@@ -617,7 +618,7 @@ ArmModule* GenerateArmOpt::GenCode(IRModule* module) {
               auto& symbol = ir::gScopes[opn->scope_id_].symbol_table_[opn->name_];
               if (!symbol.IsArg()) {
                 rbase = NewVirtualReg();
-                var_map[opn->name_][opn->scope_id_] = rbase;
+                // FIX: DEL var_map[opn->name_][opn->scope_id_] = rbase;
                 armbb->inst_list_.push_back(
                     static_cast<Instruction*>(new BinaryInst(BinaryInst::OpCode::ADD, false, Cond::AL, rbase, sp_vreg,
                                                              ResolveImm2Operand2(armbb, symbol.stack_offset_))));
