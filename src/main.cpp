@@ -128,8 +128,8 @@ int main(int argc, char **argv) {
 #endif
   PassManager pm(module_ptr_addr);
   pm.AddPass<ComputeDominance>(false);
-  // pm.AddPass<GenerateArm>(false);
-  pm.AddPass<GenerateArmOpt>(false);
+  pm.AddPass<GenerateArm>(false);
+  // pm.AddPass<GenerateArmOpt>(false);
   pm.AddPass<SimplifyArm>(false);
   pm.AddPass<RegAlloc>(false);
   if (logfile.is_open()) {

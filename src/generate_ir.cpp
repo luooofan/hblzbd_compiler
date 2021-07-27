@@ -32,7 +32,7 @@
 #define MyAssert(res) ;
 #endif
 
-// #define NO_OPT
+#define NO_OPT
 
 namespace ast {
 
