@@ -32,6 +32,8 @@
 #define MyAssert(res) ;
 #endif
 
+#define NO_OPT
+
 namespace ast {
 
 using OpnType = ir::Opn::Type;
@@ -416,7 +418,9 @@ void VariableDefine::GenerateIR(ir::ContextInfo &ctx) {
     auto tmp = new ir::SymbolTableItem(false, false, scope.dynamic_offset_);
     if (ctx.scope_id_ == 0) tmp->initval_.push_back(0);
     symbol_table.insert({this->name_.name_, *tmp});
+#ifdef NO_OPT
     scope.dynamic_offset_ += ir::kIntWidth;
+#endif
     delete tmp;
   } else {
     ir::SemanticError(this->line_no_, this->name_.name_ + ": variable redefined");
@@ -432,7 +436,9 @@ void VariableDefineWithInit::GenerateIR(ir::ContextInfo &ctx) {
       symbol_table.insert({this->name_.name_, ir::SymbolTableItem(false, true, -1)});
     } else {
       symbol_table.insert({this->name_.name_, ir::SymbolTableItem(false, false, scope.dynamic_offset_)});
+#ifdef NO_OPT
       scope.dynamic_offset_ += ir::kIntWidth;
+#endif
     }
     auto &tmp = symbol_table.find(this->name_.name_)->second;
     // NOTE: 如果是全局量或者常量 需要填写initval 如果是局部变量 生成一条赋值语句
@@ -573,7 +579,9 @@ void FunctionDefine::GenerateIR(ir::ContextInfo &ctx) {
           auto &&symbol_item = ir::SymbolTableItem(false, false, scope.dynamic_offset_);
           symbol_item.SetIsArg();
           symbol_table.insert({ident->name_, symbol_item});
+          // #ifdef NO_OPT
           scope.dynamic_offset_ += ir::kIntWidth;
+          // #endif
         } else {
           ir::SemanticError(this->line_no_, ident->name_ + ": variable redefined");
         }
@@ -584,7 +592,9 @@ void FunctionDefine::GenerateIR(ir::ContextInfo &ctx) {
           auto tmp1 = new ir::SymbolTableItem(true, false, scope.dynamic_offset_);
           tmp1->SetIsArg();
           // NOTE: 参数中的数组视为一个基址指针
+          // #ifdef NO_OPT
           scope.dynamic_offset_ += ir::kIntWidth;
+          // #endif
           // 计算shape和width shape:-1 2 3  width:? 24 12 4
           tmp1->shape_.push_back(-1);  //第一维因为文法规定必须留空，这里记-1
           for (const auto &shape : arrident->shape_list_) {

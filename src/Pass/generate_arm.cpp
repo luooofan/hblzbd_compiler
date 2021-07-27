@@ -158,7 +158,8 @@ Reg* GenerateArm::ResolveOpn2Reg(ArmBasicBlock* armbb, ir::Opn* opn) {
     if (0 == opn->scope_id_) {  // 如果是全局变量 一定有一条ldr
       Reg* vadr = LoadGlobalOpn2Reg(armbb, opn);
       Reg* vreg = NewVirtualReg();
-      var_map[opn->name_][opn->scope_id_] = vreg;
+      // FIX:
+      // var_map[opn->name_][opn->scope_id_] = vreg;
       this->GenImmLdrStrInst(armbb, LdrStr::OpKind::LDR, vreg, vadr, 0);
       return vreg;
     }
