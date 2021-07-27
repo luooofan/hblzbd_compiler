@@ -1,4 +1,3 @@
-#include <cassert>
 #include <cstdio>
 #include <stdexcept>
 
@@ -21,18 +20,9 @@
   }
 
 #define ASSERT_ENABLE
-// assert(res);
-#ifdef ASSERT_ENABLE
-#define MyAssert(res)                                                    \
-  if (!(res)) {                                                          \
-    std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl; \
-    exit(255);                                                           \
-  }
-#else
-#define MyAssert(res) ;
-#endif
+#include "../include/myassert.h"
 
-#define NO_OPT
+// #define NO_OPT
 
 namespace ast {
 
@@ -1518,7 +1508,4 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
 
 }  // namespace ast
 
-#undef MyAssert
-#ifdef ASSERT_ENABLE
 #undef ASSERT_ENABLE
-#endif
