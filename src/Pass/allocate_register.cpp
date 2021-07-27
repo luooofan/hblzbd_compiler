@@ -4,19 +4,11 @@
 using namespace arm;
 
 // #define DEBUG_SPILL
-
-#define IS_PRECOLORED(i) (i < 16)
+// #define DEBUG_REGALLOC
 #define ASSERT_ENABLE
-// assert(res);
-#ifdef ASSERT_ENABLE
-#define MyAssert(res)                                                    \
-  if (!(res)) {                                                          \
-    std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl; \
-    exit(255);                                                           \
-  }
-#else
-#define MyAssert(res) ;
-#endif
+#include "../../include/myassert.h"
+#define IS_PRECOLORED(i) (i < 16)
+
 void dbg_print_worklist(RegAlloc::WorkList &wl, std::ostream &outfile) {
   for (auto item : wl) {
     outfile << item << " ";
@@ -92,17 +84,6 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
       MovSet worklist_moves;  // 一开始mov指令都放在这里
       MovSet active_moves;    // 里面放的是暂时无法合并的mov指令
                               // 如果有合并的可能后会加到worklist moves中
-
-      // 处理过程
-      // livenessanalysis() 活跃分析
-      // build() 构造冲突图
-      // mk_worklist() 初始化各个工作表 里面包含了全部的结点
-      // simplify() 简化 从冲突图中删除度<K的结点(在simplifywl中)及其边
-      // coleasce() 合并 在冲突图中把两个mov-rel结点合并(在freezewl中)
-      // freeze() 冻结 把一个mov-rel结点冻结()
-      // spill() 溢出
-      // rewriteprogram() 插入对溢出变量的ldr和str
-      // addcalleesavereg() 在函数开头插入对使用的callee save寄存器的保存
 
       // 把u-v v-u添加到冲突图中 不维护预着色结点的邻接表
       auto add_edge = [&adj_set, &adj_list, &degree](RegId u, RegId v) {
@@ -218,8 +199,6 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
           }
         }
       };
-
-      // auto enable_moves = [&](WorkList)
 
       auto decrement_degree = [&spill_worklist, &simplify_worklist, &freeze_worklist, &degree, &move_related,
                                &enable_moves](RegId reg) {
@@ -575,7 +554,6 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
         done = true;
       } else {
         // MyAssert(0);
-        // NOTE: don't test.
 #ifdef DEBUG_SPILL
         std::cout << "Actual Spill." << std::endl;
 #endif
@@ -659,7 +637,7 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
     int offset_fixup_diff = used_callee_saved_regs.size() * 4 + stack_size_diff;  // maybe -4
     bool is_lr_used = used_callee_saved_regs.find((int)ArmReg::lr) != used_callee_saved_regs.end();
     if (is_lr_used || func->IsLeaf()) {  // 用过说明肯定算了两次lr只算一次就行 没用过只算了一次 是leaf func则不用算
-      offset_fixup_diff -= 4;
+      offset_fixup_diff -= 4;  // many_params这里有一个情况是 不是leaf func还用了lr
     }
     for (auto bb : func->bb_list_) {
       for (auto iter = bb->inst_list_.begin(); iter != bb->inst_list_.end();) {
@@ -743,7 +721,4 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
   }  // end of func loop
 }
 
-#undef MyAssert
-#ifdef ASSERT_ENABLE
 #undef ASSERT_ENABLE
-#endif
