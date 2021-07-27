@@ -40,6 +40,7 @@ IRModule* ConstructModule(const std::string& module_name) {
         auto& func_item = (*ir::gFuncTable.find(label_name)).second;
         IRFunction* func = new IRFunction(label_name, func_item.shape_list_.size(), func_item.size_);
         func->bb_list_.push_back(bb);
+        bb->func_ = func;
         label2func.insert({label_name, func});
         module->func_list_.push_back(func);
       }
@@ -72,6 +73,7 @@ IRModule* ConstructModule(const std::string& module_name) {
         curr_bb->ir_list_.push_back(&ir);
       }
       curr_func->bb_list_.push_back(curr_bb);
+      curr_bb->func_ = curr_func;
       // 维护两个基本块之间的关系
       if (nullptr != pre_bb) {
         pre_bb->succ_.push_back(curr_bb);

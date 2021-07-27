@@ -1,5 +1,10 @@
 #include "../include/ir_struct.h"
 
+#include <algorithm>
+
+#define ASSERT_ENABLE
+#include "../include/myassert.h"
+
 void IRModule::EmitCode(std::ostream& out) {
   out << "@ module: " << this->name_ << std::endl;
   // this->global_scope_.Print(out);
@@ -17,12 +22,20 @@ void IRFunction::EmitCode(std::ostream& out) {
   }
   out << std::endl;
   out << "@ Function Begin:" << std::endl;
+  out << std::endl;
   for (auto bb : this->bb_list_) {
     bb->EmitCode(out);
+    out << std::endl;
   }
   out << "@ Function End." << std::endl;
 }
 
+int IRBasicBlock::IndexInFunc() {
+  MyAssert(nullptr != this->func_);
+  auto& bbs = this->func_->bb_list_;
+  MyAssert(std::find(bbs.begin(), bbs.end(), this) != bbs.end());
+  return std::distance(bbs.begin(), std::find(bbs.begin(), bbs.end(), this));
+}
 // 该bb是不是被这个参数bb所支配 或者说参数bb是不是该bb的必经结点
 bool IRBasicBlock::IsByDom(IRBasicBlock* bb) {
   auto n = this;
@@ -32,21 +45,33 @@ bool IRBasicBlock::IsByDom(IRBasicBlock* bb) {
   }
   return false;
 }
-
 void IRBasicBlock::EmitCode(std::ostream& out) {
-  out << "@ BasicBlock:" << std::endl;
-  // out << "@ pred bbs: " << std::endl;
-  // for (auto pred : this->pred_) {
-  //   out << "\t@ " << pred->start_ << " " << pred->end_ << std::endl;
-  // }
-  // out << "@ succ bbs: " << std::endl;
-  // for (auto succ : this->succ_) {
-  //   out << "\t@ " << succ->start_ << " " << succ->end_ << std::endl;
-  // }
-  // for (int i = start_; i < end_; ++i) {
-  //   ir::gIRList[i].PrintIR();
-  // }
+  out << "@ BasicBlock: id:" << this->IndexInFunc() << std::endl;
+  out << "@ pred bbs: ";
+  for (auto pred : this->pred_) {
+    out << pred->IndexInFunc() << " ";
+  }
+  // out << std::endl;
+  out << "@ succ bbs: ";
+  for (auto succ : this->succ_) {
+    out << succ->IndexInFunc() << " ";
+  }
+  out << std::endl;
+  out << "@ idom: " << (nullptr == this->idom_ ? "" : std::to_string(this->idom_->IndexInFunc()) + " ");
+  // out << std::endl;
+  out << "@ doms: ";
+  for (auto dom : this->doms_) {
+    out << dom->IndexInFunc() << " ";
+  }
+  // out << std::endl;
+  out << "@ df: ";
+  for (auto df : this->df_) {
+    out << df->IndexInFunc() << " ";
+  }
+  out << std::endl;
   for (auto ir : this->ir_list_) {
     ir->PrintIR(out);
   }
 }
+
+#undef ASSERT_ENABLE  // disable assert. this should be placed at the end of every file.

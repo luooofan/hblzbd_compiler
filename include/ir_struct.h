@@ -38,6 +38,8 @@ class IRBasicBlock : public BasicBlock {
  public:
   // all irs
   std::vector<ir::IR*> ir_list_;
+  // only used for emitting
+  IRFunction* func_;
 
   std::vector<IRBasicBlock*> pred_;
   std::vector<IRBasicBlock*> succ_;
@@ -50,9 +52,11 @@ class IRBasicBlock : public BasicBlock {
   // int dom_level_;
   bool IsByDom(IRBasicBlock* bb);  // 该bb是不是被这个参数bb所支配 或者说参数bb是不是该bb的必经结点
 
-  IRBasicBlock() {}
+  IRBasicBlock() : func_(nullptr) {}
+  IRBasicBlock(IRFunction* func) : func_(func) {}
   virtual ~IRBasicBlock() {}
   void EmitCode(std::ostream& out = std::cout);
+  int IndexInFunc();
 };
 
 IRModule* ConstructModule(const std::string& module_name);
