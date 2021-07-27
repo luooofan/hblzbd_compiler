@@ -245,8 +245,8 @@ void GenerateArmOpt::AddPrologue(ArmFunction* func, ArmBasicBlock* first_bb) {
   auto push_inst = new PushPop(PushPop::OpKind::PUSH, Cond::AL);
   push_inst->reg_list_.push_back(new Reg(ArmReg::lr));
   first_bb->inst_list_.push_back(static_cast<Instruction*>(push_inst));
-  // sub sp, sp, #stack_size
-  auto op2 = ResolveImm2Operand2(first_bb, stack_size);
+  // FIX: sub sp, sp, #stack_size
+  auto op2 = ResolveImm2Operand2(first_bb, stack_size, true);
   auto sub_inst = static_cast<Instruction*>(
       new BinaryInst(BinaryInst::OpCode::SUB, false, Cond::AL, new Reg(ArmReg::sp), new Reg(ArmReg::sp), op2));
   first_bb->inst_list_.push_back(sub_inst);
