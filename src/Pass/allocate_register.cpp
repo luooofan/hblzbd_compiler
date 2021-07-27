@@ -469,7 +469,7 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
             spilled_nodes.insert(vreg);
           } else {  // 可分配
             auto color = *std::min_element(ok_colors.begin(), ok_colors.end());
-            if ((color >= 4 && color <= 12) || color == 14) {
+            if ((color >= 4 && color <= 11) /*12) || color == 14*/) {
               used_callee_saved_regs.insert(color);
             }
             colored[vreg] = color;
