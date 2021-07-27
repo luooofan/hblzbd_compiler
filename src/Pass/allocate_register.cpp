@@ -696,13 +696,6 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
             continue;
           }
           ++iter;
-        } else if (auto move_inst = dynamic_cast<Move *>(*iter)) {  // 删除自己到自己的mov语句
-          auto op2 = move_inst->op2_;
-          if (!op2->is_imm_ && nullptr == op2->shift_ && move_inst->rd_->reg_id_ == op2->reg_->reg_id_) {
-            iter = bb->inst_list_.erase(iter);
-          } else {
-            ++iter;
-          }
         } else {
           ++iter;
         }

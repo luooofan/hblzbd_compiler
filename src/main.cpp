@@ -130,8 +130,8 @@ int main(int argc, char **argv) {
   pm.AddPass<ComputeDominance>(false);
   pm.AddPass<GenerateArm>(false);
   // pm.AddPass<GenerateArmOpt>(false);
-  pm.AddPass<SimplifyArm>(false);
   pm.AddPass<RegAlloc>(false);
+  pm.AddPass<SimplifyArm>(false);
   if (logfile.is_open()) {
     pm.Run(true, logfile);
   } else {
