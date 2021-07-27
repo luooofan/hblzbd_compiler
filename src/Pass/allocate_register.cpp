@@ -657,7 +657,8 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
     // 每一个函数确定了之后 更改push/pop指令 更改add/sub sp sp stack_size指令 删除自己到自己的mov指令
     int stack_size_diff = func->stack_size_ - src_stack_size;
     int offset_fixup_diff = used_callee_saved_regs.size() * 4 + stack_size_diff;  // maybe -4
-    if (func->IsLeaf()) {                                                         //原本计算有lr
+    bool is_lr_used = used_callee_saved_regs.find((int)ArmReg::lr) != used_callee_saved_regs.end();
+    if (func->IsLeaf() && !is_lr_used) {  // 是leaf func并且函数中未使用lr 说明不用push/pop lr 只需bx lr
       offset_fixup_diff -= 4;
     }
     for (auto bb : func->bb_list_) {
@@ -669,7 +670,7 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
             pushpop_inst->reg_list_.push_back(new Reg(reg));
           }
           if (pushpop_inst->opkind_ == PushPop::OpKind::PUSH) {
-            if (!func->IsLeaf() && used_callee_saved_regs.find((int)ArmReg::lr) == used_callee_saved_regs.end()) {
+            if (!func->IsLeaf() && !is_lr_used) {  // 用过的话已经放进push中了
               pushpop_inst->reg_list_.push_back(new Reg(ArmReg::lr));
             }
             if (pushpop_inst->reg_list_.empty()) {
@@ -677,10 +678,10 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
               continue;
             }
           } else {
-            if (used_callee_saved_regs.find((int)ArmReg::lr) != used_callee_saved_regs.end()) {
+            if (is_lr_used) {
               MyAssert(pushpop_inst->reg_list_.back()->reg_id_ == (int)ArmReg::lr);
               pushpop_inst->reg_list_.back()->reg_id_ = (int)ArmReg::pc;
-            } else if (!func->IsLeaf()) {
+            } else if (!func->IsLeaf()) {  // lr在相应的push中 所以pc要在相应的pop中
               pushpop_inst->reg_list_.push_back(new Reg(ArmReg::pc));
             }
             if (pushpop_inst->reg_list_.empty()) {
@@ -689,8 +690,7 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
               ++iter;
             }
             // 此时iter指向原pop指令的下一条指令
-            if (func->IsLeaf() &&
-                used_callee_saved_regs.find((int)ArmReg::lr) == used_callee_saved_regs.end()) {  // 插入一条 bx lr
+            if (func->IsLeaf() && !is_lr_used) {  // 不在push中 插入一条 bx lr
               iter = bb->inst_list_.insert(iter, static_cast<Instruction *>(new Branch(false, true, Cond::AL, "lr")));
             }
             continue;
