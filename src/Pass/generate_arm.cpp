@@ -270,9 +270,11 @@ void GenerateArm::AddPrologue(ArmFunction* func, ArmBasicBlock* first_bb) {
   if (op2->is_imm_) {
     this->sp_fixup.push_back(sub_inst);
   }
-  // add sp_vreg, sp, #0 是否有必要？
-  first_bb->inst_list_.push_back(static_cast<Instruction*>(
-      new BinaryInst(BinaryInst::OpCode::ADD, false, Cond::AL, sp_vreg, new Reg(ArmReg::sp), new Operand2(0))));
+  // FIX: add sp_vreg, sp, #0 -> mov sp_vreg, sp
+  first_bb->inst_list_.push_back(
+      static_cast<Instruction*>(new Move(false, Cond::AL, sp_vreg, new Operand2(new Reg(ArmReg::sp)))));
+  // first_bb->inst_list_.push_back(static_cast<Instruction*>(
+  //     new BinaryInst(BinaryInst::OpCode::ADD, false, Cond::AL, sp_vreg, new Reg(ArmReg::sp), new Operand2(0))));
   // str args 把r0-r3中的参数全部存到当前栈中 顺着存
   for (int i = 0; i < arg_num; ++i) {
     if (i < 4) {

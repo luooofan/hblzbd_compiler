@@ -3,6 +3,8 @@
 #include "../../include/Pass/arm_liveness_analysis.h"
 using namespace arm;
 
+// #define DEBUG_SPILL
+
 #define IS_PRECOLORED(i) (i < 16)
 #define ASSERT_ENABLE
 // assert(res);
@@ -55,6 +57,7 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
     std::set<RegId> used_callee_saved_regs;
     int src_stack_size = func->stack_size_;
     bool done = false;
+    std::unordered_map<RegId, int> spill_times;
     while (!done) {
       used_callee_saved_regs.clear();
       // K color
@@ -409,6 +412,11 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
         RegId reg = *std::max_element(spill_worklist.begin(), spill_worklist.end(), [&](auto a, auto b) {
           if (16 == a) return true;  // regard r16 as min
           if (16 == b) return false;
+          if (spill_times.find(a) != spill_times.end() && spill_times.find(b) != spill_times.end()) {
+            return spill_times[a] > spill_times[b];
+          }
+          if (spill_times.find(a) != spill_times.end() && spill_times[a] >= 1) return true;
+          if (spill_times.find(b) != spill_times.end() && spill_times[b] >= 1) return false;
           return degree[a] < degree[b];
         });
         // 选择的结点可能mov有关也可能mov无关
@@ -461,7 +469,7 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
             spilled_nodes.insert(vreg);
           } else {  // 可分配
             auto color = *std::min_element(ok_colors.begin(), ok_colors.end());
-            if (color >= 4 && color <= 11) {
+            if ((color >= 4 && color <= 12) || color == 14) {
               used_callee_saved_regs.insert(color);
             }
             colored[vreg] = color;
@@ -577,6 +585,11 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
 #ifdef DEBUG_SPILL
           std::cout << "process spill node:" << spill_reg << std::endl;
 #endif
+          if (spill_times.find(spill_reg) == spill_times.end()) {
+            spill_times[spill_reg] = 1;
+          } else {
+            ++spill_times[spill_reg];
+          }
           // allocate on stack spill reg一定是virtual reg
           auto offset = func->stack_size_;
           for (auto bb : func->bb_list_) {
@@ -656,7 +669,7 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
             pushpop_inst->reg_list_.push_back(new Reg(reg));
           }
           if (pushpop_inst->opkind_ == PushPop::OpKind::PUSH) {
-            if (!func->IsLeaf()) {
+            if (!func->IsLeaf() && used_callee_saved_regs.find((int)ArmReg::lr) == used_callee_saved_regs.end()) {
               pushpop_inst->reg_list_.push_back(new Reg(ArmReg::lr));
             }
             if (pushpop_inst->reg_list_.empty()) {
@@ -664,7 +677,10 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
               continue;
             }
           } else {
-            if (!func->IsLeaf()) {
+            if (used_callee_saved_regs.find((int)ArmReg::lr) != used_callee_saved_regs.end()) {
+              MyAssert(pushpop_inst->reg_list_.back()->reg_id_ == (int)ArmReg::lr);
+              pushpop_inst->reg_list_.back()->reg_id_ = (int)ArmReg::pc;
+            } else if (!func->IsLeaf()) {
               pushpop_inst->reg_list_.push_back(new Reg(ArmReg::pc));
             }
             if (pushpop_inst->reg_list_.empty()) {
@@ -673,7 +689,8 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
               ++iter;
             }
             // 此时iter指向原pop指令的下一条指令
-            if (func->IsLeaf()) {  // 插入一条 bx lr
+            if (func->IsLeaf() &&
+                used_callee_saved_regs.find((int)ArmReg::lr) == used_callee_saved_regs.end()) {  // 插入一条 bx lr
               iter = bb->inst_list_.insert(iter, static_cast<Instruction *>(new Branch(false, true, Cond::AL, "lr")));
             }
             continue;
