@@ -595,14 +595,14 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
                 } else {
                   inst = static_cast<Instruction *>(new LdrPseudo(Cond::AL, vreg, offset));
                 }
-                inst = static_cast<Instruction *>(new LdrStr(opkind, LdrStr::Type::Norm, Cond::AL, new Reg(spill_reg),
-                                                             new Reg(16), new Operand2(vreg)));
+                auto inst2 = static_cast<Instruction *>(new LdrStr(
+                    opkind, LdrStr::Type::Norm, Cond::AL, new Reg(spill_reg), new Reg(16), new Operand2(vreg)));
                 if (opkind == LdrStr::OpKind::LDR) {
                   iter = bb->inst_list_.insert(iter, inst) + 1;
-                  return bb->inst_list_.insert(iter, inst) + 1;
+                  return bb->inst_list_.insert(iter, inst2) + 1;
                 } else {
                   iter = bb->inst_list_.insert(iter + 1, inst);
-                  return bb->inst_list_.insert(iter + 1, inst);
+                  return bb->inst_list_.insert(iter + 1, inst2);
                 }
               }
             };
@@ -708,6 +708,7 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
           src_inst->op2_->imm_num_ += stack_size_diff;
         }
       } else if (auto src_inst = dynamic_cast<LdrPseudo *>(inst)) {
+        // std::cout << src_inst->imm_ << std::endl;
         MyAssert(src_inst->IsImm());
         src_inst->imm_ += stack_size_diff;
       } else if (auto src_inst = dynamic_cast<BinaryInst *>(inst)) {
