@@ -533,10 +533,9 @@ void ArrayDefineWithInit::GenerateIR(ir::ContextInfo &ctx) {
     ctx.array_offset_ = 0;
     ctx.brace_num_ = 1;
 
-    if (ctx.scope_id_ == 0 || this->is_const_) {
+    if (ctx.scope_id_ == 0) {
       this->value_.Evaluate(ctx);
     } else {
-      // NOTE: 先生成一颗functioncall树 生成相关代码后再genir并且=0的不用再生成ir
       ir::gIRList.push_back({IROpKind::PARAM, {OpnType::Imm, symbol_item.width_[0], ctx.scope_id_}});
       ir::gIRList.push_back({IROpKind::PARAM, IMM_0_OPN});
       ir::gIRList.push_back(
@@ -548,6 +547,13 @@ void ArrayDefineWithInit::GenerateIR(ir::ContextInfo &ctx) {
       auto opn1 = ir::Opn(OpnType::Func, std::string("memset"), ctx.scope_id_);
       auto opn2 = ir::Opn(OpnType::Imm, 3, ctx.scope_id_);
       ir::gIRList.push_back({IROpKind::CALL, opn1, opn2, temp});
+      if (this->is_const_) {
+        ctx.array_offset_ = 0;
+        ctx.brace_num_ = 1;
+        this->value_.Evaluate(ctx);
+      }
+      ctx.array_offset_ = 0;
+      ctx.brace_num_ = 1;
       this->value_.GenerateIR(ctx);
     }
   } else {
