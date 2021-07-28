@@ -15,7 +15,24 @@
 
 std::pair<std::vector<Opn*>, std::vector<Opn*>> GetDefUse(IR *ir)
 {
+  std::vector<Opn*> def;
+  std::vector<Opn*> use;
 
+  auto process_opn = [&use](Opn *op){
+    if(nullptr == op) return;
+    if(op->type_ == Opn::Type::Imm || op->type_ == Opn::Type::Label || op->type_ == Opn::Type::Null) return;
+    use.push_back(op);
+    if(op->type_ == Opn::Type::Array && op->offset->type_ == OPn::Type::Var){
+      use.push_back(op->offset)
+    }
+  }
+
+  auto 
+
+  if(ir.op_ == IR::OpKind::ADD){
+    // opn1
+
+  }
 }
 
 
