@@ -22,7 +22,7 @@
 #define ASSERT_ENABLE
 #include "../include/myassert.h"
 
-#define NO_OPT
+// #define NO_OPT
 
 namespace ast {
 
