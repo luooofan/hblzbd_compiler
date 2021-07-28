@@ -53,7 +53,7 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
     while (!done) {
       used_callee_saved_regs.clear();
       // K color
-      const int K = 13;  // r0-r11 r12 lr(r14)
+      const int K = 14;  // r0-r11 r12 lr(r14)
 
       // 冲突图
       AdjList adj_list;
