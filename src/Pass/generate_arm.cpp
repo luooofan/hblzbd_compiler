@@ -62,7 +62,17 @@ Reg* GenerateArm::NewVirtualReg() { return new Reg(virtual_reg_id++); };
 
 Operand2* GenerateArm::ResolveImm2Operand2(ArmBasicBlock* armbb, int imm, bool record) {
   if (Operand2::CheckImm8m(imm)) {
-    return new Operand2(imm);
+    // FIX: 寄存器分配后立即数值可能会变
+    if (record) {
+      auto vreg = NewVirtualReg();
+      Instruction* inst = nullptr;
+      inst = static_cast<Instruction*>(new Move(false, Cond::AL, vreg, new Operand2(imm)));
+      armbb->inst_list_.push_back(inst);
+      this->sp_fixup.push_back(inst);
+      return new Operand2(vreg);
+    } else {
+      return new Operand2(imm);
+    }
   } else {
     auto vreg = NewVirtualReg();
     Instruction* inst = nullptr;
@@ -81,24 +91,31 @@ Operand2* GenerateArm::ResolveImm2Operand2(ArmBasicBlock* armbb, int imm, bool r
 
 void GenerateArm::GenImmLdrStrInst(ArmBasicBlock* armbb, LdrStr::OpKind opkind, Reg* rd, Reg* rn, int imm) {
   Instruction* inst = nullptr;
-  if (LdrStr::CheckImm12(imm)) {
-    inst = static_cast<Instruction*>(new LdrStr(opkind, LdrStr::Type::Norm, Cond::AL, rd, rn, imm));
-    armbb->inst_list_.push_back(inst);
-  } else {
+  // FIX
+  if (rn == this->sp_vreg && imm > this->stack_size) {  // 寄存器分配后立即数值可能会变化
     auto vreg = NewVirtualReg();
-    if (Operand2::CheckImm8m(imm)) {  // mov
-      inst = static_cast<Instruction*>(new Move(false, Cond::AL, vreg, new Operand2(imm)));
-    } else if (imm < 0 && Operand2::CheckImm8m(-imm - 1)) {  // mvn
-      inst = static_cast<Instruction*>(new Move(false, Cond::AL, vreg, new Operand2(-imm - 1), true));
-    } else {  // ldr-pseudo
-      inst = static_cast<Instruction*>(new LdrPseudo(Cond::AL, vreg, imm));
-    }
+    inst = static_cast<Instruction*>(new LdrPseudo(Cond::AL, vreg, imm));
     armbb->inst_list_.push_back(inst);
     armbb->inst_list_.push_back(
         static_cast<Instruction*>(new LdrStr(opkind, LdrStr::Type::Norm, Cond::AL, rd, rn, new Operand2(vreg))));
-  }
-  if (rn == this->sp_vreg && imm > this->stack_size) {
     this->sp_arg_fixup.push_back(inst);
+  } else {
+    if (LdrStr::CheckImm12(imm)) {
+      inst = static_cast<Instruction*>(new LdrStr(opkind, LdrStr::Type::Norm, Cond::AL, rd, rn, imm));
+      armbb->inst_list_.push_back(inst);
+    } else {
+      auto vreg = NewVirtualReg();
+      if (Operand2::CheckImm8m(imm)) {  // mov
+        inst = static_cast<Instruction*>(new Move(false, Cond::AL, vreg, new Operand2(imm)));
+      } else if (imm < 0 && Operand2::CheckImm8m(-imm - 1)) {  // mvn
+        inst = static_cast<Instruction*>(new Move(false, Cond::AL, vreg, new Operand2(-imm - 1), true));
+      } else {  // ldr-pseudo
+        inst = static_cast<Instruction*>(new LdrPseudo(Cond::AL, vreg, imm));
+      }
+      armbb->inst_list_.push_back(inst);
+      armbb->inst_list_.push_back(
+          static_cast<Instruction*>(new LdrStr(opkind, LdrStr::Type::Norm, Cond::AL, rd, rn, new Operand2(vreg))));
+    }
   }
 }
 
@@ -109,9 +126,11 @@ void GenerateArm::AddEpilogue(ArmBasicBlock* armbb) {
   auto add_inst = static_cast<Instruction*>(
       new BinaryInst(BinaryInst::OpCode::ADD, false, Cond::AL, new Reg(ArmReg::sp), new Reg(ArmReg::sp), op2));
   armbb->inst_list_.push_back(add_inst);
-  if (op2->is_imm_) {
-    this->sp_fixup.push_back(add_inst);
-  }
+  // FIX:
+  MyAssert(!op2->is_imm_);
+  // if (op2->is_imm_) {
+  //   this->sp_fixup.push_back(add_inst);
+  // }
   // pop {pc} NOTE: same as bx lr
   auto pop_inst = new PushPop(PushPop::OpKind::POP, Cond::AL);
   pop_inst->reg_list_.push_back(new Reg(ArmReg::pc));
@@ -267,9 +286,11 @@ void GenerateArm::AddPrologue(ArmFunction* func, ArmBasicBlock* first_bb) {
   auto sub_inst = static_cast<Instruction*>(
       new BinaryInst(BinaryInst::OpCode::SUB, false, Cond::AL, new Reg(ArmReg::sp), new Reg(ArmReg::sp), op2));
   first_bb->inst_list_.push_back(sub_inst);
-  if (op2->is_imm_) {
-    this->sp_fixup.push_back(sub_inst);
-  }
+  // FIX
+  MyAssert(!op2->is_imm_);
+  // if (op2->is_imm_) {
+  //   this->sp_fixup.push_back(sub_inst);
+  // }
   // FIX: add sp_vreg, sp, #0 -> mov sp_vreg, sp
   first_bb->inst_list_.push_back(
       static_cast<Instruction*>(new Move(false, Cond::AL, sp_vreg, new Operand2(new Reg(ArmReg::sp)))));

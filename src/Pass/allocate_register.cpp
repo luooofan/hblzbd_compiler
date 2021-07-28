@@ -679,41 +679,55 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
         }
       }
     }
-    // push和pop中添加了r4-r11 或者删除了lr和sp的话 需要修复栈中实参的位置
-    for (auto inst : func->sp_arg_fixup_) {
-      if (auto src_inst = dynamic_cast<Move *>(inst)) {
-        MyAssert(src_inst->op2_->is_imm_);
-        if (src_inst->is_mvn_) {
-          src_inst->op2_->imm_num_ -= offset_fixup_diff;
-        } else {
-          src_inst->op2_->imm_num_ += offset_fixup_diff;
+
+    auto convert_imm_inst = [&func](std::vector<Instruction *>::iterator it) {
+      // 把mov/mvn转换成ldrpseudo
+      for (auto bb : func->bb_list_) {
+        for (auto inst_it = bb->inst_list_.begin(); inst_it != bb->inst_list_.end(); ++inst_it) {
+          if (*inst_it == *it) {
+            auto src_inst = dynamic_cast<Move *>(*it);
+            MyAssert(nullptr != src_inst && src_inst->op2_->is_imm_);
+            inst_it = bb->inst_list_.erase(inst_it);
+            int imm = 0;
+            if (src_inst->is_mvn_) {
+              imm = -src_inst->op2_->imm_num_ - 1;
+            } else {
+              imm = src_inst->op2_->imm_num_;
+            }
+            auto pseudo_ldr_inst = static_cast<Instruction *>(new LdrPseudo(Cond::AL, src_inst->rd_, imm));
+            inst_it = bb->inst_list_.insert(inst_it, pseudo_ldr_inst);
+            // TODO: delete
+            *it = pseudo_ldr_inst;
+          }
         }
-      } else if (auto src_inst = dynamic_cast<LdrStr *>(inst)) {
-        MyAssert(src_inst->is_offset_imm_);
-        src_inst->offset_imm_ += offset_fixup_diff;
-      } else if (auto src_inst = dynamic_cast<LdrPseudo *>(inst)) {
-        MyAssert(src_inst->IsImm());
-        src_inst->imm_ += offset_fixup_diff;
-      } else {
-        MyAssert(0);
       }
+      MyAssert(0);
+    };
+
+    // std::cout << offset_fixup_diff << " " << stack_size_diff << std::endl;
+    // push和pop中添加了r4-r11 或者删除了lr的话 需要修复栈中实参的位置
+    for (auto it = func->sp_arg_fixup_.begin(); it != func->sp_arg_fixup_.end(); ++it) {
+      auto src_inst = dynamic_cast<LdrPseudo *>(*it);
+      MyAssert(nullptr != src_inst && src_inst->IsImm());
+      src_inst->imm_ += offset_fixup_diff;
     }
-    // 针对sp的修复
-    for (auto inst : func->sp_fixup_) {
-      if (auto src_inst = dynamic_cast<Move *>(inst)) {
+
+    // 针对sp的修复 TODO: 可以删=0
+    for (auto it = func->sp_fixup_.begin(); it != func->sp_fixup_.end(); ++it) {
+      // 可能是mov mvn或者pseudo ldr
+      if (auto src_inst = dynamic_cast<Move *>(*it)) {
         MyAssert(src_inst->op2_->is_imm_);
         if (src_inst->is_mvn_) {
           src_inst->op2_->imm_num_ -= stack_size_diff;
         } else {
           src_inst->op2_->imm_num_ += stack_size_diff;
         }
-      } else if (auto src_inst = dynamic_cast<LdrPseudo *>(inst)) {
-        // std::cout << src_inst->imm_ << std::endl;
+        if (!Operand2::CheckImm8m(src_inst->op2_->imm_num_)) {
+          convert_imm_inst(it);
+        }
+      } else if (auto src_inst = dynamic_cast<LdrPseudo *>(*it)) {
         MyAssert(src_inst->IsImm());
         src_inst->imm_ += stack_size_diff;
-      } else if (auto src_inst = dynamic_cast<BinaryInst *>(inst)) {
-        MyAssert(src_inst->op2_->is_imm_);
-        src_inst->op2_->imm_num_ += stack_size_diff;
       } else {
         MyAssert(0);
       }

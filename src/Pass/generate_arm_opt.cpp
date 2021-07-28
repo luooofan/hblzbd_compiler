@@ -52,7 +52,17 @@ Reg* GenerateArmOpt::NewVirtualReg() { return new Reg(virtual_reg_id++); };
 
 Operand2* GenerateArmOpt::ResolveImm2Operand2(ArmBasicBlock* armbb, int imm, bool record) {
   if (Operand2::CheckImm8m(imm)) {
-    return new Operand2(imm);
+    // FIX: 寄存器分配后立即数值可能会变
+    if (record) {
+      auto vreg = NewVirtualReg();
+      Instruction* inst = nullptr;
+      inst = static_cast<Instruction*>(new Move(false, Cond::AL, vreg, new Operand2(imm)));
+      armbb->inst_list_.push_back(inst);
+      this->sp_fixup.push_back(inst);
+      return new Operand2(vreg);
+    } else {
+      return new Operand2(imm);
+    }
   } else {
     auto vreg = NewVirtualReg();
     Instruction* inst = nullptr;
@@ -71,24 +81,31 @@ Operand2* GenerateArmOpt::ResolveImm2Operand2(ArmBasicBlock* armbb, int imm, boo
 
 void GenerateArmOpt::GenImmLdrStrInst(ArmBasicBlock* armbb, LdrStr::OpKind opkind, Reg* rd, Reg* rn, int imm) {
   Instruction* inst = nullptr;
-  if (LdrStr::CheckImm12(imm)) {
-    inst = static_cast<Instruction*>(new LdrStr(opkind, LdrStr::Type::Norm, Cond::AL, rd, rn, imm));
-    armbb->inst_list_.push_back(inst);
-  } else {
+  // FIX
+  if (rn == this->sp_vreg && imm > this->stack_size) {  // 寄存器分配后立即数值可能会变化
     auto vreg = NewVirtualReg();
-    if (Operand2::CheckImm8m(imm)) {  // mov
-      inst = static_cast<Instruction*>(new Move(false, Cond::AL, vreg, new Operand2(imm)));
-    } else if (imm < 0 && Operand2::CheckImm8m(-imm - 1)) {  // mvn
-      inst = static_cast<Instruction*>(new Move(false, Cond::AL, vreg, new Operand2(-imm - 1), true));
-    } else {  // ldr-pseudo
-      inst = static_cast<Instruction*>(new LdrPseudo(Cond::AL, vreg, imm));
-    }
+    inst = static_cast<Instruction*>(new LdrPseudo(Cond::AL, vreg, imm));
     armbb->inst_list_.push_back(inst);
     armbb->inst_list_.push_back(
         static_cast<Instruction*>(new LdrStr(opkind, LdrStr::Type::Norm, Cond::AL, rd, rn, new Operand2(vreg))));
-  }
-  if (rn == this->sp_vreg && imm > this->stack_size) {
     this->sp_arg_fixup.push_back(inst);
+  } else {
+    if (LdrStr::CheckImm12(imm)) {
+      inst = static_cast<Instruction*>(new LdrStr(opkind, LdrStr::Type::Norm, Cond::AL, rd, rn, imm));
+      armbb->inst_list_.push_back(inst);
+    } else {
+      auto vreg = NewVirtualReg();
+      if (Operand2::CheckImm8m(imm)) {  // mov
+        inst = static_cast<Instruction*>(new Move(false, Cond::AL, vreg, new Operand2(imm)));
+      } else if (imm < 0 && Operand2::CheckImm8m(-imm - 1)) {  // mvn
+        inst = static_cast<Instruction*>(new Move(false, Cond::AL, vreg, new Operand2(-imm - 1), true));
+      } else {  // ldr-pseudo
+        inst = static_cast<Instruction*>(new LdrPseudo(Cond::AL, vreg, imm));
+      }
+      armbb->inst_list_.push_back(inst);
+      armbb->inst_list_.push_back(
+          static_cast<Instruction*>(new LdrStr(opkind, LdrStr::Type::Norm, Cond::AL, rd, rn, new Operand2(vreg))));
+    }
   }
 }
 
@@ -99,9 +116,11 @@ void GenerateArmOpt::AddEpilogue(ArmBasicBlock* armbb) {
   auto add_inst = static_cast<Instruction*>(
       new BinaryInst(BinaryInst::OpCode::ADD, false, Cond::AL, new Reg(ArmReg::sp), new Reg(ArmReg::sp), op2));
   armbb->inst_list_.push_back(add_inst);
-  if (op2->is_imm_) {
-    this->sp_fixup.push_back(add_inst);
-  }
+  // FIX:
+  MyAssert(!op2->is_imm_);
+  // if (op2->is_imm_) {
+  //   this->sp_fixup.push_back(add_inst);
+  // }
   // pop {pc} NOTE: same as bx lr
   auto pop_inst = new PushPop(PushPop::OpKind::POP, Cond::AL);
   pop_inst->reg_list_.push_back(new Reg(ArmReg::pc));
@@ -207,6 +226,7 @@ void GenerateArmOpt::ResolveResOpn2RdReg(ArmBasicBlock* armbb, ir::Opn* opn, Cal
   // OPT: 局部变量和中间变量行为一致 不用再生成str指令
 }
 
+// OPT: 必须在add prologue之后调用 NOTE: different from noopt
 void GenerateArmOpt::ChangeOffset(std::string& func_name) {
   // 把符号表里的偏移都改了
   // 对于所有参数和局部int量改为stack_size-offset-4
@@ -226,7 +246,7 @@ void GenerateArmOpt::ChangeOffset(std::string& func_name) {
         } else if (symbol.IsArg()) {  // 参数
           // OPT: 维护varmap r17...
           MyAssert(scope.scope_id_ == func_scope_id);
-          var_map[item.first][scope.scope_id_] = new Reg(17 + (symbol.offset_ / 4));
+          var_map[item.first][scope.scope_id_] = new Reg(this->arg_reg[symbol.offset_ / 4]);
           symbol.offset_ = -1;
         } else if (symbol.is_array_) {  // 非参数局部数组量
           symbol.stack_offset_ = this->stack_size - (symbol.offset_ - 4 * this->arg_num) - symbol.width_[0];
@@ -250,25 +270,29 @@ void GenerateArmOpt::AddPrologue(ArmFunction* func, ArmBasicBlock* first_bb) {
   auto sub_inst = static_cast<Instruction*>(
       new BinaryInst(BinaryInst::OpCode::SUB, false, Cond::AL, new Reg(ArmReg::sp), new Reg(ArmReg::sp), op2));
   first_bb->inst_list_.push_back(sub_inst);
-  if (op2->is_imm_) {
-    this->sp_fixup.push_back(sub_inst);
-  }
+  // FIX
+  MyAssert(!op2->is_imm_);
+  // if (op2->is_imm_) {
+  //   this->sp_fixup.push_back(sub_inst);
+  // }
   // FIX: add sp_vreg, sp, #0 -> mov sp_vreg, sp
   first_bb->inst_list_.push_back(
       static_cast<Instruction*>(new Move(false, Cond::AL, sp_vreg, new Operand2(new Reg(ArmReg::sp)))));
   // first_bb->inst_list_.push_back(static_cast<Instruction*>(
   //     new BinaryInst(BinaryInst::OpCode::ADD, false, Cond::AL, sp_vreg, new Reg(ArmReg::sp), new Operand2(0))));
   // OPT: mov vreg r0-r3 把所有参数全部存到虚拟寄存器中 并维护varmap
+  // OPT: 填充arg reg
   for (int i = 0; i < arg_num; ++i) {
     auto vreg = NewVirtualReg();
+    this->arg_reg.push_back(vreg->reg_id_);
     if (i < 4) {
       first_bb->inst_list_.push_back(
           static_cast<Instruction*>(new Move(false, Cond::AL, vreg, new Operand2(new Reg(ArmReg(i))))));
     } else {
       this->GenImmLdrStrInst(first_bb, LdrStr::OpKind::LDR, vreg, sp_vreg, this->stack_size + 4 + (i - 4) * 4);
     }
-    // TODO: varmap record
   }
+  this->ChangeOffset(func->name_);
 }
 
 void GenerateArmOpt::GenCallCode(ArmBasicBlock* armbb, ir::IR& ir, std::vector<ir::IR*>::iterator ir_iter) {
@@ -333,6 +357,8 @@ void GenerateArmOpt::ResetFuncData(ArmFunction* armfunc) {
   this->stack_size = armfunc->stack_size_;
   this->sp_arg_fixup.clear();
   this->sp_fixup.clear();
+  // OPT:
+  this->arg_reg.clear();
 }
 
 ArmModule* GenerateArmOpt::GenCode(IRModule* module) {
@@ -356,7 +382,7 @@ ArmModule* GenerateArmOpt::GenCode(IRModule* module) {
     armmodule->func_list_.push_back(armfunc);
 
     ResetFuncData(armfunc);
-    ChangeOffset(armfunc->name_);
+    // OPT: ChangeOffset(armfunc->name_);
 
     // create armbb according to irbb
     std::unordered_map<IRBasicBlock*, ArmBasicBlock*> bb_map;

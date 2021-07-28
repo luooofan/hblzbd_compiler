@@ -32,7 +32,8 @@ class GenerateArmOpt : public Transform {
   int arg_num = 0;
   std::vector<Instruction*> sp_arg_fixup;
   std::vector<Instruction*> sp_fixup;
-
+  // FIX:
+  std::vector<int> arg_reg;
   void ResetFuncData(ArmFunction* armfunc);
 
  private:
