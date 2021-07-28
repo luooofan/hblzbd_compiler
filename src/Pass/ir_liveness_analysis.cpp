@@ -20,19 +20,66 @@ std::pair<std::vector<Opn*>, std::vector<Opn*>> GetDefUse(IR *ir)
 
   auto process_opn = [&use](Opn *op){
     if(nullptr == op) return;
-    if(op->type_ == Opn::Type::Imm || op->type_ == Opn::Type::Label || op->type_ == Opn::Type::Null) return;
+    if(op->type_ == Opn::Type::Imm || op->type_ == Opn::Type::Label || op->type_ == Opn::Type::Func || op->type_ == Opn::Type::Null) return;
     use.push_back(op);
-    if(op->type_ == Opn::Type::Array && op->offset->type_ == OPn::Type::Var){
-      use.push_back(op->offset)
+    if(op->type_ == Opn::Type::Array && op->offset_->type_ == Opn::Type::Var){
+      use.push_back(op->offset_);
     }
-  }
+  };
 
-  auto 
+  auto process_res = [&def, &use](Opn *res){
+    if(nullptr == res) return;
+    if(res->type_ == Opn::Type::Label || res->type_ == Opn::Type::Func || res->type_ == Opn::Type::Null) return;
+    def.push_back(res);
+    if(res->type_ == Opn::Type::Array){
+      if(res->offset_->type_ == Opn::Type::Imm || res->offset_->type_ == Opn::Type::Label || res->offset_->type_ == Opn::Type::Func || res->offset_->type_ == Opn::Type::Null) return;
+      use.push_back(res->offset_);
+    }
+  };
 
-  if(ir.op_ == IR::OpKind::ADD){
-    // opn1
-
-  }
+  if(ir->op_ == IR::OpKind::ADD ||
+     ir->op_ == IR::OpKind::SUB ||
+     ir->op_ == IR::OpKind::MUL ||
+     ir->op_ == IR::OpKind::DIV ||
+     ir->op_ == IR::OpKind::MOD){
+       process_opn(&(ir->opn1_));
+       process_opn(&(ir->opn2_));
+       process_res(&(ir->res_));
+     }else if(ir->op_ == IR::OpKind::NOT ||
+              ir->op_ == IR::OpKind::NEG){
+        process_opn(&(ir->opn1_));
+        process_res(&(ir->res_));
+      }else if(ir->op_ == IR::OpKind::LABEL){
+        return;
+      }else if(ir->op_ == IR::OpKind::PARAM){
+        process_opn(&(ir->opn1_));
+      }else if(ir->op_ == IR::OpKind::CALL){
+        process_res(&(ir->res_));
+      }else if(ir->op_ == IR::OpKind::RET){
+        process_opn(&(ir->opn1_));
+      }else if(ir->op_ == IR::OpKind::GOTO){
+        return;
+      }else if(ir->op_ == IR::OpKind::ASSIGN){
+        process_opn(&(ir->opn1_));
+        process_res(&(ir->res_));
+      }else if(ir->op_ == IR::OpKind::JEQ ||
+               ir->op_ == IR::OpKind::JNE ||
+               ir->op_ == IR::OpKind::JLT ||
+               ir->op_ == IR::OpKind::JLE ||
+               ir->op_ == IR::OpKind::JGT ||
+               ir->op_ == IR::OpKind::JGE){
+        process_opn(&(ir->opn1_));
+        process_opn(&(ir->opn2_));
+      }else if(ir->op_ == IR::OpKind::VOID){
+        return;
+      }else if(ir->op_ == IR::OpKind::ASSIGN_OFFSET){
+        process_opn(&(ir->opn1_));
+        process_res(&(ir->res_));
+      }else{
+        MyAssert(0);
+      }
+  
+  return {def, use};
 }
 
 
