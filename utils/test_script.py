@@ -17,7 +17,7 @@ if __name__ == '__main__':
   CompilerPath = './compiler'
   CompileArgs = '-S -O1'
   GccArgs = f'-march=armv7-a -L {args.linked_library_path} -lsysy -static'
-  OutputFolder = './autotest_output'
+  OutputFolder = './output'
 
   if not path.exists(OutputFolder):
     os.system(f"mkdir {OutputFolder}")

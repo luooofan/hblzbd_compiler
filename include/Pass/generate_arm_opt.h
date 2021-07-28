@@ -1,54 +1,22 @@
+#pragma once
 #include <unordered_set>
 
-#include "../arm.h"
-#include "../arm_struct.h"
-#include "pass_manager.h"
+#include "./generate_arm.h"
 using namespace arm;
 
-class GenerateArmOpt : public Transform {
+class GenerateArmOpt : public GenerateArm {
  public:
-  using VarScopeRegPtrHashTable = std::unordered_map<std::string, std::unordered_map<int, Reg*>>;
-  using GloVarRegPtrHashTable = std::unordered_map<std::string, Reg*>;
-  GenerateArmOpt(Module** m) : Transform(m) {}
-  ArmModule* GenCode(IRModule* module);
-  // will change *m: IRModule -> ArmModule
-  // remember release source *m space
-  void Run();
+  GenerateArmOpt(Module** m) : GenerateArm(m) {}
 
  private:
-  // these data is valid in one function.
-  // they should be reset at the beginning of every function.
-  int virtual_reg_id = 16;
-  // 全局 局部 中间变量的占用寄存器(存放值)map
-  // 局部变量不需要存在var_map中 是无意义的 每次用到的时候都要ldr str
-  VarScopeRegPtrHashTable var_map;  // varname, scope_id, reg
-  // 全局变量的地址寄存器map
-  GloVarRegPtrHashTable glo_addr_map;
-  // 保存有初始sp的vreg
-  // 保存sp到vreg中  add rx, sp, 0
-  // 之后要用sp的地方都找sp_vreg 除了call附近 和 epilogue中
-  Reg* sp_vreg = nullptr;
-  int stack_size = 0;
-  int arg_num = 0;
-  std::vector<Instruction*> sp_arg_fixup;
-  std::vector<Instruction*> sp_fixup;
-  // FIX:
+  // OPT:
   std::vector<int> arg_reg;
-  void ResetFuncData(ArmFunction* armfunc);
-
- private:
   // used for generate arm code.
-  Cond GetCondType(ir::IR::OpKind opkind, bool exchange = false);
-  Reg* NewVirtualReg();
-  Operand2* ResolveImm2Operand2(ArmBasicBlock* armbb, int imm, bool record = false);
-  void GenImmLdrStrInst(ArmBasicBlock* armbb, LdrStr::OpKind opkind, Reg* rd, Reg* rn, int imm);
-  void ChangeOffset(std::string& func_name);
-  void AddPrologue(ArmFunction* func, ArmBasicBlock* first_bb);
-  void AddEpilogue(ArmBasicBlock* armbb);
-  void GenCallCode(ArmBasicBlock* armbb, ir::IR& ir, std::vector<ir::IR*>::iterator ir_iter);
-  Reg* LoadGlobalOpn2Reg(ArmBasicBlock* armbb, ir::Opn* opn);
-  Reg* ResolveOpn2Reg(ArmBasicBlock* armbb, ir::Opn* opn);
-  Operand2* ResolveOpn2Operand2(ArmBasicBlock* armbb, ir::Opn* opn);
-  template <typename CallableObjTy>
-  void ResolveResOpn2RdReg(ArmBasicBlock* armbb, ir::Opn* opn, CallableObjTy f);
+  void ResetFuncData(ArmFunction* armfunc) override;
+  void ChangeOffset(std::string& func_name) override;
+  void AddPrologue(ArmFunction* func) override;
+  Reg* LoadGlobalOpn2Reg(ArmBasicBlock* armbb, ir::Opn* opn) override;
+  Reg* GetRBase(ArmBasicBlock* armbb, ir::Opn* opn) override;
+  Reg* ResolveOpn2Reg(ArmBasicBlock* armbb, ir::Opn* opn) override;
+  void ResolveResOpn2RdReg(ArmBasicBlock* armbb, ir::Opn* opn, std::function<void(Reg*)> f) override;
 };

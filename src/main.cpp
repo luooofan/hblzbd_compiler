@@ -17,6 +17,7 @@
 #include "../include/ir.h"
 #include "../include/ir_struct.h"
 #include "parser.hpp"
+
 ast::Root *ast_root;  // the root node of final AST
 extern int yyparse();
 extern int yylex_destroy();
@@ -25,16 +26,7 @@ extern void yyset_lineno(int _line_number);
 // #define DEBUG_PROCESS
 
 #define ASSERT_ENABLE
-// assert(res);
-#ifdef ASSERT_ENABLE
-#define MyAssert(res)                                                    \
-  if (!(res)) {                                                          \
-    std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl; \
-    exit(255);                                                           \
-  }
-#else
-#define MyAssert(res) ;
-#endif
+#include "../include/myassert.h"
 
 int main(int argc, char **argv) {
   // MyAssert(0);
@@ -182,7 +174,4 @@ int main(int argc, char **argv) {
   return 0;
 }
 
-#undef MyAssert
-#ifdef ASSERT_ENABLE
 #undef ASSERT_ENABLE
-#endif

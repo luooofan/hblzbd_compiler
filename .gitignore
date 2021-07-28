@@ -1,5 +1,4 @@
-sysyruntimelibrary/
-sysyruntimelibrary-master/
+sysyruntimelibrary*/
 autotest*/
 /*.sh
 *.out*
@@ -9,22 +8,11 @@ autotest*/
 test/*
 !test/test_*.sy
 docs/
-# .gitignore
-# src/parser.cpp
-# src/parser.hpp
-# src/scanner.c
-src/struct.h
-src/asm.cpp
-src/main2.cpp
 src/ast_*
-# *_struct.*
 .vscode/
-arm_code.s
-official_test/
 *.s
 temp*
 /test*
 *.zip
-*_test/
-*_out/
 build/
+output/
