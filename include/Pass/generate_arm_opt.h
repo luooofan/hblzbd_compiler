@@ -1,5 +1,4 @@
 #pragma once
-#include <unordered_set>
 
 #include "./generate_arm.h"
 using namespace arm;
@@ -11,7 +10,8 @@ class GenerateArmOpt : public GenerateArm {
  private:
   // OPT:
   std::vector<int> arg_reg;
-  // used for generate arm code.
+
+  // used for generate arm code. different from no-opt version.
   void ResetFuncData(ArmFunction* armfunc) override;
   void ChangeOffset(std::string& func_name) override;
   void AddPrologue(ArmFunction* func) override;

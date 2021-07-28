@@ -7,25 +7,22 @@
 #include "pass_manager.h"
 using namespace arm;
 
+// NO OPT VERSION
 class GenerateArm : public Transform {
- public:
   using VarScopeRegPtrHashTable = std::unordered_map<std::string, std::unordered_map<int, Reg*>>;
+
+ public:
   GenerateArm(Module** m) : Transform(m) {}
-  virtual ArmModule* GenCode(IRModule* module);
   // will change *m: IRModule -> ArmModule
-  // remember release source *m space
   virtual void Run() override;
+  ArmModule* GenCode(IRModule* module);
 
  protected:
-  // these data is valid in one function.
-  // they should be reset at the beginning of every function.
+  // these data is valid in one function. they should be reset at the beginning of every function.
   int virtual_reg_id = 16;
   // 全局 局部 中间变量的占用寄存器(存放值)map
-  // 局部变量不需要存在var_map中 是无意义的 每次用到的时候都要ldr str
   VarScopeRegPtrHashTable var_map;  // varname, scope_id, reg
-  // 保存有初始sp的vreg
-  // 保存sp到vreg中  add rx, sp, 0
-  // 之后要用sp的地方都找sp_vreg 除了call附近 和 epilogue中
+  // 保存有初始sp的vreg 一定是也必须是r16
   Reg* sp_vreg = nullptr;
   int stack_size = 0;
   int arg_num = 0;
