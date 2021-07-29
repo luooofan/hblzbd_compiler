@@ -111,9 +111,24 @@ std::pair<std::vector<Reg *>, std::vector<Reg *>> GetDefUsePtr(Instruction *inst
     def.push_back(src_inst->rd_);
     process_op2(src_inst->op2_);
   } else if (auto src_inst = dynamic_cast<Branch *>(inst)) {
-    if (src_inst->has_x_ && src_inst->label_ == "lr") {  // bx lr 视为对r0和lr的使用
+    // call可先视为对前面已经定义的参数寄存器的使用 再视作对调用者保护的寄存器的定义 不管之后这些寄存器有没有被使用
+    // caller save regs: r0-r3, lr, ip
+    // ret可视为对r0和lr的使用 但需要保证armcode是正确的 i.e. 如果前面有bl xxx指令的话 后面不能用bx lr指令返回
+    // 如果b后面是个函数label就是call 如果b后面是lr就是ret
+    auto &label = src_inst->label_;
+    if (src_inst->IsRet()) {  // bx lr
       use.push_back(new Reg(ArmReg::r0));
       use.push_back(new Reg(ArmReg::lr));
+    } else if (src_inst->IsCall()) {  // call
+      int callee_param_num = ir::gFuncTable[label].shape_list_.size();
+      for (RegId i = 0; i < std::min(callee_param_num, 4); ++i) {
+        use.push_back(new Reg(i));
+      }
+      for (RegId i = 0; i < 4; ++i) {
+        def.push_back(new Reg(i));
+      }
+      def.push_back(new Reg(ArmReg::ip));
+      def.push_back(new Reg(ArmReg::lr));
     }
   } else if (auto src_inst = dynamic_cast<LdrStr *>(inst)) {
     if (src_inst->opkind_ == LdrStr::OpKind::LDR) {

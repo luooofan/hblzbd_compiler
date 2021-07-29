@@ -1,4 +1,3 @@
-#include <cassert>
 #include <cstdio>
 #include <stdexcept>
 
@@ -21,16 +20,9 @@
   }
 
 #define ASSERT_ENABLE
-// assert(res);
-#ifdef ASSERT_ENABLE
-#define MyAssert(res)                                                    \
-  if (!(res)) {                                                          \
-    std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl; \
-    exit(255);                                                           \
-  }
-#else
-#define MyAssert(res) ;
-#endif
+#include "../include/myassert.h"
+
+// #define NO_OPT
 
 namespace ast {
 
@@ -416,7 +408,9 @@ void VariableDefine::GenerateIR(ir::ContextInfo &ctx) {
     auto tmp = new ir::SymbolTableItem(false, false, scope.dynamic_offset_);
     if (ctx.scope_id_ == 0) tmp->initval_.push_back(0);
     symbol_table.insert({this->name_.name_, *tmp});
+#ifdef NO_OPT
     scope.dynamic_offset_ += ir::kIntWidth;
+#endif
     delete tmp;
   } else {
     ir::SemanticError(this->line_no_, this->name_.name_ + ": variable redefined");
@@ -432,7 +426,9 @@ void VariableDefineWithInit::GenerateIR(ir::ContextInfo &ctx) {
       symbol_table.insert({this->name_.name_, ir::SymbolTableItem(false, true, -1)});
     } else {
       symbol_table.insert({this->name_.name_, ir::SymbolTableItem(false, false, scope.dynamic_offset_)});
+#ifdef NO_OPT
       scope.dynamic_offset_ += ir::kIntWidth;
+#endif
     }
     auto &tmp = symbol_table.find(this->name_.name_)->second;
     // NOTE: 如果是全局量或者常量 需要填写initval 如果是局部变量 生成一条赋值语句
@@ -527,10 +523,9 @@ void ArrayDefineWithInit::GenerateIR(ir::ContextInfo &ctx) {
     ctx.array_offset_ = 0;
     ctx.brace_num_ = 1;
 
-    if (ctx.scope_id_ == 0 || this->is_const_) {
+    if (ctx.scope_id_ == 0) {
       this->value_.Evaluate(ctx);
     } else {
-      // NOTE: 先生成一颗functioncall树 生成相关代码后再genir并且=0的不用再生成ir
       ir::gIRList.push_back({IROpKind::PARAM, {OpnType::Imm, symbol_item.width_[0], ctx.scope_id_}});
       ir::gIRList.push_back({IROpKind::PARAM, IMM_0_OPN});
       ir::gIRList.push_back(
@@ -542,6 +537,13 @@ void ArrayDefineWithInit::GenerateIR(ir::ContextInfo &ctx) {
       auto opn1 = ir::Opn(OpnType::Func, std::string("memset"), ctx.scope_id_);
       auto opn2 = ir::Opn(OpnType::Imm, 3, ctx.scope_id_);
       ir::gIRList.push_back({IROpKind::CALL, opn1, opn2, temp});
+      if (this->is_const_) {
+        ctx.array_offset_ = 0;
+        ctx.brace_num_ = 1;
+        this->value_.Evaluate(ctx);
+      }
+      ctx.array_offset_ = 0;
+      ctx.brace_num_ = 1;
       this->value_.GenerateIR(ctx);
     }
   } else {
@@ -573,7 +575,9 @@ void FunctionDefine::GenerateIR(ir::ContextInfo &ctx) {
           auto &&symbol_item = ir::SymbolTableItem(false, false, scope.dynamic_offset_);
           symbol_item.SetIsArg();
           symbol_table.insert({ident->name_, symbol_item});
+          // #ifdef NO_OPT
           scope.dynamic_offset_ += ir::kIntWidth;
+          // #endif
         } else {
           ir::SemanticError(this->line_no_, ident->name_ + ": variable redefined");
         }
@@ -584,7 +588,9 @@ void FunctionDefine::GenerateIR(ir::ContextInfo &ctx) {
           auto tmp1 = new ir::SymbolTableItem(true, false, scope.dynamic_offset_);
           tmp1->SetIsArg();
           // NOTE: 参数中的数组视为一个基址指针
+          // #ifdef NO_OPT
           scope.dynamic_offset_ += ir::kIntWidth;
+          // #endif
           // 计算shape和width shape:-1 2 3  width:? 24 12 4
           tmp1->shape_.push_back(-1);  //第一维因为文法规定必须留空，这里记-1
           for (const auto &shape : arrident->shape_list_) {
@@ -1502,7 +1508,4 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx) {
 
 }  // namespace ast
 
-#undef MyAssert
-#ifdef ASSERT_ENABLE
 #undef ASSERT_ENABLE
-#endif

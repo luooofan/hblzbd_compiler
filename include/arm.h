@@ -192,20 +192,24 @@ class BinaryInst : public Instruction {
     // convert shift-inst to mov-inst
   };
   OpCode opcode_;
-  bool has_s_;  // only mean if opcode has char 'S'. don't mean the
-                // instruction whether updates CPSR or not.
-  Reg* rd_;     // Note: rd may nullptr
+  bool has_s_ = false;  // only mean if opcode has char 'S'. don't mean the
+                        // instruction whether updates CPSR or not.
+  Reg* rd_ = nullptr;   // Note: rd may nullptr
   Reg* rn_;
   Operand2* op2_;
 
-  bool HasS() { return has_s_; }
   BinaryInst(OpCode opcode, bool has_s, Cond cond, Reg* rd, Reg* rn, Operand2* op2)
       : Instruction(cond), opcode_(opcode), has_s_(has_s), rd_(rd), rn_(rn), op2_(op2) {}
+  BinaryInst(OpCode opcode, Reg* rd, Reg* rn, Operand2* op2) : opcode_(opcode), rd_(rd), rn_(rn), op2_(op2) {}
+
+  // for TST TEQ CMP CMN: no rd. omit S.
   BinaryInst(OpCode opcode, Cond cond, Reg* rn, Operand2* op2)
-      : Instruction(cond), opcode_(opcode), has_s_(false), rd_(nullptr), rn_(rn), op2_(op2) {
-    // for TST TEQ CMP CMN: no rd. omit S.
-  }
+      : Instruction(cond), opcode_(opcode), rn_(rn), op2_(op2) {}
+  BinaryInst(OpCode opcode, Reg* rn, Operand2* op2) : opcode_(opcode), rn_(rn), op2_(op2) {}
+
   virtual ~BinaryInst();
+
+  bool HasS() { return has_s_; }
   virtual void EmitCode(std::ostream& outfile = std::clog);
   virtual void Check() {
     if (nullptr != rd_) {
@@ -225,13 +229,16 @@ class BinaryInst : public Instruction {
 class Move : public Instruction {
  public:
   bool is_mvn_;
-  bool has_s_;  // only mean if opcode has char 'S'. don't mean the instruction whether updates CPSR or not.
+  bool has_s_ = false;  // only mean if opcode has char 'S'. don't mean the instruction whether updates CPSR or not.
   Reg* rd_;
   Operand2* op2_;
-  bool HasS() { return has_s_; }
+
   Move(bool has_s, Cond cond, Reg* rd, Operand2* op2, bool is_mvn = false)
       : Instruction(cond), has_s_(has_s), rd_(rd), op2_(op2), is_mvn_(is_mvn) {}
+  Move(Reg* rd, Operand2* op2, bool is_mvn = false) : rd_(rd), op2_(op2), is_mvn_(is_mvn) {}
   virtual ~Move();
+
+  bool HasS() { return has_s_; }
   virtual void EmitCode(std::ostream& outfile = std::clog);
   virtual void Check() {
     MyAssert(nullptr != rd_ && nullptr != op2_);
@@ -250,6 +257,7 @@ class Branch : public Instruction {
   bool IsRet();
   Branch(bool has_l, bool has_x, Cond cond, std::string label)
       : Instruction(cond), has_l_(has_l), has_x_(has_x), label_(label) {}
+  Branch(bool has_l, bool has_x, std::string label) : has_l_(has_l), has_x_(has_x), label_(label) {}
   virtual ~Branch();
   virtual void EmitCode(std::ostream& outfile = std::clog);
   virtual void Check() {
@@ -269,19 +277,24 @@ class LdrStr : public Instruction {
   enum class OpKind { LDR, STR };
   enum class Type { Pre, Norm, Post };
   OpKind opkind_;
-  Type type_;
+  Type type_ = Type::Norm;
   Reg* rd_;
   Reg* rn_;  // Base
   bool is_offset_imm_ = false;
   int offset_imm_ = -1;
   Operand2* offset_ = nullptr;  // a reg, or a scaled reg(imm_shift)
+
   LdrStr(OpKind opkind, Type type, Cond cond, Reg* rd, Reg* rn, Operand2* offset)
       : Instruction(cond), opkind_(opkind), type_(type), rd_(rd), rn_(rn), offset_(offset) {}
+  LdrStr(OpKind opkind, Reg* rd, Reg* rn, Operand2* offset) : opkind_(opkind), rd_(rd), rn_(rn), offset_(offset) {}
   LdrStr(OpKind opkind, Type type, Cond cond, Reg* rd, Reg* rn, int offset)
       : Instruction(cond), opkind_(opkind), type_(type), rd_(rd), rn_(rn), is_offset_imm_(true), offset_imm_(offset) {}
+  LdrStr(OpKind opkind, Reg* rd, Reg* rn, int offset)
+      : opkind_(opkind), rd_(rd), rn_(rn), is_offset_imm_(true), offset_imm_(offset) {}
   virtual ~LdrStr();
+
   virtual void EmitCode(std::ostream& outfile = std::clog);
-  static bool CheckImm12(int imm) { return (imm < 4092) && (imm > -4092); }  // TODO: should be 4096
+  static bool CheckImm12(int imm) { return (imm < 4096) && (imm > -4096); }  // TODO: should be 4096
   virtual void Check() {
     MyAssert(nullptr != rd_ && nullptr != rn_);
     rd_->Check();
@@ -304,9 +317,13 @@ class LdrPseudo : public Instruction {
   int imm_;
   LdrPseudo(Cond cond, Reg* rd, const std::string& literal)
       : Instruction(cond), rd_(rd), is_imm_(false), literal_(literal) {}
+  LdrPseudo(Reg* rd, const std::string& literal) : rd_(rd), is_imm_(false), literal_(literal) {}
   LdrPseudo(Cond cond, Reg* rd, int imm) : Instruction(cond), rd_(rd), is_imm_(true), imm_(imm) {}
-  bool IsImm() { return is_imm_; }
+  LdrPseudo(Reg* rd, int imm) : rd_(rd), is_imm_(true), imm_(imm) {}
+
   virtual ~LdrPseudo();
+
+  bool IsImm() { return is_imm_; }
   virtual void EmitCode(std::ostream& outfile = std::clog);
   virtual void Check() {
     MyAssert(nullptr != rd_);
@@ -326,6 +343,7 @@ class PushPop : public Instruction {
   OpKind opkind_;
   std::vector<Reg*> reg_list_;
   PushPop(OpKind opkind, Cond cond) : Instruction(cond), opkind_(opkind) {}
+  PushPop(OpKind opkind) : opkind_(opkind) {}
   virtual ~PushPop();
   virtual void EmitCode(std::ostream& outfile = std::clog);
   virtual void Check() {

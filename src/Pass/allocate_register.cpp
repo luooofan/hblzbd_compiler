@@ -3,18 +3,12 @@
 #include "../../include/Pass/arm_liveness_analysis.h"
 using namespace arm;
 
-#define IS_PRECOLORED(i) (i < 16)
+// #define DEBUG_SPILL
+// #define DEBUG_REGALLOC
 #define ASSERT_ENABLE
-// assert(res);
-#ifdef ASSERT_ENABLE
-#define MyAssert(res)                                                    \
-  if (!(res)) {                                                          \
-    std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl; \
-    exit(255);                                                           \
-  }
-#else
-#define MyAssert(res) ;
-#endif
+#include "../../include/myassert.h"
+#define IS_PRECOLORED(i) (i < 16)
+
 void dbg_print_worklist(RegAlloc::WorkList &wl, std::ostream &outfile) {
   for (auto item : wl) {
     outfile << item << " ";
@@ -55,6 +49,7 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
     std::set<RegId> used_callee_saved_regs;
     int src_stack_size = func->stack_size_;
     bool done = false;
+    std::unordered_map<RegId, int> spill_times;
     while (!done) {
       used_callee_saved_regs.clear();
       // K color
@@ -89,17 +84,6 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
       MovSet worklist_moves;  // 一开始mov指令都放在这里
       MovSet active_moves;    // 里面放的是暂时无法合并的mov指令
                               // 如果有合并的可能后会加到worklist moves中
-
-      // 处理过程
-      // livenessanalysis() 活跃分析
-      // build() 构造冲突图
-      // mk_worklist() 初始化各个工作表 里面包含了全部的结点
-      // simplify() 简化 从冲突图中删除度<K的结点(在simplifywl中)及其边
-      // coleasce() 合并 在冲突图中把两个mov-rel结点合并(在freezewl中)
-      // freeze() 冻结 把一个mov-rel结点冻结()
-      // spill() 溢出
-      // rewriteprogram() 插入对溢出变量的ldr和str
-      // addcalleesavereg() 在函数开头插入对使用的callee save寄存器的保存
 
       // 把u-v v-u添加到冲突图中 不维护预着色结点的邻接表
       auto add_edge = [&adj_set, &adj_list, &degree](RegId u, RegId v) {
@@ -215,8 +199,6 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
           }
         }
       };
-
-      // auto enable_moves = [&](WorkList)
 
       auto decrement_degree = [&spill_worklist, &simplify_worklist, &freeze_worklist, &degree, &move_related,
                                &enable_moves](RegId reg) {
@@ -409,6 +391,11 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
         RegId reg = *std::max_element(spill_worklist.begin(), spill_worklist.end(), [&](auto a, auto b) {
           if (16 == a) return true;  // regard r16 as min
           if (16 == b) return false;
+          if (spill_times.find(a) != spill_times.end() && spill_times.find(b) != spill_times.end()) {
+            return spill_times[a] > spill_times[b];
+          }
+          if (spill_times.find(a) != spill_times.end() && spill_times[a] >= 1) return true;
+          if (spill_times.find(b) != spill_times.end() && spill_times[b] >= 1) return false;
           return degree[a] < degree[b];
         });
         // 选择的结点可能mov有关也可能mov无关
@@ -461,7 +448,7 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
             spilled_nodes.insert(vreg);
           } else {  // 可分配
             auto color = *std::min_element(ok_colors.begin(), ok_colors.end());
-            if (color >= 4 && color <= 11) {
+            if ((color >= 4 && color <= 11) || color == 14) {
               used_callee_saved_regs.insert(color);
             }
             colored[vreg] = color;
@@ -567,7 +554,6 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
         done = true;
       } else {
         // MyAssert(0);
-        // NOTE: don't test.
 #ifdef DEBUG_SPILL
         std::cout << "Actual Spill." << std::endl;
 #endif
@@ -577,6 +563,11 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
 #ifdef DEBUG_SPILL
           std::cout << "process spill node:" << spill_reg << std::endl;
 #endif
+          if (spill_times.find(spill_reg) == spill_times.end()) {
+            spill_times[spill_reg] = 1;
+          } else {
+            ++spill_times[spill_reg];
+          }
           // allocate on stack spill reg一定是virtual reg
           auto offset = func->stack_size_;
           for (auto bb : func->bb_list_) {
@@ -604,14 +595,14 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
                 } else {
                   inst = static_cast<Instruction *>(new LdrPseudo(Cond::AL, vreg, offset));
                 }
-                inst = static_cast<Instruction *>(new LdrStr(opkind, LdrStr::Type::Norm, Cond::AL, new Reg(spill_reg),
-                                                             new Reg(16), new Operand2(vreg)));
+                auto inst2 = static_cast<Instruction *>(new LdrStr(
+                    opkind, LdrStr::Type::Norm, Cond::AL, new Reg(spill_reg), new Reg(16), new Operand2(vreg)));
                 if (opkind == LdrStr::OpKind::LDR) {
                   iter = bb->inst_list_.insert(iter, inst) + 1;
-                  return bb->inst_list_.insert(iter, inst) + 1;
+                  return bb->inst_list_.insert(iter, inst2) + 1;
                 } else {
                   iter = bb->inst_list_.insert(iter + 1, inst);
-                  return bb->inst_list_.insert(iter + 1, inst);
+                  return bb->inst_list_.insert(iter + 1, inst2);
                 }
               }
             };
@@ -644,8 +635,9 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
     // 每一个函数确定了之后 更改push/pop指令 更改add/sub sp sp stack_size指令 删除自己到自己的mov指令
     int stack_size_diff = func->stack_size_ - src_stack_size;
     int offset_fixup_diff = used_callee_saved_regs.size() * 4 + stack_size_diff;  // maybe -4
-    if (func->IsLeaf()) {                                                         //原本计算有lr
-      offset_fixup_diff -= 4;
+    bool is_lr_used = used_callee_saved_regs.find((int)ArmReg::lr) != used_callee_saved_regs.end();
+    if (is_lr_used || func->IsLeaf()) {  // 用过说明肯定算了两次lr只算一次就行 没用过只算了一次 是leaf func则不用算
+      offset_fixup_diff -= 4;  // many_params这里有一个情况是 不是leaf func还用了lr
     }
     for (auto bb : func->bb_list_) {
       for (auto iter = bb->inst_list_.begin(); iter != bb->inst_list_.end();) {
@@ -656,7 +648,7 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
             pushpop_inst->reg_list_.push_back(new Reg(reg));
           }
           if (pushpop_inst->opkind_ == PushPop::OpKind::PUSH) {
-            if (!func->IsLeaf()) {
+            if (!func->IsLeaf() && !is_lr_used) {  // 用过的话已经放进push中了
               pushpop_inst->reg_list_.push_back(new Reg(ArmReg::lr));
             }
             if (pushpop_inst->reg_list_.empty()) {
@@ -664,7 +656,10 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
               continue;
             }
           } else {
-            if (!func->IsLeaf()) {
+            if (is_lr_used) {
+              MyAssert(pushpop_inst->reg_list_.back()->reg_id_ == (int)ArmReg::lr);
+              pushpop_inst->reg_list_.back()->reg_id_ = (int)ArmReg::pc;
+            } else if (!func->IsLeaf()) {  // lr在相应的push中 所以pc要在相应的pop中
               pushpop_inst->reg_list_.push_back(new Reg(ArmReg::pc));
             }
             if (pushpop_inst->reg_list_.empty()) {
@@ -673,58 +668,66 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
               ++iter;
             }
             // 此时iter指向原pop指令的下一条指令
-            if (func->IsLeaf()) {  // 插入一条 bx lr
+            if (func->IsLeaf() && !is_lr_used) {  // 不在push中 插入一条 bx lr
               iter = bb->inst_list_.insert(iter, static_cast<Instruction *>(new Branch(false, true, Cond::AL, "lr")));
             }
             continue;
           }
           ++iter;
-        } else if (auto move_inst = dynamic_cast<Move *>(*iter)) {  // 删除自己到自己的mov语句
-          auto op2 = move_inst->op2_;
-          if (!op2->is_imm_ && nullptr == op2->shift_ && move_inst->rd_->reg_id_ == op2->reg_->reg_id_) {
-            iter = bb->inst_list_.erase(iter);
-          } else {
-            ++iter;
-          }
         } else {
           ++iter;
         }
       }
     }
-    // push和pop中添加了r4-r11 或者删除了lr和sp的话 需要修复栈中实参的位置
-    for (auto inst : func->sp_arg_fixup_) {
-      if (auto src_inst = dynamic_cast<Move *>(inst)) {
-        MyAssert(src_inst->op2_->is_imm_);
-        if (src_inst->is_mvn_) {
-          src_inst->op2_->imm_num_ -= offset_fixup_diff;
-        } else {
-          src_inst->op2_->imm_num_ += offset_fixup_diff;
+
+    auto convert_imm_inst = [&func](std::vector<Instruction *>::iterator it) {
+      // 把mov/mvn转换成ldrpseudo
+      for (auto bb : func->bb_list_) {
+        for (auto inst_it = bb->inst_list_.begin(); inst_it != bb->inst_list_.end(); ++inst_it) {
+          if (*inst_it == *it) {
+            auto src_inst = dynamic_cast<Move *>(*it);
+            MyAssert(nullptr != src_inst && src_inst->op2_->is_imm_);
+            inst_it = bb->inst_list_.erase(inst_it);
+            int imm = 0;
+            if (src_inst->is_mvn_) {
+              imm = -src_inst->op2_->imm_num_ - 1;
+            } else {
+              imm = src_inst->op2_->imm_num_;
+            }
+            auto pseudo_ldr_inst = static_cast<Instruction *>(new LdrPseudo(Cond::AL, src_inst->rd_, imm));
+            inst_it = bb->inst_list_.insert(inst_it, pseudo_ldr_inst);
+            // TODO: delete
+            *it = pseudo_ldr_inst;
+          }
         }
-      } else if (auto src_inst = dynamic_cast<LdrStr *>(inst)) {
-        MyAssert(src_inst->is_offset_imm_);
-        src_inst->offset_imm_ += offset_fixup_diff;
-      } else if (auto src_inst = dynamic_cast<LdrPseudo *>(inst)) {
-        MyAssert(src_inst->IsImm());
-        src_inst->imm_ += offset_fixup_diff;
-      } else {
-        MyAssert(0);
       }
+      MyAssert(0);
+    };
+
+    // std::cout << offset_fixup_diff << " " << stack_size_diff << std::endl;
+    // push和pop中添加了r4-r11 或者删除了lr的话 需要修复栈中实参的位置
+    for (auto it = func->sp_arg_fixup_.begin(); it != func->sp_arg_fixup_.end(); ++it) {
+      auto src_inst = dynamic_cast<LdrPseudo *>(*it);
+      MyAssert(nullptr != src_inst && src_inst->IsImm());
+      src_inst->imm_ += offset_fixup_diff;
     }
-    // 针对sp的修复
-    for (auto inst : func->sp_fixup_) {
-      if (auto src_inst = dynamic_cast<Move *>(inst)) {
+
+    // 针对sp的修复 TODO: 可以删=0
+    for (auto it = func->sp_fixup_.begin(); it != func->sp_fixup_.end(); ++it) {
+      // 可能是mov mvn或者pseudo ldr
+      if (auto src_inst = dynamic_cast<Move *>(*it)) {
         MyAssert(src_inst->op2_->is_imm_);
         if (src_inst->is_mvn_) {
           src_inst->op2_->imm_num_ -= stack_size_diff;
         } else {
           src_inst->op2_->imm_num_ += stack_size_diff;
         }
-      } else if (auto src_inst = dynamic_cast<LdrPseudo *>(inst)) {
+        if (!Operand2::CheckImm8m(src_inst->op2_->imm_num_)) {
+          convert_imm_inst(it);
+        }
+      } else if (auto src_inst = dynamic_cast<LdrPseudo *>(*it)) {
         MyAssert(src_inst->IsImm());
         src_inst->imm_ += stack_size_diff;
-      } else if (auto src_inst = dynamic_cast<BinaryInst *>(inst)) {
-        MyAssert(src_inst->op2_->is_imm_);
-        src_inst->op2_->imm_num_ += stack_size_diff;
       } else {
         MyAssert(0);
       }
@@ -733,7 +736,4 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
   }  // end of func loop
 }
 
-#undef MyAssert
-#ifdef ASSERT_ENABLE
 #undef ASSERT_ENABLE
-#endif

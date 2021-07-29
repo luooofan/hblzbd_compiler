@@ -48,6 +48,7 @@ IRModule* ConstructModule(const std::string& module_name) {
   }
 
   bool is_leader = false;
+  bool is_succ = true;
   IRFunction* curr_func = nullptr;
   IRBasicBlock* pre_bb = nullptr;
   IRBasicBlock* curr_bb = nullptr;
@@ -75,27 +76,30 @@ IRModule* ConstructModule(const std::string& module_name) {
       curr_func->bb_list_.push_back(curr_bb);
       curr_bb->func_ = curr_func;
       // 维护两个基本块之间的关系
-      if (nullptr != pre_bb) {
+      if (nullptr != pre_bb && is_succ) {
         pre_bb->succ_.push_back(curr_bb);
         curr_bb->pred_.push_back(pre_bb);
       }
     } else {
       curr_bb->ir_list_.push_back(&ir);
     }
+    is_succ = true;
     // 维护当前基本块和跳转目标基本块之间的关系 维护is_leader 之后is_leader表示下一条ir是否为首指令
     switch (ir.op_) {
       case IR::OpKind::RET:
         is_leader = true;
+        is_succ = false;
         break;
       case IR::OpKind::CALL:  // NOTE: 此时不维护调用双方两个基本块之间的关系 TODO: call语句的下一条语句是首指令吗
         curr_func->call_func_list_.push_back(label2func[ir.opn1_.name_]);
-        is_leader = true;
+        is_leader = false;
         break;
       case IR::OpKind::GOTO: {
         auto succ_bb = label2bb[ir.opn1_.name_];
         curr_bb->succ_.push_back(succ_bb);
         succ_bb->pred_.push_back(curr_bb);
         is_leader = true;
+        is_succ = false;
         break;
       }
       case IR::OpKind::JEQ:

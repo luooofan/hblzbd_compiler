@@ -5,9 +5,12 @@
 
 #include "../include/Pass/allocate_register.h"
 #include "../include/Pass/arm_liveness_analysis.h"
+#include "../include/Pass/dead_code_eliminate.h"
 #include "../include/Pass/dominant.h"
 #include "../include/Pass/generate_arm.h"
+#include "../include/Pass/generate_arm_opt.h"
 #include "../include/Pass/pass_manager.h"
+#include "../include/Pass/simplify_armcode.h"
 #include "../include/Pass/ssa.h"
 #include "../include/arm.h"
 #include "../include/arm_struct.h"
@@ -15,7 +18,6 @@
 #include "../include/ir.h"
 #include "../include/ir_struct.h"
 #include "parser.hpp"
-#include "../include/Pass/dead_code_eliminate.h"
 ast::Root *ast_root;  // the root node of final AST
 extern int yyparse();
 extern int yylex_destroy();
@@ -24,16 +26,7 @@ extern void yyset_lineno(int _line_number);
 // #define DEBUG_PROCESS
 
 #define ASSERT_ENABLE
-// assert(res);
-#ifdef ASSERT_ENABLE
-#define MyAssert(res)                                                    \
-  if (!(res)) {                                                          \
-    std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl; \
-    exit(255);                                                           \
-  }
-#else
-#define MyAssert(res) ;
-#endif
+#include "../include/myassert.h"
 
 int main(int argc, char **argv) {
   // MyAssert(0);
@@ -128,8 +121,10 @@ int main(int argc, char **argv) {
   PassManager pm(module_ptr_addr);
   pm.AddPass<DeadCodeEliminate>(false);
   pm.AddPass<ComputeDominance>(false);
-  pm.AddPass<GenerateArm>(false);
+  // pm.AddPass<GenerateArm>(false);  // 需要在genir中define NO_OPT
+  pm.AddPass<GenerateArmOpt>(false);
   pm.AddPass<RegAlloc>(false);
+  pm.AddPass<SimplifyArm>(false);  // 不能也不必在regalloc之前调用
   if (logfile.is_open()) {
     pm.Run(true, logfile);
   } else {
@@ -180,7 +175,4 @@ int main(int argc, char **argv) {
   return 0;
 }
 
-#undef MyAssert
-#ifdef ASSERT_ENABLE
 #undef ASSERT_ENABLE
-#endif
