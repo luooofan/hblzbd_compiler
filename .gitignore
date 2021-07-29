@@ -16,3 +16,4 @@ temp*
 *.zip
 build/
 output/
+*gitlab*
