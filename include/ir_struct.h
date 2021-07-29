@@ -44,6 +44,11 @@ class IRBasicBlock : public BasicBlock {
   std::vector<IRBasicBlock*> pred_;
   std::vector<IRBasicBlock*> succ_;
 
+  std::unordered_set<ir::Opn*> def_;
+  std::unordered_set<ir::Opn*> use_;
+  std::unordered_set<ir::Opn*> livein_;
+  std::unordered_set<ir::Opn*> liveout_;
+
   // used for ssa
   IRBasicBlock* idom_ = nullptr;          // 直接支配结点 即支配结点树中的父节点
   std::vector<IRBasicBlock*> doms_;       // 所直接支配的结点 即支配结点树中的子节点

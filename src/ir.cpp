@@ -272,6 +272,10 @@ void RuntimeError(const std::string &&error_msg) {
   exit(255);
 }
 
+void Opn::printVar(){
+  std::cout << "type: " << (type_ == Opn::Type::Var ? 0 : 1) << "   var name：" << name_ << "   scope id: " << scope_id_ << std::endl;
+}
+
 }  // namespace ir
 
 #undef MyAssert

@@ -50,7 +50,7 @@ std::pair<std::vector<Opn*>, std::vector<Opn*>> GetDefUse(IR *ir)
         process_opn(&(ir->opn1_));
         process_res(&(ir->res_));
       }else if(ir->op_ == IR::OpKind::LABEL){
-        return;
+        return {def, use};
       }else if(ir->op_ == IR::OpKind::PARAM){
         process_opn(&(ir->opn1_));
       }else if(ir->op_ == IR::OpKind::CALL){
@@ -58,7 +58,7 @@ std::pair<std::vector<Opn*>, std::vector<Opn*>> GetDefUse(IR *ir)
       }else if(ir->op_ == IR::OpKind::RET){
         process_opn(&(ir->opn1_));
       }else if(ir->op_ == IR::OpKind::GOTO){
-        return;
+        return {def, use};
       }else if(ir->op_ == IR::OpKind::ASSIGN){
         process_opn(&(ir->opn1_));
         process_res(&(ir->res_));
@@ -71,7 +71,7 @@ std::pair<std::vector<Opn*>, std::vector<Opn*>> GetDefUse(IR *ir)
         process_opn(&(ir->opn1_));
         process_opn(&(ir->opn2_));
       }else if(ir->op_ == IR::OpKind::VOID){
-        return;
+        return {def, use};
       }else if(ir->op_ == IR::OpKind::ASSIGN_OFFSET){
         process_opn(&(ir->opn1_));
         process_res(&(ir->res_));
@@ -116,7 +116,7 @@ void IRLivenessAnalysis::Run4Func(IRFunction *f){
       std::unordered_set<Opn*> new_out;
 
       for(auto succ : bb -> succ_){// 每个bb的liveout是其后继bb的livein的并集
-        new_out.insert(succ -> livein_.begin(), succ -> livein.end());
+        new_out.insert(succ -> livein_.begin(), succ -> livein_.end());
       }
 
       if(new_out != bb -> liveout_){
@@ -136,12 +136,13 @@ void IRLivenessAnalysis::Run4Func(IRFunction *f){
 
 void IRLivenessAnalysis::Run()
 {
-  auto m = dynamic_cast<IRModule *>(*(this->_m));
+  auto m = dynamic_cast<IRModule *>(*(this->m_));
 
   MyAssert(nullptr != m);
 
   for(auto func : m -> func_list_)
   {
+    std::cout << "analysis func:" << func->name_ << std::endl;
     this -> Run4Func(func);
   }
 }

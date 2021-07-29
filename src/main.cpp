@@ -15,6 +15,7 @@
 #include "../include/ir.h"
 #include "../include/ir_struct.h"
 #include "parser.hpp"
+#include "../include/Pass/dead_code_eliminate.h"
 ast::Root *ast_root;  // the root node of final AST
 extern int yyparse();
 extern int yylex_destroy();
@@ -125,6 +126,7 @@ int main(int argc, char **argv) {
   std::cout << "Passes Start:" << std::endl;
 #endif
   PassManager pm(module_ptr_addr);
+  pm.AddPass<DeadCodeEliminate>(false);
   pm.AddPass<ComputeDominance>(false);
   pm.AddPass<GenerateArm>(false);
   pm.AddPass<RegAlloc>(false);

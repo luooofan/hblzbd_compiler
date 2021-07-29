@@ -91,6 +91,8 @@ class Opn {
   Opn(Type type, std::string name, int scope_id, Opn *offset)
       : type_(type), name_(name), scope_id_(scope_id), offset_(offset) {}
   Opn() : type_(Type::Null), name_("-"), offset_(nullptr) { scope_id_ = -1; }
+
+  void printVar();
 };
 
 class IR {

@@ -1,3 +1,6 @@
+#ifndef __IR_LIVENESS_ANALYSIS__
+#define __IR_LIVENESS_ANALYSIS__
+
 #include "../ir_struct.h"
 #include "pass_manager.h"
 //
@@ -15,3 +18,5 @@ class IRLivenessAnalysis : public Analysis {
   // 对整个module做活跃变量分析
   void Run();
 };
+
+#endif
