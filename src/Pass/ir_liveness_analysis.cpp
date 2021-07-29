@@ -82,6 +82,14 @@ std::pair<std::vector<Opn*>, std::vector<Opn*>> GetDefUse(IR *ir)
   return {def, use};
 }
 
+bool isFound(std::unordered_set<Opn*> &inbb, Opn* inir){
+  for(auto i : inbb){
+    if(i->name_ == inir->name_ && i->scope_id_ == inir->scope_id_){
+      return true;
+    }
+  }
+  return false;
+}
 
 void IRLivenessAnalysis::Run4Func(IRFunction *f){
   for(auto bb : f -> bb_list_){
@@ -94,13 +102,13 @@ void IRLivenessAnalysis::Run4Func(IRFunction *f){
       auto [def, use] = GetDefUse(ir);
 
       for(auto &u : use){
-        if(bb -> def_.find(u) == bb -> def_.end()){// 如果在use之前没有def，则将其插入use中，说明该变量在bb中首次出现是以use的形式出现
+        if(!isFound(bb->def_, u) && !isFound(bb->use_, u)){// 如果在use之前没有def，则将其插入use中，说明该变量在bb中首次出现是以use的形式出现
           bb -> use_.insert(u);
         }
       }// for use
 
       for(auto &d : def){
-        if(bb -> use_.find(d) == bb -> use_.end()){// 如果在def之前没有use，则将其插入def中，说明该变量首次出现是以def形式出现
+        if(!isFound(bb->use_, d) && !isFound(bb->def_, d)){// 如果在def之前没有use，则将其插入def中，说明该变量首次出现是以def形式出现
           bb -> def_.insert(d);
         }
       }// for def
@@ -124,7 +132,7 @@ void IRLivenessAnalysis::Run4Func(IRFunction *f){
         bb -> liveout_ = new_out;
 
         for(auto s : bb -> liveout_){//IN[B] = use[B]U(out[B] - def[B])
-          if(bb -> def_.find(s) == bb -> def_.end()){
+          if(!isFound(bb->def_, s) && !isFound(bb->livein_, s)){
             bb -> livein_.insert(s);
           }
         }

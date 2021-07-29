@@ -8,7 +8,7 @@ public:
   DeadCodeEliminate(Module **m) : Transform(m){}
 
   void Run();
-  void test_def_use();
+  // void test_def_use();
 };
 
 #endif
