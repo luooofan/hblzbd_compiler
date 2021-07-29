@@ -6,6 +6,7 @@
 
 #include "../include/general_struct.h"
 #include "../include/ir.h"
+#include "DAG.h"
 class IRBasicBlock;
 class IRFunction;
 
@@ -48,6 +49,8 @@ class IRBasicBlock : public BasicBlock {
   std::unordered_set<ir::Opn*> use_;
   std::unordered_set<ir::Opn*> livein_;
   std::unordered_set<ir::Opn*> liveout_;
+
+  std::vector<DAG_node*> node_list_;
 
   // used for ssa
   IRBasicBlock* idom_ = nullptr;          // 直接支配结点 即支配结点树中的父节点
