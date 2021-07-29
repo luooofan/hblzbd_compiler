@@ -3,6 +3,7 @@
 #include <cstring>
 #include <fstream>
 
+#include "../include/Pass/loop.h"
 #include "../include/Pass/allocate_register.h"
 #include "../include/Pass/arm_liveness_analysis.h"
 #include "../include/Pass/dominant.h"
@@ -119,6 +120,9 @@ int main(int argc, char **argv) {
   std::cout << "Passes Start:" << std::endl;
 #endif
   PassManager pm(module_ptr_addr);
+
+  pm.AddPass<MXD>(false);
+
   pm.AddPass<ComputeDominance>(false);
   // pm.AddPass<GenerateArm>(false);  // 需要在genir中define NO_OPT
   pm.AddPass<GenerateArmOpt>(false);
