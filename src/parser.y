@@ -321,22 +321,17 @@ AssignStmt: LVal ASSIGN Exp SEMI {
 
 IfStmt: IF LPAREN Cond RPAREN Stmt {
     $$=static_cast<ast::Statement*>(
-        new ast::IfElseStatement(yyget_lineno(), *(dynamic_cast<ast::ConditionExpression*>($3)),
-                                 *$5,
-                                 nullptr));
+        new ast::IfElseStatement(yyget_lineno(), (dynamic_cast<ast::ConditionExpression&>(*$3)), *$5, nullptr));
 }
     | IF LPAREN Cond RPAREN Stmt ELSE Stmt {
         $$=static_cast<ast::Statement*>(
-            new ast::IfElseStatement(yyget_lineno(), *(dynamic_cast<ast::ConditionExpression*>($3)),
-                                    *$5,
-                                    $7)
-        );
+            new ast::IfElseStatement(yyget_lineno(), (dynamic_cast<ast::ConditionExpression&>(*$3)), *$5, $7));
     }
     ;   
 
 WhileStmt: WHILE LPAREN Cond RPAREN Stmt {
     $$=static_cast<ast::Statement*>(
-        new ast::WhileStatement(yyget_lineno(), *(dynamic_cast<ast::ConditionExpression*>($3)),*$5)
+        new ast::WhileStatement(yyget_lineno(), (dynamic_cast<ast::ConditionExpression&>(*$3)), *$5)
     );
 }
     ;
@@ -432,7 +427,11 @@ LAndExp: EqExp
     }
     ;
 
-LOrExp: LAndExp
+LOrExp: LAndExp {
+    if(auto ptr=dynamic_cast<ast::ConditionExpression*>($1)){ $$ = $1; }
+    else{// NOTE: ($1 || 0)
+        $$ = static_cast<ast::Expression*>(new ast::ConditionExpression(yyget_lineno(), OR, *$1, *(new ast::Number(yyget_lineno(), 0)))); }
+}
     | LOrExp OR LAndExp {
         $$=static_cast<ast::Expression*>(new ast::ConditionExpression(yyget_lineno(), $2,*$1,*$3));
     }

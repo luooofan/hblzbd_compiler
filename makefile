@@ -1,11 +1,38 @@
-mycompiler:./src/parser.cpp ./src/scanner.c ./src/ast.cpp ./src/main.cpp ./src/generate_ir.cpp ./src/ir.cpp ./src/evaluate.cpp
-	g++ -std=c++17 -o $@ $^
+vpath %.cpp src
+vpath %.cpp src/Pass
 
-./src/parser.cpp: ./src/parser.y
-	bison -o $@ -d $<
+CC := clang++
+CPPFLAGS := -std=c++17 -O2
+SOURCES := $(wildcard src/*.cpp src/Pass/*.cpp)
+OBJECTS := $(patsubst %.cpp,build/%.o,$(notdir $(SOURCES)))
+DEPENDS := $(patsubst %.o,%.d,$(OBJECTS))
+TARGETS := compiler
+$(shell mkdir -p build)
 
-./src/scanner.c: ./src/scanner.l
-	flex -o $@ $<
+.PHONY:all
+all: $(TARGETS)
+	@echo Build Successfully.
 
+$(TARGETS):$(OBJECTS)
+	$(CC) $(CPPFLAGS) -lm  $^ -o $@
+
+src/parser.cpp: src/parser.y
+	bison -o $@ -d $< 
+
+src/scanner.cpp: src/scanner.l
+	flex -o $@ $< 
+
+build/%.o: %.cpp
+	$(CC) $(CPPFLAGS) -c $< -o $@
+
+-include $(DEPENDS)
+
+build/%.d: %.cpp
+	@set -e; rm -f $@; \
+	$(CC) -MM $< > $@.$$$$; \
+	sed 's,\($*\)\.o[ :]*,build/\1.o $@ : ,g' < $@.$$$$ > $@; \
+	rm -f $@.$$$$
+
+.PHONY:clean
 clean:
-	rm mycompiler ./src/scanner.c ./src/parser.hpp ./src/parser.cpp
+	rm -f build/*

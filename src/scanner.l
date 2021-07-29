@@ -8,7 +8,7 @@ ILEN ([Uu](L|l|LL|ll)?|(L|l|LL|ll)[Uu]?)
 %{
 
 #include "../include/ast.h"
-
+#include <string>
 #include "parser.hpp"
 
 #define SAVE_TOKEN  yylval.string = new std::string(yytext, yyleng)
@@ -43,6 +43,13 @@ else 		{ yylval.token = ELSE; return ELSE; }
 return		{ yylval.token = RETURN; return RETURN; }
 while		{ yylval.token = WHILE; return WHILE; }
 			  
+"starttime"[ \t\n]*"("      { yylval.string = new std::string("_sysy_starttime"); *yy_cp = yy_hold_char; yy_hold_char='(';yy_cp--; yyleng--; yy_c_buf_p--; *yy_c_buf_p='_';yy_c_buf_p--; *yy_c_buf_p='_'; yy_c_buf_p--; *yy_c_buf_p='E';yy_c_buf_p--; *yy_c_buf_p='N'; yy_c_buf_p--; *yy_c_buf_p='I';yy_c_buf_p--; *yy_c_buf_p='L'; yy_c_buf_p--; *yy_c_buf_p='_';yy_c_buf_p--; *yy_c_buf_p='_'; yy_c_buf_p--; return IDENT; }
+
+"stoptime"[ \t\n]*"("       { yylval.string = new std::string("_sysy_stoptime"); *yy_cp = yy_hold_char; yy_hold_char='(';yy_cp--; yyleng--; yy_c_buf_p--; *yy_c_buf_p='_';yy_c_buf_p--; *yy_c_buf_p='_'; yy_c_buf_p--; *yy_c_buf_p='E';yy_c_buf_p--; *yy_c_buf_p='N'; yy_c_buf_p--; *yy_c_buf_p='I';yy_c_buf_p--; *yy_c_buf_p='L'; yy_c_buf_p--; *yy_c_buf_p='_';yy_c_buf_p--; *yy_c_buf_p='_'; yy_c_buf_p--; return IDENT; }
+
+"__LINE__"  { yylval.string = new std::string(std::to_string(yyget_lineno())); yylval.token = yyget_lineno(); return NUMBER; }
+"_SYSY_N"   { yylval.string = new std::string(std::to_string(1024)); yylval.token = 1024; return NUMBER; }
+
 "+"			{ yylval.token = ADD; return ADD; }
 "-"			{ yylval.token = SUB; return SUB; }
 "*"			{ yylval.token = MUL; return MUL; }
@@ -104,48 +111,4 @@ int cal16(char *s)
     return ans;
 }
 
-
-/* main 		{ printf("MAIN: %d %s\n", MAIN, yytext); return MAIN; }*/
-
-
-// int main(int argc, char ** argv)
-// {
-// 	int i;
-	
-// 	if(argc < 2){
-// 		//curfilename = "(stdin)";
-// 		yylineno = 1;
-// 		while(ENDF != yylex()){
-// 			yytokentype next = yylex();
-// 			if(next != WHITESPACE || next != SEMI)
-// 			{
-// 				printf("mystery chacators in %d lines: %s\n", yylineno, yytext);
-// 			}
-// 		}
-// 	}
-// 	else for(i = 1; i < argc; ++i)
-// 	{
-// 		FILE *f = fopen(argv[i], "r");
-		
-// 		if(!f){
-// 			perror(argv[i]);
-// 			return 1;             
-// 		}
-// 		//curfilename = argv[i];  
-		
-		
-// 		yyrestart(f);
-// 		yylineno = 1;
-// 		while(ENDF != yylex()){
-// 			yytokentype next = yylex();
-// 			if(next != WHITESPACE || next != SEMI)
-// 			{
-// 				printf("mystery chacators in %d lines: %s\n", yylineno, yytext);
-// 			}
-// 		}
-// 		fclose(f);
-// 	}
-	
-// 	//printrefs();
-// 	return 0;
-// }
+// "putf"[ \t\n]*"("                   FIX_LINE; yylval.string = new std::string("printf"); *yy_cp = yy_hold_char; yy_hold_char='(';yy_cp--; yyleng--; yy_c_buf_p--; return IDENTIFIER;
