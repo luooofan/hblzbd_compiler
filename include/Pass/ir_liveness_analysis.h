@@ -7,8 +7,8 @@
 using namespace ir;
 // using RegId = int;
 
-std::pair<std::vector<Opn*>, std::vector<Opn*>> GetDefUse(IR *ir);
-// std::pair<std::vector<Reg *>, std::vector<Reg *>> GetDefUsePtr(Instruction *inst);
+std::pair<std::vector<Opn*>, std::vector<Opn*>> GetDefUsePtr(IR *ir);
+std::pair<std::vector<std::string>, std::vector<std::string>> GetDefUse(IR *ir);
 
 class IRLivenessAnalysis : public Analysis {
  public:

@@ -5,7 +5,7 @@
 
 #include "ir.h"
 #include "ir_struct.h"
-#include "pass_manager.h"
+#include "./Pass/pass_manager.h"
 
 class DAG_node{
 public:
@@ -22,6 +22,7 @@ public:
   ir::IR::OpKind op_;
 
   DAG_node *left_, *right_;
+  std::vector<std::string> var_list_;
 
   // 变量类型
   DAG_node(Type type, std::string name, int scope_id) : type_(type), name_(name), scope_id_(scope_id) {}

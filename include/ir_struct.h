@@ -45,10 +45,10 @@ class IRBasicBlock : public BasicBlock {
   std::vector<IRBasicBlock*> pred_;
   std::vector<IRBasicBlock*> succ_;
 
-  std::unordered_set<ir::Opn*> def_;
-  std::unordered_set<ir::Opn*> use_;
-  std::unordered_set<ir::Opn*> livein_;
-  std::unordered_set<ir::Opn*> liveout_;
+  std::unordered_set<std::string> def_;
+  std::unordered_set<std::string> use_;
+  std::unordered_set<std::string> livein_;
+  std::unordered_set<std::string> liveout_;
 
   std::vector<DAG_node*> node_list_;
 
