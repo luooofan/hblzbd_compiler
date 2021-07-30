@@ -346,9 +346,7 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
   ArmModule* armmodule = new ArmModule(module->name_, module->global_scope_);
   std::unordered_map<IRFunction*, ArmFunction*> func_map;
 
-  auto div_func = new ArmFunction("__aeabi_idiv", 2, 0);
   auto mod_func = new ArmFunction("__aeabi_idivmod", 2, 0);
-  arm::gAllLabel.insert("__aeabi_idiv");
   arm::gAllLabel.insert("__aeabi_idivmod");
 
   // for every ir func
@@ -463,22 +461,10 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
             break;
           }
           case ir::IR::OpKind::DIV: {
-            auto rm = ResolveOpn2Operand2(armbb, &(ir.opn1_));
-            auto rn = ResolveOpn2Operand2(armbb, &(ir.opn2_));
-            // mov r1, rn
-            ADD_NEW_INST(Move(new Reg(ArmReg::r1), rn));
-            // mov r0, rm
-            ADD_NEW_INST(Move(new Reg(ArmReg::r0), rm));
-            // bl __aeabi_idiv
-            ADD_NEW_INST(Branch(true, false, "__aeabi_idiv"));
-            // 维护call_list
-            auto& call_funcs = armfunc->call_func_list_;
-            if (std::find(call_funcs.begin(), call_funcs.end(), mod_func) == call_funcs.end()) {
-              call_funcs.push_back(div_func);
-            }
-            // mov rd, r0
-            auto rd = ResolveOpn2Reg(armbb, &(ir.res_));
-            ADD_NEW_INST(Move(rd, new Operand2(new Reg(ArmReg::r0))));
+            auto rn = ResolveOpn2Reg(armbb, &(ir.opn1_));
+            auto op2 = new Operand2(ResolveOpn2Reg(armbb, &(ir.opn2_)));
+            Reg* rd = ResolveOpn2Reg(armbb, &(ir.res_));
+            gen_bi_inst(BinaryInst::OpCode::SDIV, rd, rn, op2);
             break;
           }
           case ir::IR::OpKind::MOD: {
