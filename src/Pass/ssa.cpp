@@ -54,7 +54,7 @@ void ConvertSSA::Rename(IRBasicBlock* bb) {
     for (auto phi_ir : succ->ir_list_) {
       if (phi_ir->op_ != IR::OpKind::PHI) break;
       phi_ir->phi_args_[order] = phi_ir->res_;
-      auto varname = phi_ir->res_.name_ + "#" + std::to_string(phi_ir->res_.scope_id_);
+      const auto&& varname = phi_ir->res_.GetCompName();
       phi_ir->phi_args_[order].ssa_id_ = this->stack_[varname].top();
     }
   }
@@ -72,6 +72,8 @@ void ConvertSSA::Rename(IRBasicBlock* bb) {
   }
 }
 
+Opn CompName2Opn(const std::string& name) { return Opn{Opn::Type::Var}; }
+
 void ConvertSSA::InsertPhiIR(IRFunction* f) {
   std::unordered_map<std::string, std::unordered_set<IRBasicBlock*>> defsites;  // 变量被定值的基本块集合
   std::unordered_map<IRBasicBlock*, std::unordered_set<std::string>> phi_vars;  // 一个基本块内拥有phi函数的变量
@@ -88,7 +90,7 @@ void ConvertSSA::InsertPhiIR(IRFunction* f) {
       for (auto df : bb->df_) {  // 对于变量定值所在bb的每一个df都要加一个phi函数
         if (phi_vars.find(df) == phi_vars.end() || phi_vars[df].find(var) == phi_vars[df].end()) {
           phi_vars[df].insert(var);
-          auto res = ir::Opn();
+          auto res = CompName2Opn(var);
           df->ir_list_.insert(df->ir_list_.begin(), new ir::IR{ir::IR::OpKind::PHI, res, df->pred_.size()});
           if (df->def_.find(var) == df->def_.end()) {
             df->def_.insert(var);

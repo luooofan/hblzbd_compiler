@@ -92,7 +92,8 @@ class Opn {
   Opn(Type type, std::string name, int scope_id, Opn *offset)
       : type_(type), name_(name), scope_id_(scope_id), offset_(offset) {}
   Opn() : type_(Type::Null), name_("-") {}
-  std::string GetCompName() { return name_ + "#" + std::to_string(scope_id_); }
+  std::string GetCompName() { return name_ + "_#" + std::to_string(scope_id_); }
+  explicit operator std::string();
 };
 
 class IR {
