@@ -9,6 +9,7 @@
 #include "DAG.h"
 class IRBasicBlock;
 class IRFunction;
+class DAG_node;
 
 class IRModule : public Module {
  public:
