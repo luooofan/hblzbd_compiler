@@ -5,6 +5,7 @@
 
 #include "../include/Pass/allocate_register.h"
 #include "../include/Pass/arm_liveness_analysis.h"
+#include "../include/Pass/dead_code_eliminate.h"
 #include "../include/Pass/dominant.h"
 #include "../include/Pass/generate_arm.h"
 #include "../include/Pass/generate_arm_opt.h"
@@ -17,7 +18,6 @@
 #include "../include/ir.h"
 #include "../include/ir_struct.h"
 #include "parser.hpp"
-
 ast::Root *ast_root;  // the root node of final AST
 extern int yyparse();
 extern int yylex_destroy();
@@ -119,6 +119,7 @@ int main(int argc, char **argv) {
   std::cout << "Passes Start:" << std::endl;
 #endif
   PassManager pm(module_ptr_addr);
+  pm.AddPass<DeadCodeEliminate>(false);
   pm.AddPass<ComputeDominance>(false);
   // pm.AddPass<GenerateArm>(false);  // 需要在genir中define NO_OPT
   pm.AddPass<GenerateArmOpt>(false);

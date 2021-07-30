@@ -1,3 +1,6 @@
+#ifndef __SSA_H__
+#define __SSA_H__
+
 #include <algorithm>
 #include <unordered_set>
 
@@ -19,3 +22,5 @@ class ConvertSSA : public Transform {
   void Rename(IRBasicBlock* bb);
   void InsertPhiIR(IRFunction* f);
 };
+
+#endif
