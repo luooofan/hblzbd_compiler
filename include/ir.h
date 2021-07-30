@@ -76,10 +76,11 @@ class Opn {
     Array,
   };
   Type type_;
-  int imm_num_;       // 立即数
-  std::string name_;  //
-  int scope_id_;      // 标识所在作用域 -1表示全局作用域的父作用域
-  Opn *offset_;
+  int imm_num_;        // 立即数
+  std::string name_;   //
+  int scope_id_ = -1;  // 标识所在作用域 -1表示全局作用域的父作用域
+  Opn *offset_ = nullptr;
+  int ssa_id_ = -1;
   // Opn Type: IMM
   Opn(Type type, int imm_num, int scope_id)
       : type_(type), imm_num_(imm_num), name_("#" + std::to_string(imm_num)), scope_id_(scope_id), offset_(nullptr) {}
@@ -117,10 +118,13 @@ class IR {
     JGE,     // >=
     VOID,    // useless
     ASSIGN_OFFSET,  // =[] NOTE: 这个操作符不可省略 不可合并到assign中 因为数组地址和数组取值是不一样的
+    PHI,
     // OFFSET_ASSIGN,  // []=
   };
   OpKind op_;
   Opn opn1_, opn2_, res_;
+  std::vector<Opn> phi_args_;
+  IR(OpKind op, Opn res, int size) : op_(op), res_(res) { phi_args_.resize(size); }
   IR(OpKind op, Opn opn1, Opn opn2, Opn res) : op_(op), opn1_(opn1), opn2_(opn2), res_(res) {}
   IR(OpKind op, Opn opn1, Opn res) : op_(op), opn1_(opn1), res_(res) {}
   IR(OpKind op, Opn opn1) : op_(op), opn1_(opn1) {}
