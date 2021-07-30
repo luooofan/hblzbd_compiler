@@ -83,15 +83,16 @@ class Opn {
   int ssa_id_ = -1;
   // Opn Type: IMM
   Opn(Type type, int imm_num, int scope_id)
-      : type_(type), imm_num_(imm_num), name_("#" + std::to_string(imm_num)), scope_id_(scope_id), offset_(nullptr) {}
+      : type_(type), imm_num_(imm_num), name_("#" + std::to_string(imm_num)), scope_id_(scope_id) {}
   // Opn Type: Var or Label or Func
-  Opn(Type type, std::string name, int scope_id) : type_(type), name_(name), scope_id_(scope_id), offset_(nullptr) {}
+  Opn(Type type, std::string name, int scope_id) : type_(type), name_(name), scope_id_(scope_id) {}
   // Opn Type: Null
-  Opn(Type type) : type_(type), name_("-"), offset_(nullptr) { scope_id_ = -1; }
+  Opn(Type type) : type_(type), name_("-") {}
   // Opn Type: Array
   Opn(Type type, std::string name, int scope_id, Opn *offset)
       : type_(type), name_(name), scope_id_(scope_id), offset_(offset) {}
-  Opn() : type_(Type::Null), name_("-"), offset_(nullptr) { scope_id_ = -1; }
+  Opn() : type_(Type::Null), name_("-") {}
+  std::string GetCompName() { return name_ + "#" + std::to_string(scope_id_); }
 };
 
 class IR {

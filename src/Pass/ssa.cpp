@@ -1,5 +1,6 @@
 #include "../../include/Pass/ssa.h"
 
+#include "../../include/Pass/ir_liveness_analysis.h"
 #define ASSERT_ENABLE  // enable assert for this file.
 #include "../../include/myassert.h"
 
@@ -18,9 +19,8 @@ void ConvertSSA::Rename(IRBasicBlock* bb) {
   std::unordered_map<std::string, int> deftimes;
   // 对bb中每条ir的使用和定值var rename
   for (auto ir : bb->ir_list_) {
-    // auto [def, use] = GetDefUsePtr(ir);
-    std::vector<Opn*> def, use;
-    std::vector<std::string> defvar, usevar;
+    auto [def, use] = GetDefUsePtr(ir);
+    auto [defvar, usevar] = GetDefUse(ir);
     if (ir->op_ != IR::OpKind::PHI) {
       for (int i = 0; i < use.size(); ++i) {
         if (this->stack_.find(usevar[i]) == this->stack_.end()) {
