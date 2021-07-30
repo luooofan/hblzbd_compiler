@@ -8,15 +8,24 @@ DAG_node* createOpNode(ir::Opn *opn){
 DAG_node* createOpnNode(ir::Opn* opn){
   switch(opn->type_){
     case ir::Opn::Type::Var:
-      DAG_node *node = new DAG_node(ir::Opn::Type::Var, opn->name_, opn->scope_id_);
+      DAG_node *node = new DAG_node(DAG_node::Type::Var, opn->name_, opn->scope_id_);
+      return node;
       break;
     case ir::Opn::Type::Imm:
+      DAG_node *node = new DAG_node(DAG_node::Type::Imm, opn->imm_num_);
+      return node;
       break;
     case ir::Opn::Type::Label:
+      DAG_node *node = new DAG_node(DAG_node::Type::Label, opn->name_);
+      return node;
       break;
     case ir::Opn::Type::Func:
+      DAG_node *node = new DAG_node(DAG_node::Type::Func, opn->name_);
+      return node;
       break;
     case ir::Opn::Type::Null:
+      DAG_node *node = new DAG_node(DAG_node::Type::Null);
+      return node;
       break;
     case ir::Opn::Type::Array:
       break;

@@ -18,7 +18,11 @@ public:
   enum class Type{
     Var,
     Imm,
-    Op 
+    Op,
+    Label, 
+    Func,
+    Null,
+    Array
   };
 
   Type type_;
@@ -33,9 +37,15 @@ public:
   // 变量类型
   DAG_node(Type type, std::string name, int scope_id) : type_(type), name_(name), scope_id_(scope_id) {op_ = ir::IR::OpKind::VOID; imm_num_ = 0; left_ = right_ = nullptr; var_list_.clear();}
   // 立即数类型
-  DAG_node(Type type, int imm_num) : type_(type), imm_num_(imm_num) {op_ = ir::IR::OpKind::VOID; name_ = "", scope_id_ = -1; left_ = right_ = nullptr;}
+  DAG_node(Type type, int imm_num) : type_(type), imm_num_(imm_num) {op_ = ir::IR::OpKind::VOID; name_ = "", scope_id_ = -1; left_ = right_ = nullptr; var_list_.clear();}
   // 中间节点类型
-  DAG_node(Type type, ir::IR::OpKind op, DAG_node *left, DAG_node* right) : type_(type), op_(op), left_(left), right_(right) {imm_num_ = 0; name_ = ""; scope_id_ = -1;}
+  DAG_node(Type type, ir::IR::OpKind op, DAG_node *left, DAG_node* right) : type_(type), op_(op), left_(left), right_(right) {imm_num_ = 0; name_ = ""; scope_id_ = -1; var_list_.clear();}
+  // 标签类型
+  DAG_node(Type type, std::string name) : type_(type), name_(name) {imm_num_ = 0; scope_id_ = -1; op_ = ir::IR::OpKind::VOID; left_ = right_ = nullptr; var_list_.clear();}
+  // 函数类型
+  // DAG_node(Type type, std::string name) : type_(type), name_(name) {imm_num_ = 0; scope_id_ = -1; op_ = ir::IR::OpKind::VOID; left_ = right_ = nullptr; var_list_.clear();}
+  // 空类型
+  DAG_node(Type type) : type_(type) {imm_num_ = 0; scope_id_ = -1; op_ = ir::IR::OpKind::VOID; left_ = right_ = nullptr; var_list_.clear(); name_ = "";}
 };
 
 
