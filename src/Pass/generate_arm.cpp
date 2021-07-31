@@ -612,6 +612,9 @@ ArmModule* GenerateArm::GenCode(IRModule* module) {
             MyAssert(0);
             break;
           }
+          case ir::IR::OpKind::PHI: {
+            std::cout << "not process phi node." << std::endl;
+          }
           default: {
             MyAssert(0);
             break;

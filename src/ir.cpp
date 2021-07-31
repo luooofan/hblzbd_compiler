@@ -7,8 +7,8 @@
 #include "parser.hpp"  // EQOP RELOP
 #define TYPE_STRING(type) ((type) == INT ? "int" : ((type) == VOID ? "void" : "undefined"))
 #define PRINT_IR(op_name)                                                                            \
-  outfile << "(" << std::setw(10) << op_name << std::setw(10) << std::string(opn1_) << std::setw(10) \
-          << std::string(opn2_) << std::setw(10) << std::string(res_) << ")" << std::endl;
+  outfile << "(" << std::setw(15) << op_name << std::setw(15) << std::string(opn1_) << std::setw(15) \
+          << std::string(opn2_) << std::setw(15) << std::string(res_) << ")" << std::endl;
 
 #define ASSERT_ENABLE
 #include "../include/myassert.h"
@@ -103,7 +103,7 @@ int FindSymbol(int scope_id, std::string name, SymbolTableItem *&res_symbol_item
 
 std::string NewTemp() {
   static int i = 0;
-  return "temp-" + std::to_string(i++);
+  return "t-" + std::to_string(i++);
 }
 
 std::string NewLabel() {
@@ -153,12 +153,12 @@ IR::OpKind GetOpKind(int op, bool reverse) {
 Opn::operator std::string() {
   switch (type_) {
     case Type::Var: {
-      auto ret = scope_id_ == -1 ? name_ : name_ + "_#" + std::to_string(scope_id_);
-      return ssa_id_ == -1 ? ret : ret + std::to_string(ssa_id_);
+      auto ret = scope_id_ == -1 ? name_ : name_ + "#" + std::to_string(scope_id_);
+      return ssa_id_ == -1 ? ret : ret + "#" + std::to_string(ssa_id_);
     }
     case Type::Array: {
-      auto ret = scope_id_ == -1 ? name_ : name_ + "_#" + std::to_string(scope_id_);
-      ret += ssa_id_ == -1 ? "" : "_#" + std::to_string(ssa_id_);
+      auto ret = scope_id_ == -1 ? name_ : name_ + "#" + std::to_string(scope_id_);
+      ret += (ssa_id_ == -1 ? "" : "#" + std::to_string(ssa_id_));
       return nullptr == offset_ ? ret : ret + "+" + std::string(*offset_);
     }
     default: {
@@ -233,9 +233,9 @@ void IR::PrintIR(std::ostream &outfile) {
       PRINT_IR("=[]");
       break;
     case IR::OpKind::PHI:
-      outfile << "(" << std::setw(10) << "phi";
-      for (auto &arg : phi_args_) outfile << std::setw(10) << std::string(arg);
-      outfile << ")" << std::endl;
+      outfile << "(" << std::setw(15) << "phi";
+      for (auto &arg : phi_args_) outfile << std::setw(15) << std::string(arg);
+      outfile << std::setw(15) << std::string(res_) << ")" << std::endl;
       break;
     default:
       MyAssert(0);
