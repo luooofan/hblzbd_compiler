@@ -68,7 +68,8 @@ void ComputeDominance::ComputeIDomInfo(IRFunction* f) {
       if (dfnum[pred] <= dfnum[n]) {  // 该前驱在生成树上是n的祖先
         s_temp = pred;                // 则该结点是semi[n]的候选
       } else {                        // 该前驱在生成树上不是n的祖先
-        s_temp = AncestorWithLowestSemi(pred);  // 则该前驱到其公共祖先的路径上的y:min(dfnum[semi[y]])成为semi[n]候选
+        s_temp = semi[AncestorWithLowestSemi(pred)];
+        // 则该前驱到其公共祖先的路径上的y:min(dfnum[semi[y]]) semi[y]成为semi[n]候选
       }
       if (dfnum[s_temp] < dfnum[s]) {  // 半必经结点是dfnum最小的
         s = s_temp;
