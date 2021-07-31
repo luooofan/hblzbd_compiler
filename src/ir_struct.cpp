@@ -69,6 +69,23 @@ void IRBasicBlock::EmitCode(std::ostream& out) {
     out << df->IndexInFunc() << " ";
   }
   out << std::endl;
+  out << "@ def: ";
+  for (auto def : this->def_) {
+    out << def << " ";
+  }
+  out << "@ use: ";
+  for (auto use : this->use_) {
+    out << use << " ";
+  }
+  out << "@ livein: ";
+  for (auto livein : this->livein_) {
+    out << livein << " ";
+  }
+  out << "@ liveout: ";
+  for (auto liveout : this->liveout_) {
+    out << liveout << " ";
+  }
+  out << std::endl;
   for (auto ir : this->ir_list_) {
     ir->PrintIR(out);
   }
