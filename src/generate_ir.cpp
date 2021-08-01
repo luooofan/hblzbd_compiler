@@ -55,19 +55,19 @@ void Root::GenerateIR(ir::ContextInfo &ctx) {
 
   // 创建一张全局符号表 全局作用域id为0 父作用域id为-1 当前dynamic_offset为0
   ir::gScopes.push_back({0, -1, 0});
-  auto &extern_glo_symtab = ir::gScopes[0].symbol_table_;
-  extern_glo_symtab.insert({"_sysy_idx", {false, false, 0}});
-  auto general_extern_array = ir::SymbolTableItem(true, false, 0);
-  general_extern_array.shape_.push_back(1024);
-  general_extern_array.width_.push_back(1024 * 4);
-  general_extern_array.width_.push_back(4);
-  general_extern_array.initval_ = std::vector<int>(1024, 0);
-  extern_glo_symtab.insert({"_sysy_l1", general_extern_array});
-  extern_glo_symtab.insert({"_sysy_l2", general_extern_array});
-  extern_glo_symtab.insert({"_sysy_h", general_extern_array});
-  extern_glo_symtab.insert({"_sysy_m", general_extern_array});
-  extern_glo_symtab.insert({"_sysy_s", general_extern_array});
-  extern_glo_symtab.insert({"_sysy_us", general_extern_array});
+  // auto &extern_glo_symtab = ir::gScopes[0].symbol_table_;
+  // extern_glo_symtab.insert({"_sysy_idx", {false, false, 0}});
+  // auto general_extern_array = ir::SymbolTableItem(true, false, 0);
+  // general_extern_array.shape_.push_back(1024);
+  // general_extern_array.width_.push_back(1024 * 4);
+  // general_extern_array.width_.push_back(4);
+  // general_extern_array.initval_ = std::vector<int>(1024, 0);
+  // extern_glo_symtab.insert({"_sysy_l1", general_extern_array});
+  // extern_glo_symtab.insert({"_sysy_l2", general_extern_array});
+  // extern_glo_symtab.insert({"_sysy_h", general_extern_array});
+  // extern_glo_symtab.insert({"_sysy_m", general_extern_array});
+  // extern_glo_symtab.insert({"_sysy_s", general_extern_array});
+  // extern_glo_symtab.insert({"_sysy_us", general_extern_array});
 
   // 初始化上下文信息中的当前作用域id
   ctx.scope_id_ = 0;

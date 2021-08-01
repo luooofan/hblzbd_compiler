@@ -122,14 +122,15 @@ int main(int argc, char **argv) {
   pm.AddPass<ComputeDominance>(false);
   pm.AddPass<ConvertSSA>(false);
   // pm.AddPass<GenerateArm>(false);  // 需要在genir中define NO_OPT
-  pm.AddPass<GenerateArmOpt>(false);
+  // pm.AddPass<GenerateArmOpt>(false);
   // pm.AddPass<RegAlloc>(false);
-  pm.AddPass<SimplifyArm>(false);  // 不能也不必在regalloc之前调用
+  // pm.AddPass<SimplifyArm>(false);  // 不能也不必在regalloc之前调用
   if (logfile.is_open()) {
     pm.Run(true, logfile);
   } else {
     pm.Run();
   }
+  exit(0);
   // MyAssert(0);
 #ifdef DEBUG_PROCESS
   std::cout << "Passes End." << std::endl;

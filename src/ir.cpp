@@ -159,12 +159,14 @@ std::string Opn::GetCompName() {  // 对于全局变量直接返回原name_ 对�
 Opn::operator std::string() {
   switch (type_) {
     case Type::Var: {
+      if (scope_id_ == 0) return name_;
       auto ret = scope_id_ == -1 ? name_ : name_ + "#" + std::to_string(scope_id_);
       return ssa_id_ == -1 ? ret : ret + "#" + std::to_string(ssa_id_);
     }
     case Type::Array: {
       auto ret = scope_id_ == -1 ? name_ : name_ + "#" + std::to_string(scope_id_);
       ret += (ssa_id_ == -1 ? "" : "#" + std::to_string(ssa_id_));
+      if (scope_id_ == 0) ret = name_;
       return nullptr == offset_ ? ret : ret + "+" + std::string(*offset_);
     }
     default: {
