@@ -92,7 +92,7 @@ class Opn {
   Opn(Type type, std::string name, int scope_id, Opn *offset)
       : type_(type), name_(name), scope_id_(scope_id), offset_(offset) {}
   Opn() : type_(Type::Null), name_("-") {}
-  std::string GetCompName() { return name_ + "_#" + std::to_string(scope_id_); }
+  std::string GetCompName();
   explicit operator std::string();
 };
 
@@ -121,6 +121,7 @@ class IR {
     VOID,    // useless
     ASSIGN_OFFSET,  // =[] NOTE: 这个操作符不可省略 不可合并到assign中 因为数组地址和数组取值是不一样的
     PHI,
+    DECLARE,
     // OFFSET_ASSIGN,  // []=
   };
   OpKind op_;

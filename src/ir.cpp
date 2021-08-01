@@ -150,6 +150,12 @@ IR::OpKind GetOpKind(int op, bool reverse) {
   return IR::OpKind::VOID;
 }
 
+std::string Opn::GetCompName() {  // 对于全局变量直接返回原name_ 对于局部变量返回复合name
+  if (type_ == Type::Imm || type_ == Type::Null) MyAssert(0);
+  if (type_ == Type::Label || type_ == Type::Func || scope_id_ == 0) return name_;
+  auto res = scope_id_ == -1 ? name_ : name_ + "-" + std::to_string(scope_id_);
+  return ssa_id_ == -1 ? res : res + "-" + std::to_string(ssa_id_);
+}
 Opn::operator std::string() {
   switch (type_) {
     case Type::Var: {
@@ -236,6 +242,9 @@ void IR::PrintIR(std::ostream &outfile) {
       outfile << "(" << std::setw(15) << "phi";
       for (auto &arg : phi_args_) outfile << std::setw(15) << std::string(arg);
       outfile << std::setw(15) << std::string(res_) << ")" << std::endl;
+      break;
+    case IR::OpKind::DECLARE:
+      PRINT_IR("declare");
       break;
     default:
       MyAssert(0);
