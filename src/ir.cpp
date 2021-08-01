@@ -103,7 +103,7 @@ int FindSymbol(int scope_id, std::string name, SymbolTableItem *&res_symbol_item
 
 std::string NewTemp() {
   static int i = 0;
-  return "t-" + std::to_string(i++);
+  return "t." + std::to_string(i++);
 }
 
 std::string NewLabel() {
@@ -167,7 +167,7 @@ Opn::operator std::string() {
       auto ret = scope_id_ == -1 ? name_ : name_ + "#" + std::to_string(scope_id_);
       ret += (ssa_id_ == -1 ? "" : "#" + std::to_string(ssa_id_));
       if (scope_id_ == 0) ret = name_;
-      return nullptr == offset_ ? ret : ret + "+" + std::string(*offset_);
+      return nullptr == offset_ ? ret : ret + "[" + std::string(*offset_) + "]";
     }
     default: {
       return name_;
@@ -245,8 +245,8 @@ void IR::PrintIR(std::ostream &outfile) {
       for (auto &arg : phi_args_) outfile << std::setw(15) << std::string(arg);
       outfile << std::setw(15) << std::string(res_) << ")" << std::endl;
       break;
-    case IR::OpKind::DECLARE:
-      PRINT_IR("declare");
+    case IR::OpKind::ALLOCA:
+      PRINT_IR("alloca");
       break;
     default:
       MyAssert(0);

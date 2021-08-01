@@ -122,7 +122,7 @@ class IR {
     VOID,    // useless
     ASSIGN_OFFSET,  // =[] NOTE: 这个操作符不可省略 不可合并到assign中 因为数组地址和数组取值是不一样的
     PHI,
-    DECLARE,
+    ALLOCA,
     // OFFSET_ASSIGN,  // []=
   };
   OpKind op_;

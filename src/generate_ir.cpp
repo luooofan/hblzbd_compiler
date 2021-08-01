@@ -409,8 +409,8 @@ void VariableDefine::GenerateIR(ir::ContextInfo &ctx) {
     if (ctx.scope_id_ == 0) {
       tmp->initval_.push_back(0);
     } else {  // GenIR DECLARE
-      ir::gIRList.push_back({IROpKind::DECLARE, ir::Opn{OpnType::Var, this->name_.name_, ctx.scope_id_},
-                             ir::Opn{OpnType::Imm, ir::kIntWidth}});
+      // ir::gIRList.push_back({IROpKind::ALLOCA, ir::Opn{OpnType::Var, this->name_.name_, ctx.scope_id_},
+      //                        ir::Opn{OpnType::Imm, ir::kIntWidth}});
     }
     symbol_table.insert({this->name_.name_, *tmp});
 #ifdef NO_OPT
@@ -443,6 +443,8 @@ void VariableDefineWithInit::GenerateIR(ir::ContextInfo &ctx) {
     } else {
       value_.GenerateIR(ctx);
       ir::Opn lhs_opn = ir::Opn(OpnType::Var, name_.name_, ctx.scope_id_);
+      // GenIR DECLARE
+      // ir::gIRList.push_back({IROpKind::ALLOCA, lhs_opn, ir::Opn{OpnType::Imm, ir::kIntWidth}});
       ir::gIRList.push_back({IROpKind::ASSIGN, ctx.opn_, lhs_opn});
     }
   } else {
@@ -472,6 +474,10 @@ void ArrayDefine::GenerateIR(ir::ContextInfo &ctx) {
       int mul = 1;
       for (int i = 0; i < tmp->shape_.size(); i++) mul *= tmp->shape_[i];
       tmp->initval_.resize(mul, 0);
+    } else {  // GenIR ALLOCA
+      ir::gIRList.push_back({IROpKind::ALLOCA,
+                             ir::Opn{OpnType::Array, this->name_.name_.name_, ctx.scope_id_, new ir::Opn(IMM_0_OPN)},
+                             ir::Opn{OpnType::Imm, tmp->width_[0]}});
     }
     symbol_table.insert({name_.name_.name_, *tmp});
     delete tmp;
@@ -531,6 +537,10 @@ void ArrayDefineWithInit::GenerateIR(ir::ContextInfo &ctx) {
     if (ctx.scope_id_ == 0) {
       this->value_.Evaluate(ctx);
     } else {
+      // GenIR ALLOCA
+      ir::gIRList.push_back({IROpKind::ALLOCA,
+                             ir::Opn{OpnType::Array, name, ctx.scope_id_, new ir::Opn(OpnType::Imm, 0)},
+                             ir::Opn{OpnType::Imm, symbol_item.width_[0]}});
       ir::gIRList.push_back({IROpKind::PARAM, {OpnType::Imm, symbol_item.width_[0]}});
       ir::gIRList.push_back({IROpKind::PARAM, IMM_0_OPN});
       ir::gIRList.push_back({IROpKind::PARAM, {OpnType::Array, name, ctx.scope_id_, new ir::Opn(OpnType::Imm, 0)}});

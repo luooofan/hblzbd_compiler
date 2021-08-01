@@ -65,6 +65,7 @@ std::pair<std::vector<Opn *>, std::vector<Opn *>> GetDefUsePtr(IR *ir, bool cons
       process_opn(&(arg));
     }
     process_res(&(ir->res_));
+  } else if (ir->op_ == IR::OpKind::ALLOCA) {  // 跳过
   } else {
     MyAssert(0);
   }
@@ -138,6 +139,7 @@ std::pair<std::vector<std::string>, std::vector<std::string>> GetDefUse(IR *ir, 
       process_opn(&(arg));
     }
     process_res(&(ir->res_));
+  } else if (ir->op_ == IR::OpKind::ALLOCA) {  // 跳过
   } else {
     MyAssert(0);
   }
