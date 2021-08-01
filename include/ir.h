@@ -82,10 +82,11 @@ class Opn {
   Opn *offset_ = nullptr;
   int ssa_id_ = -1;
   // Opn Type: IMM
-  Opn(Type type, int imm_num, int scope_id)
-      : type_(type), imm_num_(imm_num), name_("#" + std::to_string(imm_num)), scope_id_(scope_id) {}
-  // Opn Type: Var or Label or Func
+  Opn(Type type, int imm_num) : type_(type), imm_num_(imm_num), name_("#" + std::to_string(imm_num)) {}
+  // Opn Type: Var
   Opn(Type type, std::string name, int scope_id) : type_(type), name_(name), scope_id_(scope_id) {}
+  // Opn Type: Label or Func
+  Opn(Type type, std::string name) : type_(type), name_(name) {}
   // Opn Type: Null
   Opn(Type type) : type_(type), name_("-") {}
   // Opn Type: Array

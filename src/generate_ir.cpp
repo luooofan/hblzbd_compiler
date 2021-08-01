@@ -6,13 +6,13 @@
 #include "parser.hpp"  // VOID INT
 
 #define IMM_0_OPN \
-  { OpnType::Imm, 0, ctx.scope_id_ }
+  { OpnType::Imm, 0 }
 #define IMM_1_OPN \
-  { OpnType::Imm, 1, ctx.scope_id_ }
+  { OpnType::Imm, 1 }
 #define LABEL_OPN(label_name) \
-  { OpnType::Label, label_name, ctx.scope_id_ }
+  { OpnType::Label, label_name }
 #define FUNC_OPN(label_name) \
-  { OpnType::Func, label_name, ctx.scope_id_ }
+  { OpnType::Func, label_name }
 #define OPN_IS_NOT_INT (!ctx.shape_.empty() && ctx.opn_.type_ == OpnType::Null)
 #define CHECK_OPN_INT(locstr)                                                            \
   if (OPN_IS_NOT_INT) {                                                                  \
@@ -89,7 +89,7 @@ void Root::GenerateIR(ir::ContextInfo &ctx) {
 
 void Number::GenerateIR(ir::ContextInfo &ctx) {
   // 生成一个imm opn 维护shape
-  ctx.opn_ = ir::Opn(OpnType::Imm, value_, ctx.scope_id_);
+  ctx.opn_ = ir::Opn(OpnType::Imm, value_);
   ctx.shape_.clear();
 }
 
@@ -105,7 +105,7 @@ void Identifier::GenerateIR(ir::ContextInfo &ctx) {
 
   // NOTE: 常量直接替换为立即数 作用域为当前作用域
   if (!is_assigned && s->is_const_ && !s->is_array_) {
-    ctx.opn_ = ir::Opn(OpnType::Imm, s->initval_[0], ctx.scope_id_);
+    ctx.opn_ = ir::Opn(OpnType::Imm, s->initval_[0]);
     ctx.shape_.clear();
   } else {
     ctx.shape_ = s->shape_;
@@ -172,7 +172,7 @@ void ArrayIdentifier::GenerateIR(ir::ContextInfo &ctx) {
   ctx.opn_ = ir::Opn(OpnType::Array, name_.name_, scope_id, offset);
   if (!is_assigned && ctx.shape_.empty()) {
     if (s->is_const_ && offset->type_ == OpnType::Imm) {  // 常量数组的使用 直接返回一个立即数
-      ctx.opn_ = ir::Opn(OpnType::Imm, s->initval_[offset->imm_num_ / 4], ctx.scope_id_);
+      ctx.opn_ = ir::Opn(OpnType::Imm, s->initval_[offset->imm_num_ / 4]);
     } else {
       // 如果是int类型而不是int[] 则需要生成一条=[]ir以区分地址和取值
       std::string res_var = ir::NewTemp();
@@ -222,7 +222,7 @@ void BinaryExpression::GenerateIR(ir::ContextInfo &ctx) {
         MyAssert(0);
         break;
     }
-    ctx.opn_ = ir::Opn(OpnType::Imm, result, ctx.scope_id_);
+    ctx.opn_ = ir::Opn(OpnType::Imm, result);
   } else {
     switch (op_) {
       case ADD:
@@ -279,7 +279,7 @@ void UnaryExpression::GenerateIR(ir::ContextInfo &ctx) {
         MyAssert(0);
         break;
     }
-    ctx.opn_ = ir::Opn(OpnType::Imm, result, ctx.scope_id_);
+    ctx.opn_ = ir::Opn(OpnType::Imm, result);
   } else {
     IROpKind op;
     switch (op_) {
@@ -351,7 +351,7 @@ void FunctionCall::GenerateIR(ir::ContextInfo &ctx) {
 
     opn1 = ctx.opn_;
     if (s && s->is_array_ && nullptr == opn1.offset_) {
-      ir::Opn *offset = new ir::Opn(OpnType::Imm, 0, opn1.scope_id_);
+      ir::Opn *offset = new ir::Opn(OpnType::Imm, 0);
       opn1 = ir::Opn(OpnType::Array, opn1.name_, opn1.scope_id_, offset);
     }
 
@@ -373,8 +373,8 @@ void FunctionCall::GenerateIR(ir::ContextInfo &ctx) {
     param_list.pop();
   }
 
-  opn1 = ir::Opn(OpnType::Func, name_.name_, ctx.scope_id_);
-  opn2 = ir::Opn(OpnType::Imm, func_item.shape_list_.size(), ctx.scope_id_);
+  opn1 = ir::Opn(OpnType::Func, name_.name_);
+  opn2 = ir::Opn(OpnType::Imm, func_item.shape_list_.size());
 
   ir::IR ir;
   // 当call调用的函数返回INT时 生成(call, func, arg-num, temp) 返回VOID时 (call, func, arg-num, -/NULL)
@@ -406,7 +406,12 @@ void VariableDefine::GenerateIR(ir::ContextInfo &ctx) {
   const auto &var_iter = symbol_table.find(this->name_.name_);
   if (var_iter == symbol_table.end()) {
     auto tmp = new ir::SymbolTableItem(false, false, scope.dynamic_offset_);
-    if (ctx.scope_id_ == 0) tmp->initval_.push_back(0);
+    if (ctx.scope_id_ == 0) {
+      tmp->initval_.push_back(0);
+    } else {  // GenIR DECLARE
+      ir::gIRList.push_back({IROpKind::DECLARE, ir::Opn{OpnType::Var, this->name_.name_, ctx.scope_id_},
+                             ir::Opn{OpnType::Imm, ir::kIntWidth}});
+    }
     symbol_table.insert({this->name_.name_, *tmp});
 #ifdef NO_OPT
     scope.dynamic_offset_ += ir::kIntWidth;
@@ -526,16 +531,15 @@ void ArrayDefineWithInit::GenerateIR(ir::ContextInfo &ctx) {
     if (ctx.scope_id_ == 0) {
       this->value_.Evaluate(ctx);
     } else {
-      ir::gIRList.push_back({IROpKind::PARAM, {OpnType::Imm, symbol_item.width_[0], ctx.scope_id_}});
+      ir::gIRList.push_back({IROpKind::PARAM, {OpnType::Imm, symbol_item.width_[0]}});
       ir::gIRList.push_back({IROpKind::PARAM, IMM_0_OPN});
-      ir::gIRList.push_back(
-          {IROpKind::PARAM, {OpnType::Array, name, ctx.scope_id_, new ir::Opn(OpnType::Imm, 0, ctx.scope_id_)}});
+      ir::gIRList.push_back({IROpKind::PARAM, {OpnType::Array, name, ctx.scope_id_, new ir::Opn(OpnType::Imm, 0)}});
       ir::Opn temp = ir::Opn(OpnType::Null);
       // ctx.opn_ = temp;
       // ctx.shape_.clear();
       // TODO: 这里用name会导致段错误
-      auto opn1 = ir::Opn(OpnType::Func, std::string("memset"), ctx.scope_id_);
-      auto opn2 = ir::Opn(OpnType::Imm, 3, ctx.scope_id_);
+      auto opn1 = ir::Opn(OpnType::Func, std::string("memset"));
+      auto opn2 = ir::Opn(OpnType::Imm, 3);
       ir::gIRList.push_back({IROpKind::CALL, opn1, opn2, temp});
       if (this->is_const_) {
         ctx.array_offset_ = 0;
@@ -721,7 +725,7 @@ void BreakStatement::GenerateIR(ir::ContextInfo &ctx) {
     ir::SemanticError(this->line_no_, "'break' not in while loop");
   } else {
     // genir (goto,breaklabel,-,-)
-    ir::gIRList.push_back({IROpKind::GOTO, {OpnType::Label, ctx.break_label_.top(), ctx.scope_id_}});
+    ir::gIRList.push_back({IROpKind::GOTO, {OpnType::Label, ctx.break_label_.top()}});
   }
 }
 
@@ -731,7 +735,7 @@ void ContinueStatement::GenerateIR(ir::ContextInfo &ctx) {
     ir::SemanticError(this->line_no_, "'continue' not in while loop");
   } else {
     // genir (goto,continuelabel,-,-)
-    ir::gIRList.push_back({IROpKind::GOTO, {OpnType::Label, ctx.continue_label_.top(), ctx.scope_id_}});
+    ir::gIRList.push_back({IROpKind::GOTO, {OpnType::Label, ctx.continue_label_.top()}});
   }
 }
 
@@ -805,10 +809,10 @@ void ArrayInitVal::GenerateIR(ir::ContextInfo &ctx) {
     CHECK_OPN_INT("exp")
     // genir([]=,expvalue,-,arrayname offset)
     if (ctx.opn_.type_ != OpnType::Imm || 0 != ctx.opn_.imm_num_) {
-      ir::gIRList.push_back({IROpKind::/*OFFSET_*/ ASSIGN,
-                             ctx.opn_,
-                             {OpnType::Array, ctx.array_name_, ctx.scope_id_,
-                              new ir::Opn(OpnType::Imm, ctx.array_offset_ * 4, ctx.scope_id_)}});
+      ir::gIRList.push_back(
+          {IROpKind::/*OFFSET_*/ ASSIGN,
+           ctx.opn_,
+           {OpnType::Array, ctx.array_name_, ctx.scope_id_, new ir::Opn(OpnType::Imm, ctx.array_offset_ * 4)}});
     }
     ctx.array_offset_ += 1;
   } else {
@@ -840,15 +844,6 @@ void ArrayInitVal::GenerateIR(ir::ContextInfo &ctx) {
           this->initval_list_[i]->GenerateIR(ctx);
         }
       }
-      // 补0补到finaloffset
-      // while (offset < final_offset) {
-      //   // genir([]=,0,-,arrayname offset)
-      //   // ir::gIRList.push_back({IROpKind::/*OFFSET_*/ ASSIGN,
-      //   //                        IMM_0_OPN,
-      //   //                        {OpnType::Array, ctx.array_name_, ctx.scope_id_,
-      //   //                         new ir::Opn(OpnType::Imm, (offset++ * 4), ctx.scope_id_)}});
-      //   ++offset;
-      // }
       if (offset > final_offset) {
         ir::SemanticError(this->line_no_, "初始值设定项值太多");
       }
