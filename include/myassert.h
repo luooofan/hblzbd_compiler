@@ -7,7 +7,7 @@
 #ifdef ASSERT_ENABLE
 #define MyAssert(res)                                                    \
   if (!(res)) {                                                          \
-    std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl; \
+    std::cerr << "Assert: " << __FILE__ << ":" << __LINE__ << std::endl; \
     exit(255);                                                           \
   }
 #else
