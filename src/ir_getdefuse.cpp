@@ -84,11 +84,11 @@ std::pair<std::vector<std::string>, std::vector<std::string>> GetDefUse(IR *ir, 
         op->type_ == Opn::Type::Null)
       return;
     if (op->type_ == Opn::Type::Array) {
-      if (consider_array) use.push_back(op->name_ + "_#" + std::to_string(op->scope_id_));
+      if (consider_array) use.push_back(op->name_ + "." + std::to_string(op->scope_id_));
       if (op->offset_->type_ == Opn::Type::Var)
-        use.push_back(op->offset_->name_ + "_#" + std::to_string(op->offset_->scope_id_));
+        use.push_back(op->offset_->name_ + "." + std::to_string(op->offset_->scope_id_));
     } else {  // var
-      use.push_back(op->name_ + "_#" + std::to_string(op->scope_id_));
+      use.push_back(op->name_ + "." + std::to_string(op->scope_id_));
     }
   };
 
@@ -96,11 +96,11 @@ std::pair<std::vector<std::string>, std::vector<std::string>> GetDefUse(IR *ir, 
     if (nullptr == res) return;
     if (res->type_ == Opn::Type::Label || res->type_ == Opn::Type::Func || res->type_ == Opn::Type::Null) return;
     if (res->type_ == Opn::Type::Array) {
-      if (consider_array) def.push_back(res->name_ + "_#" + std::to_string(res->scope_id_));
+      if (consider_array) def.push_back(res->name_ + "." + std::to_string(res->scope_id_));
       if (res->offset_->type_ == Opn::Type::Var)
-        use.push_back(res->offset_->name_ + "_#" + std::to_string(res->offset_->scope_id_));
+        use.push_back(res->offset_->name_ + "." + std::to_string(res->offset_->scope_id_));
     } else {
-      def.push_back(res->name_ + "_#" + std::to_string(res->scope_id_));
+      def.push_back(res->name_ + "." + std::to_string(res->scope_id_));
     }
   };
 

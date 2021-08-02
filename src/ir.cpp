@@ -103,7 +103,7 @@ int FindSymbol(int scope_id, std::string name, SymbolTableItem *&res_symbol_item
 
 std::string NewTemp() {
   static int i = 0;
-  return "t." + std::to_string(i++);
+  return "temp-" + std::to_string(i++);
 }
 
 std::string NewLabel() {
@@ -153,19 +153,19 @@ IR::OpKind GetOpKind(int op, bool reverse) {
 std::string Opn::GetCompName() {  // 对于全局变量直接返回原name_ 对于局部变量返回复合name
   if (type_ == Type::Imm || type_ == Type::Null) MyAssert(0);
   if (type_ == Type::Label || type_ == Type::Func || scope_id_ == 0) return name_;
-  auto res = scope_id_ == -1 ? name_ : name_ + "-" + std::to_string(scope_id_);
-  return ssa_id_ == -1 ? res : res + "-" + std::to_string(ssa_id_);
+  auto res = scope_id_ == -1 ? name_ : name_ + "." + std::to_string(scope_id_);
+  return ssa_id_ == -1 ? res : res + "." + std::to_string(ssa_id_);
 }
 Opn::operator std::string() {
   switch (type_) {
     case Type::Var: {
       if (scope_id_ == 0) return name_;
-      auto ret = scope_id_ == -1 ? name_ : name_ + "#" + std::to_string(scope_id_);
-      return ssa_id_ == -1 ? ret : ret + "#" + std::to_string(ssa_id_);
+      auto ret = scope_id_ == -1 ? name_ : name_ + "." + std::to_string(scope_id_);
+      return ssa_id_ == -1 ? ret : ret + "." + std::to_string(ssa_id_);
     }
     case Type::Array: {
-      auto ret = scope_id_ == -1 ? name_ : name_ + "#" + std::to_string(scope_id_);
-      ret += (ssa_id_ == -1 ? "" : "#" + std::to_string(ssa_id_));
+      auto ret = scope_id_ == -1 ? name_ : name_ + "." + std::to_string(scope_id_);
+      ret += (ssa_id_ == -1 ? "" : "." + std::to_string(ssa_id_));
       if (scope_id_ == 0) ret = name_;
       return nullptr == offset_ ? ret : ret + "[" + std::string(*offset_) + "]";
     }
