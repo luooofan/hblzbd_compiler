@@ -7,6 +7,7 @@
 #define ASSERT_ENABLE  // enable assert for this file.
 #include "../../include/myassert.h"
 
+#define DEBUG_CONVERT_SSA_PROCESS
 void ConvertSSA::Run() {
   auto m = dynamic_cast<IRModule*>(*(this->m_));
   MyAssert(nullptr != m);
@@ -22,13 +23,29 @@ void ConvertSSA::Run() {
   ssam->EmitCode();
 }
 
-Value* ConvertSSA::FindValueFromOpn(Opn* opn) { return this->FindValueFromCompName(opn->GetCompName()); }
-Value* ConvertSSA::FindValueFromCompName(const std::string& comp_name) {
-  auto it = work_map.find(comp_name);
-  if (it != work_map.end()) {
-    return (*it).second;
+Value* ConvertSSA::FindValueFromOpn(Opn* opn, bool is_global) {
+  return this->FindValueFromCompName(opn->GetCompName(), is_global);
+}
+
+Value* ConvertSSA::FindValueFromCompName(const std::string& comp_name, bool is_global) {
+  if (is_global) {
+    auto it = glob_map.find(comp_name);
+    if (it != glob_map.end()) return (*it).second;
   } else {
-    return nullptr;
+    auto it = work_map.find(comp_name);
+    if (it != work_map.end()) return (*it).second;
+  }
+  return nullptr;
+}
+
+void ConvertSSA::ProcessResValue(const std::string& comp_name, Opn* opn, Value* val, SSABasicBlock* ssabb) {
+  // 如果是全局量就加一条store语句 否则记录映射即可
+  MyAssert(opn->type_ == Opn::Type::Var);
+  if (0 == opn->scope_id_) {  // 全局变量需要store
+    // std::cout << comp_name << std::endl;
+    new StoreInst(val, glob_map[comp_name], ssabb);
+  } else {
+    work_map[comp_name] = val;
   }
 }
 
@@ -40,19 +57,19 @@ Value* ConvertSSA::ResolveOpn2Value(Opn* opn, SSABasicBlock* ssabb) {
     MyAssert(0);
   } else if (type == Opn::Type::Imm) {  // new一个常量value直接返回
     res = new ConstantInt(opn->imm_num_);
-  } else {  // 先找work_map中有没有目标value 没有的话根据opn new一个value 并记录映射
+  } else if (type == Opn::Type::Func || 0 == opn->scope_id_) {
     auto comp_name = opn->GetCompName();
-    res = this->FindValueFromCompName(comp_name);
-    if (0 == opn->scope_id_) {  // 全局量
-      MyAssert(nullptr != res && res->GetType()->IsPointer());
-      // new load 不需要记录 全局量每次都要load
-      if (type == Opn::Type::Var) {
-        res = new LoadInst(new Type(Type::IntegerTyID), "glo_temp_" + opn->name_, res, ssabb);
-      } else {  // global array
-        auto offset = ResolveOpn2Value(opn->offset_, ssabb);
-        res = new LoadInst(new Type(Type::IntegerTyID), "glo_temp_" + opn->name_, res, offset, ssabb);
-      }
-    }
+    res = this->FindValueFromCompName(comp_name, true);
+    MyAssert(nullptr != res && res->GetType()->IsPointer());
+    // new load load出的结果不需要记录 全局量每次都要load
+    if (type == Opn::Type::Var) {
+      static int glob_temp_index = 1;
+      res = new LoadInst(new Type(Type::IntegerTyID), "glob_temp_" + std::to_string(glob_temp_index++), res, ssabb);
+    }  // 全局数组直接返回i32 pointer
+  } else {  // label标签 或 局部变量数组 局部变量可能未定义 局部数组只会返回i32 pointer类型的value
+    auto comp_name = opn->GetCompName();
+    res = this->FindValueFromCompName(comp_name, false);
+
     if (nullptr == res) {  // 未定义变量
       MyAssert(type == Opn::Type::Var);
       // new undefval
@@ -60,9 +77,9 @@ Value* ConvertSSA::ResolveOpn2Value(Opn* opn, SSABasicBlock* ssabb) {
       work_map[comp_name] = res;
     }
   }
-  // std::cout << "Resolve End." << std::endl;
   MyAssert(nullptr != res);
   return res;
+  // std::cout << "Resolve End." << std::endl;
 }
 
 int GetOpKind(ir::IR::OpKind srcop) {
@@ -104,19 +121,19 @@ int GetOpKind(ir::IR::OpKind srcop) {
       break;
     }
     case ir::IR::OpKind::JLT: {
-      return BranchInst::Cond::GT;
-      break;
-    }
-    case ir::IR::OpKind::JLE: {
-      return BranchInst::Cond::GE;
-      break;
-    }
-    case ir::IR::OpKind::JGT: {
       return BranchInst::Cond::LT;
       break;
     }
-    case ir::IR::OpKind::JGE: {
+    case ir::IR::OpKind::JLE: {
       return BranchInst::Cond::LE;
+      break;
+    }
+    case ir::IR::OpKind::JGT: {
+      return BranchInst::Cond::GT;
+      break;
+    }
+    case ir::IR::OpKind::JGE: {
+      return BranchInst::Cond::GE;
       break;
     }
     default: {
@@ -127,6 +144,70 @@ int GetOpKind(ir::IR::OpKind srcop) {
   return -1;
 }
 
+void ConvertSSA::ProcessGlobalVariable(IRModule* irm, SSAModule* ssam) {
+#ifdef DEBUG_CONVERT_SSA_PROCESS
+  std::cout << "Process All Global Variables Start:" << std::endl;
+#endif
+
+  for (auto& [symbol, symbol_item] : irm->global_scope_.symbol_table_) {
+    // new glob. record size: int-4 array-4*n. as a i32 pointer.
+    auto glob_var = new GlobalVariable(symbol, symbol_item.is_array_ ? symbol_item.width_[0] : 4);
+    if (symbol_item.is_const_) {  // NOTE 此时一定是常量数组 原符号表项中的initval失效
+      glob_var->val_.swap(symbol_item.initval_);
+    }
+    ssam->AddGlobalVariable(glob_var);
+    glob_map[symbol] = glob_var;
+  }
+
+#ifdef DEBUG_CONVERT_SSA_PROCESS
+  std::cout << "Process All Global Variables Finish." << std::endl;
+#endif
+}
+
+void ConvertSSA::GenerateSSABasicBlocks(IRFunction* func, SSAFunction* ssafunc,
+                                        std::unordered_map<IRBasicBlock*, SSABasicBlock*>& bb_map) {
+  // create armbb according to irbb
+  for (auto bb : func->bb_list_) {
+    SSABasicBlock* ssabb = new SSABasicBlock(ssafunc);
+    bb_map.insert({bb, ssabb});
+  }
+
+  // maintain pred and succ
+  for (auto bb : func->bb_list_) {
+    for (auto pred : bb->pred_) {  // NOTE: it's OK?
+      bb_map[bb]->AddPredBB(bb_map[pred]);
+      // bb_map[pred]->AddSuccBB(bb_map[bb]);
+    }
+    for (auto succ : bb->succ_) {
+      bb_map[bb]->AddSuccBB(bb_map[succ]);
+    }
+  }
+
+  // 处理所有label语句 给ssabasicblock绑定bbvalue 把bbvalue添加到workmap中
+  for (auto bb : func->bb_list_) {
+    auto ssabb = bb_map[bb];
+    auto first_ir = bb->ir_list_.front();
+    if (first_ir->op_ == ir::IR::OpKind::LABEL) {
+      if (first_ir->opn1_.type_ == ir::Opn::Type::Label) {  // 如果是label就把label赋给这个bb的label
+        auto& label = first_ir->opn1_.name_;
+        ssabb->SetLabel(label);
+        MyAssert(work_map.find(label) == work_map.end());
+        work_map[label] = new BasicBlockValue(label, ssabb);
+      }  // 如果是func label不用管 直接删了就行
+      else {
+        auto label = "." + func->name_ + ".bb." + std::to_string(bb->IndexInFunc());
+        ssabb->SetLabel(label);
+        new BasicBlockValue(label, ssabb);
+      }
+      bb->ir_list_.erase(bb->ir_list_.begin());
+    } else {
+      auto label = "." + func->name_ + ".bb." + std::to_string(bb->IndexInFunc());
+      ssabb->SetLabel(label);
+      new BasicBlockValue(label, ssabb);
+    }
+  }
+}
+
 SSAModule* ConvertSSA::ConstructSSA(IRModule* module) {
   // 由ir module直接构建ssa module 构建的过程中把ir中的label语句删掉 转化成了基本块的label
   // NOTE: 可能会出现一些空的bb 有些基本块是unnamed
@@ -134,76 +215,38 @@ SSAModule* ConvertSSA::ConstructSSA(IRModule* module) {
   std::unordered_map<IRFunction*, SSAFunction*> func_map;
 
   // process all global variable
-  for (auto& [symbol, symbol_item] : module->global_scope_.symbol_table_) {
-    // new glob. record size: int-4 array-4*n. as a i32 pointer.
-    auto glob_var = new GlobalVariable(symbol, symbol_item.width_[0]);
-    if (symbol_item.is_const_) {  // NOTE 此时一定是常量数组 原符号表项中的initval失效
-      glob_var->val_.swap(symbol_item.initval_);
-    }
-    ssamodule->AddGlobalVariable(glob_var);
-    glob_map[symbol] = glob_var;
-  }
+  this->ProcessGlobalVariable(module, ssamodule);
 
   // for every ir func
   for (auto func : module->func_list_) {
+#ifdef DEBUG_CONVERT_SSA_PROCESS
     std::cout << "--Process Func:" << func->name_ << std::endl;
+#endif
+
     SSAFunction* ssafunc = new SSAFunction(func->name_, ssamodule);
     func_map.insert({func, ssafunc});
     // glob_map[func->name_] = new FunctionValue(new FunctionType(), func->name_, ssafunc);
 
     work_map.clear();
-
-    // create armbb according to irbb
     std::unordered_map<IRBasicBlock*, SSABasicBlock*> bb_map;
-    for (auto bb : func->bb_list_) {
-      SSABasicBlock* ssabb = new SSABasicBlock(ssafunc);
-      bb_map.insert({bb, ssabb});
-    }
-
-    // maintain pred and succ
-    for (auto bb : func->bb_list_) {
-      for (auto pred : bb->pred_) {  // NOTE: it's OK?
-        bb_map[bb]->AddPredBB(bb_map[pred]);
-        // bb_map[pred]->AddSuccBB(bb_map[bb]);
-      }
-      for (auto succ : bb->succ_) {
-        bb_map[bb]->AddSuccBB(bb_map[succ]);
-      }
-    }
-
-    // 处理所有label语句 给ssabasicblock绑定bbvalue 把bbvalue添加到workmap中
-    for (auto bb : func->bb_list_) {
-      auto ssabb = bb_map[bb];
-      auto first_ir = bb->ir_list_.front();
-      if (first_ir->op_ == ir::IR::OpKind::LABEL) {
-        if (first_ir->opn1_.type_ == ir::Opn::Type::Label) {  // 如果是label就把label赋给这个bb的label
-          auto& label = first_ir->opn1_.name_;
-          ssabb->SetLabel(label);
-          MyAssert(work_map.find(label) == work_map.end());
-          work_map[label] = new BasicBlockValue(label, ssabb);
-        }  // 如果是func label不用管 直接删了就行
-        else {
-          ssabb->SetLabel("unamed");
-          new BasicBlockValue("unamed", ssabb);
-        }
-        bb->ir_list_.erase(bb->ir_list_.begin());
-      } else {
-        ssabb->SetLabel("unamed");
-        new BasicBlockValue("unamed", ssabb);
-      }
-    }
+    this->GenerateSSABasicBlocks(func, ssafunc, bb_map);
 
     // for every ir basicblock
     for (auto bb : func->bb_list_) {
+#ifdef DEBUG_CONVERT_SSA_PROCESS
       std::cout << "---Process BB:" << std::endl;
+#endif
+
       auto ssabb = bb_map[bb];
       MyAssert(nullptr != ssabb);
 
       // for every ir
       for (auto ir_iter = bb->ir_list_.begin(); ir_iter != bb->ir_list_.end(); ++ir_iter) {
         auto ir = **ir_iter;
+#ifdef DEBUG_CONVERT_SSA_PROCESS
         // std::cout << "----Process IR:" << std::endl;
         ir.PrintIR(std::cout);
+#endif
         switch (ir.op_) {
           // NOTE: assign和param可能传递i32 pointer 其他传递i32或者void arraytype只在alloca中不会传递
           // 从数组中取元素值只会出现在assign offset ir中 给数组元素赋值只会出现在assign ir中
@@ -218,7 +261,7 @@ SSAModule* ConvertSSA::ConstructSSA(IRModule* module) {
             auto res =
                 new BinaryOperator(new Type(Type::IntegerTyID), static_cast<BinaryOperator::OpKind>(GetOpKind(ir.op_)),
                                    res_comp_name, lhs, rhs, ssabb);
-            work_map[res_comp_name] = res;
+            ProcessResValue(res_comp_name, &(ir.res_), res, ssabb);
             break;
           }
           case ir::IR::OpKind::NOT:
@@ -228,7 +271,7 @@ SSAModule* ConvertSSA::ConstructSSA(IRModule* module) {
             auto res =
                 new UnaryOperator(new Type(Type::IntegerTyID), static_cast<UnaryOperator::OpKind>(GetOpKind(ir.op_)),
                                   res_comp_name, lhs, ssabb);
-            work_map[res_comp_name] = res;
+            ProcessResValue(res_comp_name, &(ir.res_), res, ssabb);
             break;
           }
           case ir::IR::OpKind::LABEL: {  // label ir已经全被删了 执行流不会到这里
@@ -261,15 +304,18 @@ SSAModule* ConvertSSA::ConstructSSA(IRModule* module) {
             auto res_comp_name = ir.res_.GetCompName();
             Value* res = nullptr;
             if (ir.res_.type_ != ir::Opn::Type::Array) {  // NOTE: consider array address
-              val->GetType();
-              res = new MovInst(val->GetType(), res_comp_name, val, ssabb);
+              if (0 == ir.res_.scope_id_) {
+                new StoreInst(val, glob_map[res_comp_name], ssabb);
+              } else {
+                res = new MovInst(val->GetType(), res_comp_name, val, ssabb);
+                work_map[res_comp_name] = res;
+              }
             } else {
               auto arr_base_ptr = ResolveOpn2Value(&(ir.res_), ssabb);
               MyAssert(nullptr != dynamic_cast<PointerType*>(arr_base_ptr->GetType()));
               auto offset = ResolveOpn2Value(ir.res_.offset_, ssabb);
-              res = new StoreInst(new Type(Type::IntegerTyID), res_comp_name, arr_base_ptr, offset, ssabb);
+              new StoreInst(val, arr_base_ptr, offset, ssabb);
             }
-            work_map[res_comp_name] = res;
             break;
           }
           case ir::IR::OpKind::ASSIGN_OFFSET: {
@@ -277,9 +323,10 @@ SSAModule* ConvertSSA::ConstructSSA(IRModule* module) {
             auto arr_base_ptr = ResolveOpn2Value(&(ir.opn1_), ssabb);
             MyAssert(nullptr != dynamic_cast<PointerType*>(arr_base_ptr->GetType()));
             auto offset = ResolveOpn2Value(ir.opn1_.offset_, ssabb);
+
             auto res_comp_name = ir.res_.GetCompName();
             auto res = new LoadInst(new Type(Type::IntegerTyID), res_comp_name, arr_base_ptr, offset, ssabb);
-            work_map[res_comp_name] = res;
+            ProcessResValue(res_comp_name, &(ir.res_), res, ssabb);
             break;
           }
           case ir::IR::OpKind::JEQ:
@@ -300,13 +347,14 @@ SSAModule* ConvertSSA::ConstructSSA(IRModule* module) {
             break;
           }
           case ir::IR::OpKind::PHI: {
+            MyAssert(0 != ir.res_.scope_id_);  // 不会出现全局变量的phi结点
             auto res_comp_name = ir.res_.GetCompName();
             auto phi_inst = new PhiInst(new Type(Type::IntegerTyID), res_comp_name, ssabb);
             for (int i = 0; i < ir.phi_args_.size(); ++i) {
               auto arg_val = ResolveOpn2Value(&ir.phi_args_[i], ssabb);
               MyAssert(nullptr != arg_val);
               MyAssert(bb_map.find(bb->pred_[i]) != bb_map.end());
-              std::cout << i << "label:" << bb_map[bb->pred_[i]]->GetLabel() << std::endl;
+              // std::cout << i << "label:" << bb_map[bb->pred_[i]]->GetLabel() << std::endl;
               MyAssert(bb_map[bb->pred_[i]]->GetValue() != nullptr);
               phi_inst->AddParam(arg_val, bb_map[bb->pred_[i]]->GetValue());
             }
@@ -371,7 +419,7 @@ void ConvertSSA::Rename(IRBasicBlock* bb) {
     }
   }  // end of ir for-loop
   // 填写bb的succ中的phi ir
-  // std::cout << "fill phi" << std::endl;
+  std::cout << "fill phi" << std::endl;
   for (auto succ : bb->succ_) {
     int order = std::distance(succ->pred_.begin(), std::find(succ->pred_.begin(), succ->pred_.end(), bb));
     MyAssert(order < succ->pred_.size());
@@ -379,7 +427,8 @@ void ConvertSSA::Rename(IRBasicBlock* bb) {
       if (phi_ir->op_ == IR::OpKind::LABEL) continue;
       if (phi_ir->op_ != IR::OpKind::PHI) break;
       phi_ir->phi_args_[order] = phi_ir->res_;
-      const auto&& varname = phi_ir->res_.GetCompName();
+      // NOTE here!!!
+      const auto&& varname = phi_ir->res_.name_ + "." + std::to_string(phi_ir->res_.scope_id_);
       // std::cout << varname << std::endl;
       if (this->stack_.find(varname) == this->stack_.end()) {
         this->count_[varname] = 0;
@@ -409,7 +458,7 @@ Opn CompName2Opn(const std::string& name) {
 }
 
 void ConvertSSA::InsertPhiIR(IRFunction* f) {
-  std::cout << "insert phi" << std::endl;
+  // std::cout << "insert phi" << std::endl;
   std::unordered_map<std::string, std::unordered_set<IRBasicBlock*>> defsites;  // 变量被定值的基本块集合
   std::unordered_map<IRBasicBlock*, std::unordered_set<std::string>> phi_vars;  // 一个基本块内拥有phi函数的变量
   // compute def_use without array
@@ -422,10 +471,10 @@ void ConvertSSA::InsertPhiIR(IRFunction* f) {
   }
   IRLivenessAnalysis::Run4Func(f);
   for (auto& [var, defbbs] : defsites) {
-    std::cout << "var:" << var << "在这些bb中def:" << std::endl;
+    // std::cout << "var:" << var << "在这些bb中def:" << std::endl;
     while (!defbbs.empty()) {
       auto bb = *defbbs.begin();
-      std::cout << bb->IndexInFunc() << std::endl;
+      // std::cout << bb->IndexInFunc() << std::endl;
       defbbs.erase(defbbs.begin());
       for (auto df : bb->df_) {  // 对于变量定值所在bb的每一个df都要加一个phi函数
         // NOTE: 如果var并不入口活跃就不用加入phi函数

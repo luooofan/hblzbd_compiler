@@ -23,11 +23,14 @@ class ConvertSSA : public Transform {
  private:
   void Rename(IRBasicBlock* bb);
   void InsertPhiIR(IRFunction* f);
+  void ProcessGlobalVariable(IRModule* irm, SSAModule* ssam);
+  void ProcessResValue(const std::string& comp_name, Opn* opn, Value* val, SSABasicBlock* ssabb);
+  void GenerateSSABasicBlocks(IRFunction* func, SSAFunction* ssafunc,
+                              std::unordered_map<IRBasicBlock*, SSABasicBlock*>& bb_map);
   SSAModule* ConstructSSA(IRModule* module);
   Value* ResolveOpn2Value(Opn* opn, SSABasicBlock* ssabb);
-  Value* FindValueFromOpn(Opn* opn);
-  Value* FindValueFromCompName(const std::string& comp_name);
-
+  Value* FindValueFromOpn(Opn* opn, bool is_global);
+  Value* FindValueFromCompName(const std::string& comp_name, bool is_global);
   // 变量的唯一性是由变量名+作用域+SSA编号一起决定的 把三个整合为一个string 同一变量映射到同一value
   // 全局变量不加多余字符
   std::unordered_map<std::string, Value*> work_map;

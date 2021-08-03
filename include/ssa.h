@@ -95,12 +95,13 @@ class PointerType : public Type {
   Type* referenced_;
   PointerType(Type* referenced) : Type(TypeID::PointerTyID), referenced_(referenced) {}
   virtual ~PointerType() {}
+  virtual bool IsPointer() const override { return true; }
 };
 
 class ConstantInt : public Value {
  public:
   const int imm_;
-  ConstantInt(const int imm) : Value(new Type(Type::IntegerTyID), "#"+std::to_string(imm)), imm_(imm) {}
+  ConstantInt(const int imm) : Value(new Type(Type::IntegerTyID)), imm_(imm) {}
   virtual ~ConstantInt() {}
   virtual void Print(std::ostream& outfile = std::clog) override;
 };
@@ -281,13 +282,24 @@ class LoadInst : public SSAInstruction {
 };
 
 class StoreInst : public SSAInstruction {
- public:
   StoreInst(Type* type, const std::string& name, Value* ptr, SSABasicBlock* parent)
       : SSAInstruction(type, name, parent) {
     operands_.push_back(Use(ptr, this));
   }
   StoreInst(Type* type, const std::string& name, Value* ptr, Value* offset, SSABasicBlock* parent)
       : SSAInstruction(type, name, parent) {
+    operands_.push_back(Use(ptr, this));
+    operands_.push_back(Use(offset, this));
+  }
+
+ public:
+  StoreInst(Value* val, Value* ptr, SSABasicBlock* parent) : SSAInstruction(new Type(Type::VoidTyID), "", parent) {
+    operands_.push_back(Use(val, this));
+    operands_.push_back(Use(ptr, this));
+  }
+  StoreInst(Value* val, Value* ptr, Value* offset, SSABasicBlock* parent)
+      : SSAInstruction(new Type(Type::VoidTyID), "", parent) {
+    operands_.push_back(Use(val, this));
     operands_.push_back(Use(ptr, this));
     operands_.push_back(Use(offset, this));
   }

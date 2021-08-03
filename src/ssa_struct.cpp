@@ -47,6 +47,7 @@ void SSAModule::EmitCode(std::ostream& out) {
   for (auto glob : glob_var_list_) {
     glob->Print();
   }
+  out << std::endl;
   for (auto func : func_list_) {
     func->EmitCode(out);
     out << std::endl;

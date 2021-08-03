@@ -31,7 +31,17 @@ void BasicBlockValue::Print(std::ostream &outfile) { Value::Print(outfile); }
 
 void User::Print(std::ostream &outfile) {
   for (auto &opn : operands_) {
-    outfile << opn.Get()->GetName() << " ";
+    auto val = opn.Get();
+    if (dynamic_cast<GlobalVariable *>(val)) {
+      outfile << "@" << val->GetName();
+    } else if (auto src_val = dynamic_cast<ConstantInt *>(val)) {
+      outfile << "#" << src_val->imm_;
+    } else if (dynamic_cast<BasicBlockValue *>(val) || dynamic_cast<FunctionValue *>(val)) {
+      outfile << "" << val->GetName();
+    } else {
+      outfile << "%" << val->GetName();
+    }
+    outfile << " ";
   }
 }
 
@@ -115,13 +125,13 @@ void CallInst::Print(std::ostream &outfile) {
   outfile << std::endl;
 }
 void ReturnInst::Print(std::ostream &outfile) {
-  outfile << "ret ";
+  outfile << "return ";
   User::Print(outfile);
   outfile << std::endl;
 }
 void AllocaInst::Print(std::ostream &outfile) {
-  Value::Print(outfile);
-  outfile << " = alloca ";
+  outfile << "alloca ";
+  outfile << (dynamic_cast<ArrayType *>(GetType()))->num_elements_;
   outfile << std::endl;
 }
 void LoadInst::Print(std::ostream &outfile) {
@@ -132,7 +142,6 @@ void LoadInst::Print(std::ostream &outfile) {
 }
 void StoreInst::Print(std::ostream &outfile) {
   outfile << "store ";
-  Value::Print(outfile);
   User::Print(outfile);
   outfile << std::endl;
 }
@@ -143,7 +152,6 @@ void MovInst::Print(std::ostream &outfile) {
   outfile << std::endl;
 }
 void PhiInst::Print(std::ostream &outfile) {
-  //
   Value::Print(outfile);
   outfile << " = phi ";
   User::Print(outfile);
