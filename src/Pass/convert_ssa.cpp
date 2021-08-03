@@ -363,8 +363,9 @@ SSAModule* ConvertSSA::ConstructSSA(IRModule* module) {
           case ir::IR::OpKind::ALLOCA: {
             // alloca opn - imm : alloca quad-ir only for array. regard opn as one dimensional array
             MyAssert(ir.res_.type_ == ir::Opn::Type::Imm);
-            auto type = new ArrayType(ir.res_.imm_num_);
-            new AllocaInst(type, ssabb);
+            // auto type = new ArrayType(ir.res_.imm_num_);
+            // new AllocaInst(type, ssabb);
+            new AllocaInst(new ConstantInt(ir.res_.imm_num_), ssabb);
 
             // create a value which owns i32 pointer type
             auto ptr_type = new PointerType(new Type(Type::IntegerTyID));

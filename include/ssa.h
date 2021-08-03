@@ -51,6 +51,7 @@ class Use {
   // TODO 把拷贝构造和复制构造实现为调用Set
 };
 
+// We don't need the type system acutally.
 class Type {
  public:
   enum TypeID {
@@ -79,6 +80,7 @@ class FunctionType : public Type {
   virtual ~FunctionType() {}
 };
 
+/*
 // Only can be one dimensional array in quad-ir. just like a i32 pointer.
 // We need array-type and alloca-inst to contain stack space info.
 class ArrayType : public Type {
@@ -89,7 +91,7 @@ class ArrayType : public Type {
       : Type(TypeID::ArrayTyID), num_elements_(num_elements), contained_(new Type(Type::IntegerTyID)) {}
   virtual ~ArrayType() {}
 };
-
+*/
 class PointerType : public Type {
  public:
   Type* referenced_;
@@ -257,11 +259,15 @@ class ReturnInst : public SSAInstruction {
   virtual void Print(std::ostream& outfile = std::clog);
 };
 
-// Alloca-inst has no operands and will not be used by other users.
-// Like a placehoder which indicates one allocation of stack space.
+// Alloca-inst has only a constint operand which indicates the stack space would be allocated in runtime
+// and will not be used by other users.
 class AllocaInst : public SSAInstruction {
- public:
   AllocaInst(Type* type, SSABasicBlock* parent) : SSAInstruction(type, "", parent) {}
+
+ public:
+  AllocaInst(Value* val, SSABasicBlock* parent) : SSAInstruction(new Type(Type::VoidTyID), "", parent) {
+    operands_.push_back(Use(val, this));
+  }
   virtual ~AllocaInst() {}
   virtual void Print(std::ostream& outfile = std::clog);
 };

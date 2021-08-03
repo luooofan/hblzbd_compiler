@@ -131,7 +131,8 @@ void ReturnInst::Print(std::ostream &outfile) {
 }
 void AllocaInst::Print(std::ostream &outfile) {
   outfile << "alloca ";
-  outfile << (dynamic_cast<ArrayType *>(GetType()))->num_elements_;
+  // outfile << (dynamic_cast<ArrayType *>(GetType()))->num_elements_;
+  User::Print(outfile);
   outfile << std::endl;
 }
 void LoadInst::Print(std::ostream &outfile) {
