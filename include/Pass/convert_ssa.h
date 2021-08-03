@@ -24,6 +24,7 @@ class ConvertSSA : public Transform {
   void Rename(IRBasicBlock* bb);
   void InsertPhiIR(IRFunction* f);
   void ProcessGlobalVariable(IRModule* irm, SSAModule* ssam);
+  void AddBuiltInFunction();
   void ProcessResValue(const std::string& comp_name, Opn* opn, Value* val, SSABasicBlock* ssabb);
   void GenerateSSABasicBlocks(IRFunction* func, SSAFunction* ssafunc,
                               std::unordered_map<IRBasicBlock*, SSABasicBlock*>& bb_map);

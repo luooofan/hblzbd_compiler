@@ -2,7 +2,12 @@
 
 #include "../include/ssa_struct.h"
 
-FunctionValue::FunctionValue(FunctionType *type, const std::string &name, SSAFunction *func) : Value(type, name) {
+// FunctionValue::FunctionValue(FunctionType *type, const std::string &name, SSAFunction *func) : Value(type, name) {
+//   func->BindValue(this);
+// }
+FunctionValue::FunctionValue(const std::string &name) : Value(new Type(Type::FunctionTyID), name) {}
+
+FunctionValue::FunctionValue(const std::string &name, SSAFunction *func) : Value(new Type(Type::FunctionTyID), name) {
   func->BindValue(this);
 }
 
@@ -18,12 +23,14 @@ SSAInstruction::SSAInstruction(Type *type, const std::string &name, SSABasicBloc
 void Value::Print(std::ostream &outfile) { outfile << "%" << name_; }
 
 void ConstantInt::Print(std::ostream &outfile) { outfile << "#" << imm_; }
+
 void GlobalVariable::Print(std::ostream &outfile) {
   outfile << "@_glob_var_" << GetName() << " size: " << size_ << std::endl;
 }
+
 void UndefVariable::Print(std::ostream &outfile) { Value::Print(outfile); }
 
-void Argument::Print(std::ostream &outfile) {}
+void Argument::Print(std::ostream &outfile) { Value::Print(outfile); }
 
 void FunctionValue::Print(std::ostream &outfile) { Value::Print(outfile); }
 
@@ -121,7 +128,13 @@ void BranchInst::Print(std::ostream &outfile) {
   outfile << std::endl;
 }
 void CallInst::Print(std::ostream &outfile) {
-  outfile << "call";
+  // " = "
+  if (!GetType()->IsVoid()) {
+    Value::Print(outfile);
+    outfile << " = ";
+  }
+  outfile << "call ";
+  User::Print(outfile);
   outfile << std::endl;
 }
 void ReturnInst::Print(std::ostream &outfile) {

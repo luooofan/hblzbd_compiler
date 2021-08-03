@@ -164,6 +164,18 @@ void ConvertSSA::ProcessGlobalVariable(IRModule* irm, SSAModule* ssam) {
 #endif
 }
 
+void ConvertSSA::AddBuiltInFunction() {  // TODO
+  glob_map["memset"] = new FunctionValue("memset");
+  glob_map["getint"] = new FunctionValue("getint");
+  glob_map["getch"] = new FunctionValue("getch");
+  glob_map["getarray"] = new FunctionValue("getarray");
+  glob_map["putint"] = new FunctionValue("putint");
+  glob_map["putch"] = new FunctionValue("putch");
+  glob_map["putarray"] = new FunctionValue("putarray");
+  glob_map["_sysy_starttime"] = new FunctionValue("_sysy_starttime");
+  glob_map["_sysy_stoptime"] = new FunctionValue("_sysy_stoptime");
+}
+
 void ConvertSSA::GenerateSSABasicBlocks(IRFunction* func, SSAFunction* ssafunc,
                                         std::unordered_map<IRBasicBlock*, SSABasicBlock*>& bb_map) {
   // create armbb according to irbb
@@ -216,6 +228,7 @@ SSAModule* ConvertSSA::ConstructSSA(IRModule* module) {
 
   // process all global variable
   this->ProcessGlobalVariable(module, ssamodule);
+  this->AddBuiltInFunction();
 
   // for every ir func
   for (auto func : module->func_list_) {
@@ -225,7 +238,7 @@ SSAModule* ConvertSSA::ConstructSSA(IRModule* module) {
 
     SSAFunction* ssafunc = new SSAFunction(func->name_, ssamodule);
     func_map.insert({func, ssafunc});
-    // glob_map[func->name_] = new FunctionValue(new FunctionType(), func->name_, ssafunc);
+    glob_map[func->name_] = new FunctionValue(func->name_, ssafunc);
 
     work_map.clear();
     std::unordered_map<IRBasicBlock*, SSABasicBlock*> bb_map;
@@ -282,6 +295,23 @@ SSAModule* ConvertSSA::ConstructSSA(IRModule* module) {
             break;
           }
           case ir::IR::OpKind::CALL: {
+            auto func_value = dynamic_cast<FunctionValue*>(glob_map[ir.opn1_.GetCompName()]);
+            CallInst* call_inst = nullptr;
+            if (ir.res_.type_ == Opn::Type::Null) {
+              call_inst = new CallInst(func_value, ssabb);
+            } else {
+              auto res_comp_name = ir.res_.GetCompName();
+              call_inst = new CallInst(new Type(Type::IntegerTyID), res_comp_name, func_value, ssabb);
+              ProcessResValue(res_comp_name, &(ir.res_), call_inst, ssabb);
+            }
+            // 添加参数
+            MyAssert(ir.opn2_.type_ == Opn::Type::Imm);
+            int arg_num = ir.opn2_.imm_num_;
+            for (int i = 1; i <= arg_num; ++i) {
+              auto param_ir = **(ir_iter - i);
+              // TODO use argument???
+              call_inst->AddArg(ResolveOpn2Value(&(param_ir.opn1_), ssabb));
+            }
             break;
           }
           case ir::IR::OpKind::RET: {
@@ -358,6 +388,7 @@ SSAModule* ConvertSSA::ConstructSSA(IRModule* module) {
               MyAssert(bb_map[bb->pred_[i]]->GetValue() != nullptr);
               phi_inst->AddParam(arg_val, bb_map[bb->pred_[i]]->GetValue());
             }
+            ProcessResValue(res_comp_name, &(ir.res_), phi_inst, ssabb);
             break;
           }
           case ir::IR::OpKind::ALLOCA: {
