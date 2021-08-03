@@ -1,6 +1,9 @@
 #include "../include/ssa.h"
 
+#include <iomanip>
+
 #include "../include/ssa_struct.h"
+#define INDENT 12
 
 // FunctionValue::FunctionValue(FunctionType *type, const std::string &name, SSAFunction *func) : Value(type, name) {
 //   func->BindValue(this);
@@ -20,9 +23,9 @@ SSAInstruction::SSAInstruction(Type *type, const std::string &name, SSABasicBloc
   parent->AddInstruction(this);
 };
 
-void Value::Print(std::ostream &outfile) { outfile << "%" << name_; }
+void Value::Print(std::ostream &outfile) { outfile << std::setw(INDENT) << "%" + name_; }
 
-void ConstantInt::Print(std::ostream &outfile) { outfile << "#" << imm_; }
+void ConstantInt::Print(std::ostream &outfile) { outfile << std::setw(INDENT) << "#" + std::to_string(imm_); }
 
 void GlobalVariable::Print(std::ostream &outfile) {
   outfile << "@_glob_var_" << GetName() << " size: " << size_ << std::endl;
@@ -39,16 +42,18 @@ void BasicBlockValue::Print(std::ostream &outfile) { Value::Print(outfile); }
 void User::Print(std::ostream &outfile) {
   for (auto &opn : operands_) {
     auto val = opn.Get();
+    outfile << std::setw(INDENT);
     if (dynamic_cast<GlobalVariable *>(val)) {
-      outfile << "@" << val->GetName();
+      outfile << "%g:" + val->GetName();
     } else if (auto src_val = dynamic_cast<ConstantInt *>(val)) {
-      outfile << "#" << src_val->imm_;
+      outfile << "#" + std::to_string(src_val->GetImm());
     } else if (dynamic_cast<BasicBlockValue *>(val) || dynamic_cast<FunctionValue *>(val)) {
-      outfile << "" << val->GetName();
+      outfile << "" + val->GetName();
+    } else if (auto src_val = dynamic_cast<Argument *>(val)) {
+      outfile << "%a" + std::to_string(src_val->GetArgNo()) + ":" + val->GetName();
     } else {
-      outfile << "%" << val->GetName();
+      outfile << "%" + val->GetName();
     }
-    outfile << " ";
   }
 }
 
@@ -74,7 +79,7 @@ void BinaryOperator::Print(std::ostream &outfile) {
       break;
   }
   Value::Print(outfile);
-  outfile << " = " << op << " ";
+  outfile << std::setw(INDENT) << "=" + op;
   User::Print(outfile);
   outfile << std::endl;
 }
@@ -91,83 +96,83 @@ void UnaryOperator::Print(std::ostream &outfile) {
       break;
   }
   Value::Print(outfile);
-  outfile << op << " ";
+  outfile << std::setw(INDENT) << "=" + op;
   User::Print(outfile);
   outfile << std::endl;
 }
 void BranchInst::Print(std::ostream &outfile) {
-  outfile << "b";
-  std::string cond = "";
+  std::string cond = "b";
   switch (cond_) {
     case AL:
-      cond = "";
+      cond += "";
       break;
     case EQ:
-      cond = "eq";
+      cond += "eq";
       break;
     case NE:
-      cond = "ne";
+      cond += "ne";
       break;
     case GT:
-      cond = "gt";
+      cond += "gt";
       break;
     case GE:
-      cond = "ge";
+      cond += "ge";
       break;
     case LT:
-      cond = "lt";
+      cond += "lt";
       break;
     case LE:
-      cond = "le";
+      cond += "le";
       break;
     default:
       break;
   }
-  outfile << cond << " ";
+  outfile << std::setw(INDENT) << cond;
   User::Print(outfile);
   outfile << std::endl;
 }
 void CallInst::Print(std::ostream &outfile) {
-  // " = "
+  std::string prefix = "";
   if (!GetType()->IsVoid()) {
     Value::Print(outfile);
-    outfile << " = ";
+    prefix = " = ";
   }
-  outfile << "call ";
+  prefix += "call";
+  outfile << std::setw(INDENT) << prefix;
   User::Print(outfile);
   outfile << std::endl;
 }
 void ReturnInst::Print(std::ostream &outfile) {
-  outfile << "return ";
+  outfile << std::setw(INDENT) << "return";
   User::Print(outfile);
   outfile << std::endl;
 }
 void AllocaInst::Print(std::ostream &outfile) {
-  outfile << "alloca ";
+  outfile << std::setw(INDENT) << "alloca";
   // outfile << (dynamic_cast<ArrayType *>(GetType()))->num_elements_;
   User::Print(outfile);
   outfile << std::endl;
 }
 void LoadInst::Print(std::ostream &outfile) {
   Value::Print(outfile);
-  outfile << " = load ";
+  outfile << std::setw(INDENT) << "=load";
   User::Print(outfile);
   outfile << std::endl;
 }
 void StoreInst::Print(std::ostream &outfile) {
-  outfile << "store ";
+  outfile << std::setw(INDENT) << "store";
   User::Print(outfile);
   outfile << std::endl;
 }
 void MovInst::Print(std::ostream &outfile) {
   Value::Print(outfile);
-  outfile << " = ";
+  outfile << std::setw(INDENT) << "=mov";
   User::Print(outfile);
   outfile << std::endl;
 }
 void PhiInst::Print(std::ostream &outfile) {
   Value::Print(outfile);
-  outfile << " = phi ";
+  outfile << std::setw(INDENT) << "=phi";
   User::Print(outfile);
   outfile << std::endl;
 }

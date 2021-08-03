@@ -105,6 +105,7 @@ class ArrayType : public Type {
 };
 */
 
+/*
 // only have i32 pointer type.
 class PointerType : public Type {
  public:
@@ -117,13 +118,17 @@ class PointerType : public Type {
   virtual bool IsFunction() const override { return false; }
   virtual bool IsPointer() const override { return true; }
 };
+*/
 
 // [used]
 class ConstantInt : public Value {
- public:
+ private:
   const int imm_;
+
+ public:
   ConstantInt(const int imm) : Value(new Type(Type::IntegerTyID)), imm_(imm) {}
   virtual ~ConstantInt() {}
+  const int GetImm() const { return imm_; }
   virtual void Print(std::ostream& outfile = std::clog) override;
 };
 
@@ -135,8 +140,7 @@ class GlobalVariable : public Value {
   std::vector<int> val_;
   int size_;  // need size info due to we just have i32 pointer type.
   // type must be i32 pointer
-  GlobalVariable(const std::string& name, int size)
-      : Value(new PointerType(new Type(Type::IntegerTyID)), name), size_(size) {}
+  GlobalVariable(const std::string& name, int size) : Value(new Type(Type::PointerTyID), name), size_(size) {}
   virtual ~GlobalVariable() {}
   virtual void Print(std::ostream& outfile = std::clog) override;
 };
@@ -149,22 +153,33 @@ class UndefVariable : public Value {
   virtual void Print(std::ostream& outfile = std::clog) override;
 };
 
-// [used]
-class Argument : public Value {
- public:
-  unsigned arg_no_;
-  Argument(Type* type, const std::string& name) : Value(type, name) {}
-  virtual void Print(std::ostream& outfile = std::clog) override;
-};
+class Argument;
 
 // [used]
 class FunctionValue : public Value {
+ private:
+  std::list<Argument*> arg_list_;  // not use. only record info. valid order.
  public:
   // FunctionValue(FunctionType* type, const std::string& name, SSAFunction* func);
   FunctionValue(const std::string& name, SSAFunction* func);
   FunctionValue(const std::string& name);
+  void AddArg(Argument* arg) { arg_list_.push_back(arg); }
   virtual ~FunctionValue() {}
   virtual void Print(std::ostream& outfile = std::clog);
+};
+
+// [used]
+class Argument : public Value {
+ private:
+  unsigned arg_no_;
+
+ public:
+  Argument(Type* type, const std::string& name, unsigned arg_no, FunctionValue* func_val)
+      : Value(type, name), arg_no_(arg_no) {
+    func_val->AddArg(this);
+  }
+  unsigned GetArgNo() const { return arg_no_; }
+  virtual void Print(std::ostream& outfile = std::clog) override;
 };
 
 // [used]

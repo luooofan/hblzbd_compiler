@@ -309,7 +309,6 @@ SSAModule* ConvertSSA::ConstructSSA(IRModule* module) {
             int arg_num = ir.opn2_.imm_num_;
             for (int i = 1; i <= arg_num; ++i) {
               auto param_ir = **(ir_iter - i);
-              // TODO use argument???
               call_inst->AddArg(ResolveOpn2Value(&(param_ir.opn1_), ssabb));
             }
             break;
@@ -342,7 +341,7 @@ SSAModule* ConvertSSA::ConstructSSA(IRModule* module) {
               }
             } else {
               auto arr_base_ptr = ResolveOpn2Value(&(ir.res_), ssabb);
-              MyAssert(nullptr != dynamic_cast<PointerType*>(arr_base_ptr->GetType()));
+              MyAssert(arr_base_ptr->GetType()->IsPointer());
               auto offset = ResolveOpn2Value(ir.res_.offset_, ssabb);
               new StoreInst(val, arr_base_ptr, offset, ssabb);
             }
@@ -351,7 +350,7 @@ SSAModule* ConvertSSA::ConstructSSA(IRModule* module) {
           case ir::IR::OpKind::ASSIGN_OFFSET: {
             MyAssert(ir.opn1_.type_ == ir::Opn::Type::Array);
             auto arr_base_ptr = ResolveOpn2Value(&(ir.opn1_), ssabb);
-            MyAssert(nullptr != dynamic_cast<PointerType*>(arr_base_ptr->GetType()));
+            MyAssert(arr_base_ptr->GetType()->IsPointer());
             auto offset = ResolveOpn2Value(ir.opn1_.offset_, ssabb);
 
             auto res_comp_name = ir.res_.GetCompName();
@@ -399,9 +398,21 @@ SSAModule* ConvertSSA::ConstructSSA(IRModule* module) {
             new AllocaInst(new ConstantInt(ir.res_.imm_num_), ssabb);
 
             // create a value which owns i32 pointer type
-            auto ptr_type = new PointerType(new Type(Type::IntegerTyID));
+            auto ptr_type = new Type(Type::PointerTyID);
             const auto& array_name = ir.opn1_.GetCompName();
             work_map[array_name] = new Value(ptr_type, array_name);
+            break;
+          }
+          case ir::IR::OpKind::DECLARE: {
+            // 生成argument 记录映射 以防函数参数被认为是未定义变量
+            auto arg_comp_name = ir.opn1_.GetCompName();
+            if (ir.opn1_.type_ == Opn::Type::Var) {
+              work_map[arg_comp_name] =
+                  new Argument(new Type(Type::IntegerTyID), arg_comp_name, ir.res_.imm_num_, ssafunc->GetValue());
+            } else {
+              work_map[arg_comp_name] =
+                  new Argument(new Type(Type::PointerTyID), arg_comp_name, ir.res_.imm_num_, ssafunc->GetValue());
+            }
             break;
           }
           default: {

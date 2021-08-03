@@ -1,9 +1,6 @@
-#include <cstdio>
-#include <stdexcept>
-
 #include "../include/ast.h"
 #include "../include/ir.h"
-#include "parser.hpp"  // VOID INT
+#include "./parser.hpp"  // VOID INT
 
 #define IMM_0_OPN \
   { OpnType::Imm, 0 }
@@ -580,7 +577,9 @@ void FunctionDefine::GenerateIR(ir::ContextInfo &ctx) {
     ir::gScopes.push_back({ctx.scope_id_, 0, 0});
     auto tmp = new ir::FuncTableItem(return_type_, ctx.scope_id_);
     ctx.has_aug_scope = true;
-    for (const auto &arg : args_.arg_list_) {
+    for (int i = 0; i < args_.arg_list_.size(); ++i) {
+      // for (const auto &arg : args_.arg_list_) {
+      const auto &arg = args_.arg_list_[i];
       auto &scope = ir::gScopes[ctx.scope_id_];
       auto &symbol_table = scope.symbol_table_;
       if (Identifier *ident = dynamic_cast<Identifier *>(&arg->name_)) {
@@ -592,6 +591,9 @@ void FunctionDefine::GenerateIR(ir::ContextInfo &ctx) {
           // #ifdef NO_OPT
           scope.dynamic_offset_ += ir::kIntWidth;
           // #endif
+          // ADD DECLARE
+          ir::gIRList.push_back(
+              {IROpKind::DECLARE, ir::Opn(OpnType::Var, ident->name_, ctx.scope_id_), ir::Opn(OpnType::Imm, i)});
         } else {
           ir::SemanticError(this->line_no_, ident->name_ + ": variable redefined");
         }
@@ -605,6 +607,12 @@ void FunctionDefine::GenerateIR(ir::ContextInfo &ctx) {
           // #ifdef NO_OPT
           scope.dynamic_offset_ += ir::kIntWidth;
           // #endif
+          // ADD DECLARE
+          ir::gIRList.push_back(
+              {IROpKind::DECLARE,
+               ir::Opn(OpnType::Array, arrident->name_.name_, ctx.scope_id_, new ir::Opn(OpnType::Imm, 0)),
+               ir::Opn(OpnType::Imm, i)});
+
           // 计算shape和width shape:-1 2 3  width:? 24 12 4
           tmp1->shape_.push_back(-1);  //第一维因为文法规定必须留空，这里记-1
           for (const auto &shape : arrident->shape_list_) {

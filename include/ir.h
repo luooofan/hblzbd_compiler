@@ -121,8 +121,9 @@ class IR {
     JGE,     // >=
     VOID,    // useless
     ASSIGN_OFFSET,  // =[] NOTE: 这个操作符不可省略 不可合并到assign中 因为数组地址和数组取值是不一样的
-    PHI,
-    ALLOCA,
+    PHI,      //
+    ALLOCA,   //
+    DECLARE,  // 函数参数声明
     // OFFSET_ASSIGN,  // []=
   };
   OpKind op_;

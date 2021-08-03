@@ -248,6 +248,9 @@ void IR::PrintIR(std::ostream &outfile) {
     case IR::OpKind::ALLOCA:
       PRINT_IR("alloca");
       break;
+    case IR::OpKind::DECLARE:
+      PRINT_IR("declare");
+      break;
     default:
       MyAssert(0);
       break;
