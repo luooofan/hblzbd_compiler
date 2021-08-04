@@ -567,14 +567,16 @@ void MXD::Run()
                 // 再加个条件：全局的不能外提。遇到全局可以跳过，也可以扫一下看有没有调函数。但这里就跳过了
                 if(res.scope_id_==0 || op1.scope_id_==0 || op2.scope_id_==0)continue;
 
-                continue;
                 // 要能外提，需要满足以下3个条件：
                 // 1.要么是当前基本块为loop中所有出口节点的必经节点，也就是当前基本块在must_out里，要么
                 // 是当前变量后续不再活跃，即will_not_live(注意，这里那个网站说错了，网站说的是出了
                 // loop不再活跃，但loop内可能还会用，直接提出去就错了)
                 // 2.res在loop中不再有其他定值，即check2(解释：本句指令前后都不能有res的定值语句)
                 // 3.loop中其他对于res的使用都只会从本句指令到达，即check3(从loop中的入口往后走，看能不能不经过本基本块到达res的使用)
-                if((have(unchanged[i].first,must_out) || will_not_live(unchanged[i],use[res.name_],suc,loop)) &&
+                // if((have(unchanged[i].first,must_out) || will_not_live(unchanged[i],use[res.name_],suc,loop)) &&
+                //    check2(unchanged[i],loop,def[res.name_]) &&
+                //    check3(enter,to,out,unchanged[i].first,res.name_,id_bb,use[res.name_]))
+                if((have(unchanged[i].first,must_out)) &&
                    check2(unchanged[i],loop,def[res.name_]) &&
                    check3(enter,to,out,unchanged[i].first,res.name_,id_bb,use[res.name_]))
                 {
