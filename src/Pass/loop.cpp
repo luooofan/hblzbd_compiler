@@ -455,6 +455,7 @@ void MXD::Run()
                 break;
             }
 
+#define DEBUG_LOOP_PASS
 #ifdef DEBUG_LOOP_PASS
             //TODO:后续测一下递归地不变运算能不能识别出来
             cout<<"输出不变运算:\n";
@@ -566,7 +567,7 @@ void MXD::Run()
                 // 再加个条件：全局的不能外提。遇到全局可以跳过，也可以扫一下看有没有调函数。但这里就跳过了
                 if(res.scope_id_==0 || op1.scope_id_==0 || op2.scope_id_==0)continue;
 
-
+                continue;
                 // 要能外提，需要满足以下3个条件：
                 // 1.要么是当前基本块为loop中所有出口节点的必经节点，也就是当前基本块在must_out里，要么
                 // 是当前变量后续不再活跃，即will_not_live(注意，这里那个网站说错了，网站说的是出了
