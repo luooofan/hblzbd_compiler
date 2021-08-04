@@ -41,7 +41,8 @@ vector<int> cross(vector<int> a,vector<int> b)
 
 // 二分查找x是否在points里，所以要求points有序
 // 更新：不二分了，可能找错了
-bool have(int x,vector<int> points)
+template<typename T>
+bool have(T x,vector<T> points)
 {
     // int l=0,r=points.size();
     // while(l<r)
@@ -94,7 +95,7 @@ bool check(ir::Opn x,vector<int> loop,map<string,vector<pair<int,int> > > def,ve
 }
 
 // 检查变量x是否出了loop后不在活跃(复杂度巨高，应该用活跃变量分析)
-bool will_not_live(vector<pair<int,int> > use,vector<int> suc) //use为变量x的use，suc为loop的后续节点
+bool will_not_live(pair<int,int> pos,vector<pair<int,int> > use,vector<int> suc,vector<int> loop) //use为变量x的use，suc为loop的后续节点
 {
     set<int> se;
     for(int i=0;i<use.size();i++)se.insert(use[i].first);
@@ -104,21 +105,27 @@ bool will_not_live(vector<pair<int,int> > use,vector<int> suc) //use为变量x�
             return false;
     }
     return true;
+    // for(int i=0;i<use.size();i++)
+    // {
+    //     if(use[i]==pos)continue;
+    //     if(have(use[i].first,suc) || have(use[i].first,loop))
+    //         return false;
+    // }
+    // return true;
 }
 
 // 检查变量x在loop中是否还有其他定值语句
-bool check2(int pos,vector<int> loop,vector<pair<int,int> > def) //pos为当前的基本块，要看loop中除了pos以外其他的基本块在不在def中
+bool check2(pair<int,int> pos,vector<int> loop,vector<pair<int,int> > def) //pos为当前的基本块，要看loop中除了pos以外其他的基本块在不在def中
 {
     set<int> se;
     for(int i=0;i<def.size();i++)
     {
-        if(def[i].first==pos)continue;
+        if(def[i]==pos)continue;
         se.insert(def[i].first);
     }
     for(int i=0;i<loop.size();i++)
     {
-        if(loop[i]==pos)continue;
-        if(se.find(loop[i])!=se.end()) // 如果在去除了pos的def中还能找到loop中的基本块，则不行
+        if(se.find(loop[i])!=se.end())
             return false;
     }
     return true;
@@ -168,13 +175,14 @@ void MXD::Run()
     cout<<"MXD 开始\n";
 #endif
 
+    int cntcnt=0;
+
     int standard=1; // 后面新建的基本块要有个新的label，从-1开始命名，label-1，label-2，...
 
     IRModule* irmodule=dynamic_cast<IRModule*>(*m_); //m_是Module**
 
 #ifdef DEBUG_LOOP_PASS
     cout<<"输出IR的结构\n";
-    // irmodule->EmitCode();
     for(int i=0;i<irmodule->func_list_.size();i++)
     {
         cout<<"f"<<i<<":\n";
@@ -187,9 +195,13 @@ void MXD::Run()
         }
     }
 #endif
+#undef DEBUG_LOOP_PASS
 
     for(auto& func:irmodule->func_list_)
     {
+        if(func->name_!="main")continue;
+
+
         auto bb_list=func->bb_list_;
         
         int n=0; // 点数（基本块数），先设为0待会当cnt用
@@ -234,6 +246,7 @@ void MXD::Run()
             }
         }
 
+
 #ifdef DEBUG_LOOP_PASS
         cout<<"输出处理后的IR:\n";
         for(int i=0;i<bb_list.size();i++)
@@ -243,6 +256,7 @@ void MXD::Run()
                 bb_list[i]->ir_list_[j]->PrintIR();
         }
 #endif
+#undef DEBUG_LOOP_PASS
 
         from.resize(n),to.resize(n);
         for(auto bb:bb_list) // 构造图
@@ -269,6 +283,7 @@ void MXD::Run()
             cout<<endl;
         }
 #endif
+#undef DEBUG_LOOP_PASS
 
         vector<vector<int> > dom(n); // 每个节点会有1个必经节点集
         // 初始化，0只有0，其余都是0~(n-1)
@@ -314,6 +329,7 @@ void MXD::Run()
         cout<<"输出所有回边:\n";
         for(int i=0;i<back.size();i++)cout<<back[i].first<<' '<<back[i].second<<'\n';
 #endif
+#undef DEBUG_LOOP_PASS
 
         vector<vector<int> > loops;
         vector<bool> vis(n,false);
@@ -358,6 +374,7 @@ void MXD::Run()
             cout<<'\n';
         }
 #endif
+#undef DEBUG_LOOP_PASS
 
         // 先不管数组
         // 先对整个函数计算每个变量的def、use，然后就可以找出每个循环中不变的运算了
@@ -380,11 +397,13 @@ void MXD::Run()
         // 找出不变运算
         for(auto loop:loops)
         {
+
 #ifdef DEBUG_LOOP_PASS
             cout<<"处理循环:";
             for(int i=0;i<loop.size();i++)cout<<loop[i]<<' ';
             cout<<endl;
 #endif
+#undef DEBUG_LOOP_PASS
             vector<pair<int,int> > unchanged;
             map<pair<int,int>,bool> vis;
             int last=-1;
@@ -413,7 +432,7 @@ void MXD::Run()
 
                             auto op1=ir_list[j]->opn1_,op2=ir_list[j]->opn2_,res=ir_list[j]->res_;
                             bool flag=true;
-                            flag&=op1.scope_id_==0,flag&=op2.scope_id_==0,flag&=res.scope_id_==0;
+                            flag&=op1.scope_id_!=0,flag&=op2.scope_id_!=0,flag&=res.scope_id_!=0;
                             if(res.type_==ir::Opn::Type::Array)
                                 flag&=check(*res.offset_,loop,def,unchanged);
                             if(op1.type_==ir::Opn::Type::Array)
@@ -433,6 +452,7 @@ void MXD::Run()
 
                     }
                 }
+                break;
             }
 
 #ifdef DEBUG_LOOP_PASS
@@ -441,6 +461,7 @@ void MXD::Run()
             for(int i=0;i<unchanged.size();i++)cout<<'('<<unchanged[i].first<<','<<unchanged[i].second<<")\n";
             cout<<endl;
 #endif
+#undef DEBUG_LOOP_PASS
 
             // 对每个不变语句看是否能外提，能的话直接外提了
 
@@ -524,7 +545,6 @@ void MXD::Run()
            // 我决定先把不变运算放进新基本块，再把他插入图中
 
             sort(unchanged.begin(),unchanged.end()); // 这里要排序，因为定值可能是递归地发现是定值，所以unchanged不一定有序
-            
             /*
             2个都是定值的、传递着是定值的、
             */
@@ -534,8 +554,18 @@ void MXD::Run()
                 ir::Opn op1=id_bb[unchanged[i].first]->ir_list_[unchanged[i].second]->opn1_;
                 ir::Opn op2=id_bb[unchanged[i].first]->ir_list_[unchanged[i].second]->opn2_;
 
+// cout<<"遍历unchanged"<<unchanged[i].first<<' '<<unchanged[i].second<<endl;
+// cout<<"临时:";
+// cout<<res.name_<<' '<<op1.name_<<' '<<op2.name_<<endl;
+// cout<<res.scope_id_<<' '<<op1.scope_id_<<' '<<op2.scope_id_<<' ';
+// cout<<have(unchanged[i].first,must_out)<<' '<<
+// will_not_live(unchanged[i],use[res.name_],suc,loop)<<' '<<
+// check2(unchanged[i],loop,def[res.name_])<<' '<<
+// check3(enter,to,out,unchanged[i].first,res.name_,id_bb,use[res.name_])<<endl;
+
                 // 再加个条件：全局的不能外提。遇到全局可以跳过，也可以扫一下看有没有调函数。但这里就跳过了
                 if(res.scope_id_==0 || op1.scope_id_==0 || op2.scope_id_==0)continue;
+
 
                 // 要能外提，需要满足以下3个条件：
                 // 1.要么是当前基本块为loop中所有出口节点的必经节点，也就是当前基本块在must_out里，要么
@@ -543,11 +573,13 @@ void MXD::Run()
                 // loop不再活跃，但loop内可能还会用，直接提出去就错了)
                 // 2.res在loop中不再有其他定值，即check2(解释：本句指令前后都不能有res的定值语句)
                 // 3.loop中其他对于res的使用都只会从本句指令到达，即check3(从loop中的入口往后走，看能不能不经过本基本块到达res的使用)
-                if((have(unchanged[i].first,must_out) || will_not_live(use[res.name_],suc)) &&
-                   check2(unchanged[i].first,loop,def[res.name_]) &&
+                if((have(unchanged[i].first,must_out) || will_not_live(unchanged[i],use[res.name_],suc,loop)) &&
+                   check2(unchanged[i],loop,def[res.name_]) &&
                    check3(enter,to,out,unchanged[i].first,res.name_,id_bb,use[res.name_]))
                 {
+                    ++cntcnt;
                     unchanged_bb->ir_list_.push_back(id_bb[unchanged[i].first]->ir_list_[unchanged[i].second]);
+                    // id_bb[unchanged[i].first]->ir_list_[unchanged[i].second]->op_=ir::IR::OpKind::VOID;
                     auto new_it=id_bb[unchanged[i].first]->ir_list_.begin();
                     for(int k=0;k<unchanged[i].second;k++)new_it++;
                     id_bb[unchanged[i].first]->ir_list_.erase(new_it);
@@ -556,6 +588,22 @@ void MXD::Run()
                     {
                         unchanged[j].second--;
                         j++;
+                    }
+                    def.clear();
+                    use.clear();
+                    for(int i=0;i<n;i++)
+                    {
+                        auto bb=id_bb[i];
+                        auto ir_list=bb->ir_list_;
+                        for(int j=0;j<ir_list.size();j++)
+                        {
+                            if(ir_list[j]->opn1_.type_==ir::Opn::Type::Var)
+                                use[ir_list[j]->opn1_.name_].push_back(make_pair(i,j));
+                            if(ir_list[j]->opn2_.type_==ir::Opn::Type::Var)
+                                use[ir_list[j]->opn2_.name_].push_back(make_pair(i,j));
+                            if(ir_list[j]->res_.type_==ir::Opn::Type::Var)
+                                def[ir_list[j]->res_.name_].push_back(make_pair(i,j));
+                        }
                     }
                 }
             }
@@ -726,6 +774,17 @@ void MXD::Run()
                 }
             }
         }
+        // for(int i=0;i<func->bb_list_.size();i++)
+        // {
+        //     for(auto it=func->bb_list_[i]->ir_list_.begin();it!=func->bb_list_[i]->ir_list_.end();)
+        //     {  
+        //         if((*it)->op_==ir::IR::OpKind::VOID)
+        //             func->bb_list_[i]->ir_list_.erase(it);
+        //         else
+        //             it++;
+        //     }
+        // }
+
 
 #ifdef DEBUG_LOOP_PASS
         cout<<"输出处理该函数后的IR:\n";
@@ -736,6 +795,7 @@ void MXD::Run()
                 func->bb_list_[i]->ir_list_[j]->PrintIR();
         }
 #endif
+#undef DEBUG_LOOP_PASS
     }
 
 #ifdef DEBUG_LOOP_PASS
@@ -753,4 +813,6 @@ void MXD::Run()
     }
     cout<<"MXD 结束\n";
 #endif
+#undef DEBUG_LOOP_PASS
+    cout<<"外提了指令："<<cntcnt<<"条"<<endl;
 }
