@@ -7,7 +7,7 @@
 #define ASSERT_ENABLE  // enable assert for this file.
 #include "../../include/myassert.h"
 
-#define DEBUG_CONVERT_SSA_PROCESS
+// #define DEBUG_CONVERT_SSA_PROCESS
 void ConvertSSA::Run() {
   auto m = dynamic_cast<IRModule*>(*(this->m_));
   MyAssert(nullptr != m);
@@ -18,9 +18,10 @@ void ConvertSSA::Run() {
     this->stack_.clear();
     Rename(f->bb_list_.front());
   }
-  m->EmitCode();
+  // m->EmitCode();
   auto ssam = this->ConstructSSA(m);
-  ssam->EmitCode();
+  *(this->m_) = static_cast<Module*>(ssam);
+  delete m;
 }
 
 Value* ConvertSSA::FindValueFromOpn(Opn* opn, bool is_global) {
@@ -42,7 +43,9 @@ void ConvertSSA::ProcessResValue(const std::string& comp_name, Opn* opn, Value* 
   // 如果是全局量就加一条store语句 否则记录映射即可
   MyAssert(opn->type_ == Opn::Type::Var);
   if (0 == opn->scope_id_) {  // 全局变量需要store
-    // std::cout << comp_name << std::endl;
+    // maintain used_glob_var
+    ssabb->GetFunction()->AddUsedGlobVar(dynamic_cast<GlobalVariable*>(val));
+
     new StoreInst(val, glob_map[comp_name], ssabb);
   } else {
     work_map[comp_name] = val;
@@ -61,11 +64,18 @@ Value* ConvertSSA::ResolveOpn2Value(Opn* opn, SSABasicBlock* ssabb) {
     auto comp_name = opn->GetCompName();
     res = this->FindValueFromCompName(comp_name, true);
     MyAssert(nullptr != res && res->GetType()->IsPointer());
+
+    if (type != Opn::Type::Func) {  // var & array
+      // maintain used_glob_var
+      ssabb->GetFunction()->AddUsedGlobVar(dynamic_cast<GlobalVariable*>(res));
+    }
+
     // new load load出的结果不需要记录 全局量每次都要load
     if (type == Opn::Type::Var) {
       static int glob_temp_index = 1;
-      res = new LoadInst(new Type(Type::IntegerTyID), "glob_temp_" + std::to_string(glob_temp_index++), res, ssabb);
+      res = new LoadInst(new Type(Type::IntegerTyID), "glotmp_" + std::to_string(glob_temp_index++), res, ssabb);
     }  // 全局数组直接返回i32 pointer
+
   } else {  // label标签 或 局部变量数组 局部变量可能未定义 局部数组只会返回i32 pointer类型的value
     auto comp_name = opn->GetCompName();
     res = this->FindValueFromCompName(comp_name, false);
@@ -164,16 +174,16 @@ void ConvertSSA::ProcessGlobalVariable(IRModule* irm, SSAModule* ssam) {
 #endif
 }
 
-void ConvertSSA::AddBuiltInFunction() {  // TODO
-  glob_map["memset"] = new FunctionValue("memset");
-  glob_map["getint"] = new FunctionValue("getint");
-  glob_map["getch"] = new FunctionValue("getch");
-  glob_map["getarray"] = new FunctionValue("getarray");
-  glob_map["putint"] = new FunctionValue("putint");
-  glob_map["putch"] = new FunctionValue("putch");
-  glob_map["putarray"] = new FunctionValue("putarray");
-  glob_map["_sysy_starttime"] = new FunctionValue("_sysy_starttime");
-  glob_map["_sysy_stoptime"] = new FunctionValue("_sysy_stoptime");
+void ConvertSSA::AddBuiltInFunction() {
+  glob_map["memset"] = new FunctionValue("memset", new SSAFunction("memset"));
+  glob_map["getint"] = new FunctionValue("getint", new SSAFunction("getint"));
+  glob_map["getch"] = new FunctionValue("getch", new SSAFunction("getch"));
+  glob_map["getarray"] = new FunctionValue("getarray", new SSAFunction("getarray"));
+  glob_map["putint"] = new FunctionValue("putint", new SSAFunction("putint"));
+  glob_map["putch"] = new FunctionValue("putch", new SSAFunction("putch"));
+  glob_map["putarray"] = new FunctionValue("putarray", new SSAFunction("putarray"));
+  glob_map["_sysy_starttime"] = new FunctionValue("_sysy_starttime", new SSAFunction("_sysy_starttime"));
+  glob_map["_sysy_stoptime"] = new FunctionValue("_sysy_stoptime", new SSAFunction("_sysy_stoptime"));
 }
 
 void ConvertSSA::GenerateSSABasicBlocks(IRFunction* func, SSAFunction* ssafunc,
@@ -296,6 +306,10 @@ SSAModule* ConvertSSA::ConstructSSA(IRModule* module) {
           }
           case ir::IR::OpKind::CALL: {
             auto func_value = dynamic_cast<FunctionValue*>(glob_map[ir.opn1_.GetCompName()]);
+            MyAssert(nullptr != func_value);
+            // maintain call_func
+            ssafunc->AddCallFunc(func_value);
+
             CallInst* call_inst = nullptr;
             if (ir.res_.type_ == Opn::Type::Null) {
               call_inst = new CallInst(func_value, ssabb);
@@ -334,7 +348,11 @@ SSAModule* ConvertSSA::ConstructSSA(IRModule* module) {
             Value* res = nullptr;
             if (ir.res_.type_ != ir::Opn::Type::Array) {  // NOTE: consider array address
               if (0 == ir.res_.scope_id_) {
-                new StoreInst(val, glob_map[res_comp_name], ssabb);
+                auto glob_var = glob_map[res_comp_name];
+                new StoreInst(val, glob_var, ssabb);
+
+                // maintain used_glob_var
+                ssafunc->AddUsedGlobVar(dynamic_cast<GlobalVariable*>(glob_var));
               } else {
                 res = new MovInst(val->GetType(), res_comp_name, val, ssabb);
                 work_map[res_comp_name] = res;
@@ -393,14 +411,17 @@ SSAModule* ConvertSSA::ConstructSSA(IRModule* module) {
           case ir::IR::OpKind::ALLOCA: {
             // alloca opn - imm : alloca quad-ir only for array. regard opn as one dimensional array
             MyAssert(ir.res_.type_ == ir::Opn::Type::Imm);
-            // auto type = new ArrayType(ir.res_.imm_num_);
-            // new AllocaInst(type, ssabb);
-            new AllocaInst(new ConstantInt(ir.res_.imm_num_), ssabb);
 
             // create a value which owns i32 pointer type
             auto ptr_type = new Type(Type::PointerTyID);
             const auto& array_name = ir.opn1_.GetCompName();
-            work_map[array_name] = new Value(ptr_type, array_name);
+            auto value = new Value(ptr_type, array_name);
+            work_map[array_name] = value;
+
+            // auto type = new ArrayType(ir.res_.imm_num_);
+            // new AllocaInst(type, ssabb);
+            new AllocaInst(new ConstantInt(ir.res_.imm_num_), value, ssabb);
+
             break;
           }
           case ir::IR::OpKind::DECLARE: {
@@ -462,7 +483,7 @@ void ConvertSSA::Rename(IRBasicBlock* bb) {
     }
   }  // end of ir for-loop
   // 填写bb的succ中的phi ir
-  std::cout << "fill phi" << std::endl;
+  // std::cout << "fill phi" << std::endl;
   for (auto succ : bb->succ_) {
     int order = std::distance(succ->pred_.begin(), std::find(succ->pred_.begin(), succ->pred_.end(), bb));
     MyAssert(order < succ->pred_.size());

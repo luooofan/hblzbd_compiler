@@ -159,11 +159,16 @@ class Argument;
 class FunctionValue : public Value {
  private:
   std::list<Argument*> arg_list_;  // not use. only record info. valid order.
+  SSAFunction* func_ = nullptr;
+
  public:
+  // FunctionValue(const std::string& name);
   // FunctionValue(FunctionType* type, const std::string& name, SSAFunction* func);
   FunctionValue(const std::string& name, SSAFunction* func);
-  FunctionValue(const std::string& name);
+  const std::list<Argument*>& GetArgList() const { return arg_list_; }
+  SSAFunction* GetFunction() { return func_; }
   void AddArg(Argument* arg) { arg_list_.push_back(arg); }
+  unsigned GetArgNum() const { return arg_list_.size(); }
   virtual ~FunctionValue() {}
   virtual void Print(std::ostream& outfile = std::clog);
 };
@@ -195,10 +200,7 @@ class User : public Value {
  public:
   std::vector<Use> operands_;  // All Use instances are constructed in User
   User(Type* type, const std::string& name) : Value(type, name) {}
-  Value* GetOperand(unsigned i) {
-    // assert
-    return operands_[i].Get();
-  }
+  Value* GetOperand(unsigned i);
   unsigned GetNumOperands() const { return operands_.size(); }
   virtual ~User() {}
   virtual void Print(std::ostream& outfile = std::clog);
@@ -307,13 +309,14 @@ class ReturnInst : public SSAInstruction {
 };
 
 // Alloca-inst has only a constint operand which indicates the stack space would be allocated in runtime
-// [no used][use a ConstantInt operand]
+// [no used][use 2 operands][The first operand must be ConstantInt]
 class AllocaInst : public SSAInstruction {
   AllocaInst(Type* type, SSABasicBlock* parent) : SSAInstruction(type, "", parent) {}
 
  public:
-  AllocaInst(Value* val, SSABasicBlock* parent) : SSAInstruction(new Type(Type::VoidTyID), "", parent) {
-    operands_.push_back(Use(val, this));
+  AllocaInst(Value* space, Value* value, SSABasicBlock* parent) : SSAInstruction(new Type(Type::VoidTyID), "", parent) {
+    operands_.push_back(Use(space, this));
+    operands_.push_back(Use(value, this));
   }
   virtual ~AllocaInst() {}
   virtual void Print(std::ostream& outfile = std::clog);

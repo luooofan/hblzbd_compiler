@@ -4,13 +4,15 @@
 
 #include "../include/ssa_struct.h"
 #define INDENT 12
-
+#define ASSERT_ENABLE
+#include "../include/myassert.h"
 // FunctionValue::FunctionValue(FunctionType *type, const std::string &name, SSAFunction *func) : Value(type, name) {
 //   func->BindValue(this);
 // }
-FunctionValue::FunctionValue(const std::string &name) : Value(new Type(Type::FunctionTyID), name) {}
+// FunctionValue::FunctionValue(const std::string &name) : Value(new Type(Type::FunctionTyID), name) {}
 
-FunctionValue::FunctionValue(const std::string &name, SSAFunction *func) : Value(new Type(Type::FunctionTyID), name) {
+FunctionValue::FunctionValue(const std::string &name, SSAFunction *func)
+    : Value(new Type(Type::FunctionTyID), name), func_(func) {
   func->BindValue(this);
 }
 
@@ -39,6 +41,10 @@ void FunctionValue::Print(std::ostream &outfile) { Value::Print(outfile); }
 
 void BasicBlockValue::Print(std::ostream &outfile) { Value::Print(outfile); }
 
+Value *User::GetOperand(unsigned i) {
+  MyAssert(i < GetNumOperands());
+  return operands_[i].Get();
+}
 void User::Print(std::ostream &outfile) {
   for (auto &opn : operands_) {
     auto val = opn.Get();
@@ -135,7 +141,7 @@ void CallInst::Print(std::ostream &outfile) {
   std::string prefix = "";
   if (!GetType()->IsVoid()) {
     Value::Print(outfile);
-    prefix = " = ";
+    prefix = "=";
   }
   prefix += "call";
   outfile << std::setw(INDENT) << prefix;
@@ -176,3 +182,5 @@ void PhiInst::Print(std::ostream &outfile) {
   User::Print(outfile);
   outfile << std::endl;
 }
+
+#undef ASSERT_ENABLE
