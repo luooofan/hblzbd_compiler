@@ -89,6 +89,9 @@ void BinaryInst::EmitCode(std::ostream& outfile) {
     case OpCode::BIC:
       opcode = "bic";
       break;
+    case OpCode::SDIV:
+      opcode = "sdiv";
+      break;
     case OpCode::CMP:
       opcode = "cmp";
       break;
