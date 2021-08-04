@@ -233,7 +233,7 @@ void ConvertSSA::GenerateSSABasicBlocks(IRFunction* func, SSAFunction* ssafunc,
 SSAModule* ConvertSSA::ConstructSSA(IRModule* module) {
   // 由ir module直接构建ssa module 构建的过程中把ir中的label语句删掉 转化成了基本块的label
   // NOTE: 可能会出现一些空的bb 有些基本块是unnamed
-  SSAModule* ssamodule = new SSAModule(module->name_);
+  SSAModule* ssamodule = new SSAModule(module->global_scope_, module->name_);  // FIXME: terrible design
   std::unordered_map<IRFunction*, SSAFunction*> func_map;
 
   // process all global variable

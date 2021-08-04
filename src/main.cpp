@@ -144,7 +144,7 @@ int main(int argc, char **argv) {
   } else {
     pm.Run();
   }
-  exit(0);
+  // exit(0);
 #ifdef DEBUG_PROCESS
   std::cout << "Passes End." << std::endl;
 #endif

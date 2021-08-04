@@ -15,12 +15,11 @@ class ArmModule : public Module {
  public:
   // functions: ordered
   std::vector<ArmFunction*> func_list_;
-  ir::Scope& global_scope_;
+  ir::Scope& global_scope_;  // FIXME: terrible design
 
  public:
   ArmModule(const std::string& name, ir::Scope& global_scope) : Module(name), global_scope_(global_scope) {}
   ArmModule(ir::Scope& global_scope) : global_scope_(global_scope) {}
-  ArmModule() : global_scope_(*(new ir::Scope(0, -1, 0))) {}
   virtual ~ArmModule() {}
   void EmitCode(std::ostream& out = std::cout);
   void Check();

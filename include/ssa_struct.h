@@ -14,6 +14,7 @@ class SSABasicBlock;
 class SSAFunction;
 class FunctionValue;
 class BasicBlockValue;
+class Scope;
 
 class SSAModule : public Module {
  private:
@@ -21,9 +22,11 @@ class SSAModule : public Module {
   std::list<SSAFunction*> func_list_;
 
  public:
+  ir::Scope& global_scope_;  // FIXME: terrible design
   // a symbol table
   std::string name_;
-  SSAModule(std::string name = "") : Module(name), name_(name){};
+  SSAModule(ir::Scope& global_scope, std::string name = "") : Module(name), name_(name), global_scope_(global_scope){};
+  // SSAModule(std::string name = "") : Module(name), name_(name){};
 
   const std::list<SSAFunction*>& GetFuncList() const { return func_list_; }
   const std::list<GlobalVariable*>& GetGlobVarList() const { return glob_var_list_; }

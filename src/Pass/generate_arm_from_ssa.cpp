@@ -8,7 +8,7 @@
 #include "../../include/myassert.h"
 
 using namespace arm;
-#define DEBUG_GENARM_FROMSSA_PROCESS
+// #define DEBUG_GENARM_FROMSSA_PROCESS
 #define NEW_INST(inst) static_cast<Instruction*>(new inst)
 #define ADD_NEW_INST(inst) armbb->inst_list_.push_back(static_cast<Instruction*>(new inst));
 
@@ -231,7 +231,7 @@ ArmModule* GenerateArmFromSSA::GenCode(SSAModule* module) {
 #ifdef DEBUG_GENARM_FROMSSA_PROCESS
   std::cout << "Gen ArmCode From SSA Start:" << std::endl;
 #endif
-  ArmModule* armmodule = new ArmModule();
+  ArmModule* armmodule = new ArmModule(module->name_, module->global_scope_);  // FIXME: terrible design
   std::unordered_map<SSAFunction*, ArmFunction*> func_map;
 
   // for every ir func

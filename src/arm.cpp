@@ -3,16 +3,8 @@
 #include <cassert>
 #include <unordered_set>
 #define ASSERT_ENABLE
-// assert(res);
-#ifdef ASSERT_ENABLE
-#define MyAssert(res)                                                    \
-  if (!(res)) {                                                          \
-    std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl; \
-    exit(255);                                                           \
-  }
-#else
-#define MyAssert(res) ;
-#endif
+#include "../include/myassert.h"
+
 namespace arm {
 std::unordered_set<std::string> gAllLabel;
 std::string CondToString(Cond cond) {
@@ -202,7 +194,4 @@ void PushPop::EmitCode(std::ostream& outfile) {
 
 }  // namespace arm
 
-#undef MyAssert
-#ifdef ASSERT_ENABLE
 #undef ASSERT_ENABLE
-#endif

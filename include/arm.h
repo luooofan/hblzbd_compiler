@@ -1,20 +1,10 @@
 #ifndef __ARM_H__
 #define __ARM_H__
-#include <cassert>
 #include <unordered_set>
 
-#include "../include/ir_struct.h"
+#include "./ir_struct.h"
 #define ASSERT_ENABLE
-// assert(res);
-#ifdef ASSERT_ENABLE
-#define MyAssert(res)                                                    \
-  if (!(res)) {                                                          \
-    std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl; \
-    exit(255);                                                           \
-  }
-#else
-#define MyAssert(res) ;
-#endif
+#include "./myassert.h"
 
 namespace arm {
 // ref: https://en.wikipedia.org/wiki/Calling_convention#ARM_(A32)
@@ -266,7 +256,7 @@ class Branch : public Instruction {
   virtual void Check() {
     MyAssert(label_ != "" && label_ != "putf");  // 要么以点开头 要么是函数名
     // std::cout << label_ << std::endl;
-    if (label_ != "lr") MyAssert(arm::gAllLabel.find(label_) != arm::gAllLabel.end());
+    // if (label_ != "lr") MyAssert(arm::gAllLabel.find(label_) != arm::gAllLabel.end());
     // this->EmitCode();
     if (has_x_) {
       MyAssert(label_ == "lr");
@@ -360,7 +350,4 @@ class PushPop : public Instruction {
 
 #endif
 
-#undef MyAssert
-#ifdef ASSERT_ENABLE
 #undef ASSERT_ENABLE
-#endif
