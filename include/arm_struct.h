@@ -1,6 +1,7 @@
 // Reference: https://developer.arm.com/documentation/100076/0200
 #ifndef __ARM_STRUCT_H__
 #define __ARM_STRUCT_H__
+#include <set>
 #include <unordered_set>
 
 #include "../include/arm.h"
@@ -36,12 +37,13 @@ class ArmFunction {
   std::vector<ArmFunction*> call_func_list_;
   std::vector<Instruction*> sp_arg_fixup_;  // a ldr-pseudo inst
   std::vector<Instruction*> sp_fixup_;
+  std::set<int> used_callee_saved_regs;
 
   ArmFunction(const std::string& name, int arg_num, int stack_size)
       : name_(name), arg_num_(arg_num), stack_size_(stack_size) {}
   virtual ~ArmFunction() {}
   bool IsLeaf() {
-    return false;
+    // return false;
     return call_func_list_.empty();
   }
   void EmitCode(std::ostream& out = std::cout);

@@ -5,9 +5,11 @@
 
 #include "../include/Pass/allocate_register.h"
 #include "../include/Pass/arm_liveness_analysis.h"
+#include "../include/Pass/arm_offset_fixup.h"
 #include "../include/Pass/convert_ssa.h"
 #include "../include/Pass/dominant.h"
 #include "../include/Pass/generate_arm.h"
+#include "../include/Pass/generate_arm_from_ssa.h"
 #include "../include/Pass/generate_arm_opt.h"
 #include "../include/Pass/pass_manager.h"
 #include "../include/Pass/simplify_armcode.h"
@@ -16,6 +18,8 @@
 #include "../include/ast.h"
 #include "../include/ir.h"
 #include "../include/ir_struct.h"
+#include "../include/ssa.h"
+#include "../include/ssa_struct.h"
 #include "parser.hpp"
 ast::Root *ast_root;  // the root node of final AST
 extern int yyparse();
@@ -84,7 +88,7 @@ int main(int argc, char **argv) {
 
   MyAssert(nullptr != ast_root);
   if (logfile.is_open()) {
-    logfile << "PrintNode:" << std::endl;
+    logfile << "AST:" << std::endl;
     ast_root->PrintNode(0, logfile);
   }
 
@@ -118,26 +122,35 @@ int main(int argc, char **argv) {
   std::cout << "Passes Start:" << std::endl;
 #endif
   PassManager pm(module_ptr_addr);
+  // ==================Add Quad-Pass Below==================
   // pm.AddPass<DeadCodeEliminate>(false);
+
+  // ==================Add Quad-Pass Above==================
   pm.AddPass<ComputeDominance>(false);
   pm.AddPass<ConvertSSA>(false);
+  // ==================Add SSA-Pass Below==================
+
+  // ==================Add SSA-Pass Above==================
   // pm.AddPass<GenerateArm>(false);  // 需要在genir中define NO_OPT
   // pm.AddPass<GenerateArmOpt>(false);
-  // pm.AddPass<RegAlloc>(false);
-  // pm.AddPass<SimplifyArm>(false);  // 不能也不必在regalloc之前调用
+  pm.AddPass<GenerateArmFromSSA>(false);
+  pm.AddPass<RegAlloc>(false);
+  pm.AddPass<SPOffsetFixup>(false);
+  // ==================Add Arm-Pass Below==================
+  pm.AddPass<SimplifyArm>(false);  // 不能也不必在regalloc之前调用
+  // ==================Add Arm-Pass Above==================
   if (logfile.is_open()) {
     pm.Run(true, logfile);
   } else {
     pm.Run();
   }
   exit(0);
-  // MyAssert(0);
 #ifdef DEBUG_PROCESS
   std::cout << "Passes End." << std::endl;
 #endif
-
   MyAssert(typeid(*module_ptr) == typeid(ArmModule));
   dynamic_cast<ArmModule *>(module_ptr)->Check();
+
 #ifdef DEBUG_PROCESS
   std::cout << "Emit Start:" << std::endl;
 #endif
@@ -172,7 +185,7 @@ int main(int argc, char **argv) {
   // release the arm module space.
   delete module_ptr;
   module_ptr = nullptr;
-  // MyAssert(0);
+
   return 0;
 }
 
