@@ -3,7 +3,10 @@
 #include <iostream>
 #include <list>
 #include <string>
+#include <unordered_set>
 #include <vector>
+
+#include "./general_struct.h"
 class Value;
 class SSAInstruction;
 class GlobalVariable;
@@ -12,18 +15,18 @@ class SSAFunction;
 class FunctionValue;
 class BasicBlockValue;
 
-class SSAModule {
+class SSAModule : public Module {
  private:
   std::list<GlobalVariable*> glob_var_list_;
   std::list<SSAFunction*> func_list_;
 
  public:
-  // list of funcs
-  // list of globalvars
   // a symbol table
-  // a few helpful member funcs that try to make common operations easy.
   std::string name_;
-  SSAModule(std::string name = "") : name_(name){};
+  SSAModule(std::string name = "") : Module(name), name_(name){};
+
+  const std::list<SSAFunction*>& GetFuncList() const { return func_list_; }
+  const std::list<GlobalVariable*>& GetGlobVarList() const { return glob_var_list_; }
   void AddFunction(SSAFunction* f);
   void RemoveFunction(SSAFunction* f);
   void AddGlobalVariable(GlobalVariable* g);
@@ -34,17 +37,31 @@ class SSAModule {
 
 class SSAFunction {
  private:
-  SSAModule* m_;
-  std::list<SSABasicBlock*> bb_list_;
+  std::string func_name_;
+  SSAModule* m_ = nullptr;
+  FunctionValue* value_ = nullptr;
 
-  FunctionValue* value_;
+  // need to maintain these data structure in every ssa-transform pass
+  std::list<SSABasicBlock*> bb_list_;
+  std::unordered_set<SSAFunction*> call_func_list_;         // may can be unorderd
+  std::unordered_set<GlobalVariable*> used_glob_var_list_;  // may can be unorderd
 
  public:
   void BindValue(FunctionValue* value) { value_ = value; }
   FunctionValue* GetValue() const { return value_; }
 
-  std::string func_name_;
+  const std::string& GetFuncName() const { return func_name_; }
   SSAFunction(const std::string& func_name, SSAModule* m) : func_name_(func_name), m_(m) { m->AddFunction(this); }
+  SSAFunction(const std::string& func_name) : func_name_(func_name) {}  // builtin function will not be added to module
+
+  const std::list<SSABasicBlock*>& GetBBList() const { return bb_list_; }
+
+  void AddCallFunc(SSAFunction* func);
+  void AddCallFunc(FunctionValue* func_val);
+  std::unordered_set<SSAFunction*>& GetCallFuncList() { return call_func_list_; }
+
+  void AddUsedGlobVar(GlobalVariable* glob_var);
+  std::unordered_set<GlobalVariable*>& GetUsedGlobVarList() { return used_glob_var_list_; }
 
   void SetModule(SSAModule* m) { m_ = m; }
   SSAModule* GetModule() const { return m_; }
@@ -65,7 +82,7 @@ class SSABasicBlock {
   std::list<SSABasicBlock*> pred_;
   std::list<SSABasicBlock*> succ_;
 
-  BasicBlockValue* value_;
+  BasicBlockValue* value_ = nullptr;
 
  public:
   void BindValue(BasicBlockValue* value) { value_ = value; }
@@ -74,18 +91,18 @@ class SSABasicBlock {
   SSABasicBlock(const std::string& label, SSAFunction* func) : label_(label), func_(func) { func->AddBasicBlock(this); }
   SSABasicBlock(SSAFunction* func) : func_(func) { func->AddBasicBlock(this); }
 
+  const std::list<SSAInstruction*>& GetInstList() const { return inst_list_; }
+
   std::string& GetLabel() { return label_; }
   void SetLabel(const std::string& label) { label_ = label; }
 
   void SetFunction(SSAFunction* func) { func_ = func; }
   SSAFunction* GetFunction() const { return func_; }
 
-  // interface to man insts
   std::list<SSAInstruction*>& GetInstructions() { return inst_list_; }
   void AddInstruction(SSAInstruction* inst);
   void RemoveInstruction(SSAInstruction* inst);
 
-  // interface to man pred and succ. dont't auto .. this's pred/succ and pred/succ bb's succ/pred
   std::list<SSABasicBlock*>& GetPredBB() { return pred_; }
   std::list<SSABasicBlock*>& GetSuccBB() { return succ_; }
   void AddPredBB(SSABasicBlock* pred) { pred_.push_back(pred); }

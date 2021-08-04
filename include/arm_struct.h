@@ -14,17 +14,22 @@ class ArmModule : public Module {
  public:
   // functions: ordered
   std::vector<ArmFunction*> func_list_;
+  ir::Scope& global_scope_;
 
  public:
-  ArmModule(const std::string& name, ir::Scope& global_scope) : Module(name, global_scope) {}
-  ArmModule(ir::Scope& global_scope) : Module(global_scope) {}
+  ArmModule(const std::string& name, ir::Scope& global_scope) : Module(name), global_scope_(global_scope) {}
+  ArmModule(ir::Scope& global_scope) : global_scope_(global_scope) {}
+  ArmModule() : global_scope_(*(new ir::Scope(0, -1, 0))) {}
   virtual ~ArmModule() {}
   void EmitCode(std::ostream& out = std::cout);
   void Check();
 };
 
-class ArmFunction : public Function {
+class ArmFunction {
  public:
+  std::string name_;
+  int arg_num_;
+  int stack_size_;
   int virtual_reg_max = 16;  // rx x+1
   // basicblocks: ordered
   std::vector<ArmBasicBlock*> bb_list_;
@@ -32,14 +37,18 @@ class ArmFunction : public Function {
   std::vector<Instruction*> sp_arg_fixup_;  // a ldr-pseudo inst
   std::vector<Instruction*> sp_fixup_;
 
-  ArmFunction(const std::string& name, int arg_num, int stack_size) : Function(name, arg_num, stack_size) {}
+  ArmFunction(const std::string& name, int arg_num, int stack_size)
+      : name_(name), arg_num_(arg_num), stack_size_(stack_size) {}
   virtual ~ArmFunction() {}
-  bool IsLeaf() { return call_func_list_.empty(); }
+  bool IsLeaf() {
+    return false;
+    return call_func_list_.empty();
+  }
   void EmitCode(std::ostream& out = std::cout);
   void Check();
 };
 
-class ArmBasicBlock : public BasicBlock {
+class ArmBasicBlock {
  public:
   std::string* label_;
   // only used for emitting
