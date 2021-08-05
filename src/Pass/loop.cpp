@@ -10,6 +10,7 @@
 #include "../../include/ir_struct.h"
 #include "../../include/general_struct.h"
 #include "../../include/Pass/loop.h"
+#include "../../include/Pass/ir_liveness_analysis.h"
 
 using namespace std;
 
@@ -105,14 +106,9 @@ bool will_not_live(pair<int,int> pos,vector<pair<int,int> > use,vector<int> suc,
             return false;
     }
     return true;
-    // for(int i=0;i<use.size();i++)
-    // {
-    //     if(use[i]==pos)continue;
-    //     if(have(use[i].first,suc) || have(use[i].first,loop))
-    //         return false;
-    // }
-    // return true;
 }
+
+// bool will_not_live()
 
 // 检查变量x在loop中是否还有其他定值语句
 bool check2(pair<int,int> pos,vector<int> loop,vector<pair<int,int> > def) //pos为当前的基本块，要看loop中除了pos以外其他的基本块在不在def中
@@ -573,7 +569,7 @@ void MXD::Run()
                 // if((have(unchanged[i].first,must_out) || will_not_live(unchanged[i],use[res.name_],suc,loop)) &&
                 //    check2(unchanged[i],loop,def[res.name_]) &&
                 //    check3(enter,to,out,unchanged[i].first,res.name_,id_bb,use[res.name_]))
-                if((have(unchanged[i].first,must_out) || will_not_live(unchanged[i],use[res.name_],suc,loop)) &&
+                if((have(unchanged[i].first,must_out)) &&
                    check2(unchanged[i],loop,def[res.name_]) &&
                    check3(enter,to,out,unchanged[i].first,res.name_,id_bb,use[res.name_]))
                 {
