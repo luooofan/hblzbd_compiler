@@ -166,7 +166,8 @@ void ConvertSSA::ProcessGlobalVariable(IRModule* irm, SSAModule* ssam) {
     // new glob. record size: int-4 array-4*n. as a i32 pointer.
     auto glob_var = new GlobalVariable(symbol, symbol_item.is_array_ ? symbol_item.width_[0] : 4);
     if (symbol_item.is_const_) {  // NOTE 此时一定是常量数组 原符号表项中的initval失效
-      glob_var->val_.swap(symbol_item.initval_);
+      // glob_var->val_.swap(symbol_item.initval_);
+      glob_var->val_ = symbol_item.initval_;
     }
     ssam->AddGlobalVariable(glob_var);
     glob_map[symbol] = glob_var;
