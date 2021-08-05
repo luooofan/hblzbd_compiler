@@ -298,12 +298,26 @@ void ConvertSSA::ConstructSSA4BB(IRBasicBlock* bb, SSAFunction* ssafunc,
           call_inst = new CallInst(new Type(Type::IntegerTyID), res_comp_name, func_value, ssabb);
           ProcessResValue(res_comp_name, &(ir.res_), call_inst, ssabb);
         }
+
         // 添加参数
         MyAssert(ir.opn2_.type_ == Opn::Type::Imm);
+        // NOTE: a[10][10][10]  func(a[10]) many_params1|2 chaos_token
+        static int temp_for_array_address_compute = 1;
         int arg_num = ir.opn2_.imm_num_;
         for (int i = 1; i <= arg_num; ++i) {
           auto param_ir = **(ir_iter - i);
-          call_inst->AddArg(ResolveOpn2Value(&(param_ir.opn1_), ssabb));
+          auto val = ResolveOpn2Value(&(param_ir.opn1_), ssabb);
+          if (param_ir.opn1_.type_ == Opn::Type::Array) {
+            // 先把基址+偏移算到一个temp value里 再把temp value加到arg里 不必记录
+            // param_ir.PrintIR(std::cout);
+            auto offset_val = ResolveOpn2Value(param_ir.opn1_.offset_, ssabb) /*一定找得到 不会新加指令*/;
+            auto final_address = new BinaryOperator(val->GetType(), BinaryOperator::ADD,
+                                                    std::to_string(temp_for_array_address_compute++) + "-temp", val,
+                                                    offset_val, call_inst);
+            call_inst->AddArg(final_address);
+          } else {
+            call_inst->AddArg(val);
+          }
         }
         break;
       }

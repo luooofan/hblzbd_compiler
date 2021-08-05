@@ -1,5 +1,7 @@
 #include "../include/ssa_struct.h"
 
+#include <algorithm>
+
 #include "../include/ssa.h"
 #define ASSERT_ENABLE
 #include "../include/myassert.h"
@@ -38,6 +40,11 @@ void SSAFunction::RemoveBasicBlock(SSABasicBlock* bb) {
 
 void SSABasicBlock::AddInstruction(SSAInstruction* inst) {
   inst_list_.push_back(inst);
+  inst->SetParent(this);
+}
+void SSABasicBlock::AddInstruction(SSAInstruction* inst, SSAInstruction* insert_before) {
+  // NOTE HERE
+  inst_list_.insert(std::find(inst_list_.begin(), inst_list_.end(), insert_before), inst);
   inst->SetParent(this);
 }
 void SSABasicBlock::RemoveInstruction(SSAInstruction* inst) {

@@ -215,6 +215,7 @@ class SSAInstruction : public User {
  public:
   SSABasicBlock* parent_;
   SSAInstruction(Type* type, const std::string& name, SSABasicBlock* parent);
+  SSAInstruction(Type* type, const std::string& name, SSAInstruction* inst);
   void SetParent(SSABasicBlock* parent) { parent_ = parent; }
   virtual ~SSAInstruction() {}
   virtual void Print(std::ostream& outfile = std::clog) = 0;
@@ -233,6 +234,11 @@ class BinaryOperator : public SSAInstruction {
   OpKind op_;
   BinaryOperator(Type* type, OpKind op, const std::string name, Value* lhs, Value* rhs, SSABasicBlock* parent)
       : SSAInstruction(type, name, parent), op_(op) {
+    operands_.push_back(Use(lhs, this));
+    operands_.push_back(Use(rhs, this));
+  };
+  BinaryOperator(Type* type, OpKind op, const std::string name, Value* lhs, Value* rhs, SSAInstruction* inst)
+      : SSAInstruction(type, name, inst), op_(op) {
     operands_.push_back(Use(lhs, this));
     operands_.push_back(Use(rhs, this));
   };

@@ -104,8 +104,8 @@ class SSABasicBlock {
 
   std::list<SSAInstruction*>& GetInstructions() { return inst_list_; }
   void AddInstruction(SSAInstruction* inst);
+  void AddInstruction(SSAInstruction* inst, SSAInstruction* insert_before);
   void RemoveInstruction(SSAInstruction* inst);
-
   std::list<SSABasicBlock*>& GetPredBB() { return pred_; }
   std::list<SSABasicBlock*>& GetSuccBB() { return succ_; }
   void AddPredBB(SSABasicBlock* pred) { pred_.push_back(pred); }

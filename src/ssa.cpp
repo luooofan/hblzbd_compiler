@@ -25,6 +25,10 @@ SSAInstruction::SSAInstruction(Type *type, const std::string &name, SSABasicBloc
     : User(type, name), parent_(nullptr) {
   parent->AddInstruction(this);
 };
+SSAInstruction::SSAInstruction(Type *type, const std::string &name, SSAInstruction *inst)
+    : User(type, name), parent_(nullptr) {
+  inst->parent_->AddInstruction(this, inst);
+};
 
 void Value::Print(std::ostream &outfile) { outfile << std::setw(INDENT) << "%" + name_; }
 
