@@ -7,7 +7,9 @@
 #define ASSERT_ENABLE  // enable assert for this file.
 #include "../../include/myassert.h"
 
-// #define DEBUG_CONVERT_SSA_PROCESS
+#define DEBUG_CONVERT_SSA_PROCESS
+// #define DEBUG_CONSTRUCT_SSA_PROCESS
+
 void ConvertSSA::Run() {
   auto m = dynamic_cast<IRModule*>(*(this->m_));
   MyAssert(nullptr != m);
@@ -81,6 +83,7 @@ Value* ConvertSSA::ResolveOpn2Value(Opn* opn, SSABasicBlock* ssabb) {
     res = this->FindValueFromCompName(comp_name, false);
 
     if (nullptr == res) {  // 未定义变量
+      std::cout << std::string(*opn) << std::endl;
       MyAssert(type == Opn::Type::Var);
       // new undefval
       res = new UndefVariable(new Type(Type::IntegerTyID), comp_name);
@@ -155,7 +158,7 @@ int GetOpKind(ir::IR::OpKind srcop) {
 }
 
 void ConvertSSA::ProcessGlobalVariable(IRModule* irm, SSAModule* ssam) {
-#ifdef DEBUG_CONVERT_SSA_PROCESS
+#ifdef DEBUG_CONSTRUCT_SSA_PROCESS
   std::cout << "Process All Global Variables Start:" << std::endl;
 #endif
 
@@ -169,7 +172,7 @@ void ConvertSSA::ProcessGlobalVariable(IRModule* irm, SSAModule* ssam) {
     glob_map[symbol] = glob_var;
   }
 
-#ifdef DEBUG_CONVERT_SSA_PROCESS
+#ifdef DEBUG_CONSTRUCT_SSA_PROCESS
   std::cout << "Process All Global Variables Finish." << std::endl;
 #endif
 }
@@ -230,6 +233,214 @@ void ConvertSSA::GenerateSSABasicBlocks(IRFunction* func, SSAFunction* ssafunc,
   }
 }
 
+void ConvertSSA::ConstructSSA4BB(IRBasicBlock* bb, SSAFunction* ssafunc,
+                                 std::unordered_map<IRBasicBlock*, SSABasicBlock*>& bb_map) {
+  if (nullptr == bb) return;
+#ifdef DEBUG_CONSTRUCT_SSA_PROCESS
+  std::cout << "---Process BB:" << std::endl;
+#endif
+
+  auto ssabb = bb_map[bb];
+  MyAssert(nullptr != ssabb);
+
+  // for every ir
+  for (auto ir_iter = bb->ir_list_.begin(); ir_iter != bb->ir_list_.end(); ++ir_iter) {
+    auto ir = **ir_iter;
+#ifdef DEBUG_CONSTRUCT_SSA_PROCESS
+    // std::cout << "----Process IR:" << std::endl;
+    ir.PrintIR(std::cout);
+#endif
+    switch (ir.op_) {
+      // NOTE: assign和param可能传递i32 pointer 其他传递i32或者void arraytype只在alloca中不会传递
+      // 从数组中取元素值只会出现在assign offset ir中 给数组元素赋值只会出现在assign ir中
+      case ir::IR::OpKind::ADD:
+      case ir::IR::OpKind::SUB:
+      case ir::IR::OpKind::MUL:
+      case ir::IR::OpKind::DIV:
+      case ir::IR::OpKind::MOD: {
+        auto lhs = ResolveOpn2Value(&(ir.opn1_), ssabb);
+        auto rhs = ResolveOpn2Value(&(ir.opn2_), ssabb);
+        auto res_comp_name = ir.res_.GetCompName();
+        auto res =
+            new BinaryOperator(new Type(Type::IntegerTyID), static_cast<BinaryOperator::OpKind>(GetOpKind(ir.op_)),
+                               res_comp_name, lhs, rhs, ssabb);
+        ProcessResValue(res_comp_name, &(ir.res_), res, ssabb);
+        break;
+      }
+      case ir::IR::OpKind::NOT:
+      case ir::IR::OpKind::NEG: {
+        auto lhs = ResolveOpn2Value(&(ir.opn1_), ssabb);
+        auto res_comp_name = ir.res_.GetCompName();
+        auto res = new UnaryOperator(new Type(Type::IntegerTyID), static_cast<UnaryOperator::OpKind>(GetOpKind(ir.op_)),
+                                     res_comp_name, lhs, ssabb);
+        ProcessResValue(res_comp_name, &(ir.res_), res, ssabb);
+        break;
+      }
+      case ir::IR::OpKind::LABEL: {  // label ir已经全被删了 执行流不会到这里
+        MyAssert(0);
+        break;
+      }
+      case ir::IR::OpKind::PARAM: {  // param ir全部跳过 等call的时候处理
+        break;
+      }
+      case ir::IR::OpKind::CALL: {
+        auto func_value = dynamic_cast<FunctionValue*>(glob_map[ir.opn1_.GetCompName()]);
+        MyAssert(nullptr != func_value);
+        // maintain call_func
+        ssafunc->AddCallFunc(func_value);
+
+        CallInst* call_inst = nullptr;
+        if (ir.res_.type_ == Opn::Type::Null) {
+          call_inst = new CallInst(func_value, ssabb);
+        } else {
+          auto res_comp_name = ir.res_.GetCompName();
+          call_inst = new CallInst(new Type(Type::IntegerTyID), res_comp_name, func_value, ssabb);
+          ProcessResValue(res_comp_name, &(ir.res_), call_inst, ssabb);
+        }
+        // 添加参数
+        MyAssert(ir.opn2_.type_ == Opn::Type::Imm);
+        int arg_num = ir.opn2_.imm_num_;
+        for (int i = 1; i <= arg_num; ++i) {
+          auto param_ir = **(ir_iter - i);
+          call_inst->AddArg(ResolveOpn2Value(&(param_ir.opn1_), ssabb));
+        }
+        break;
+      }
+      case ir::IR::OpKind::RET: {
+        if (ir.opn1_.type_ != ir::Opn::Type::Null) {  // return int;
+          auto ret_val = ResolveOpn2Value(&(ir.opn1_), ssabb);
+          new ReturnInst(ret_val, ssabb);
+        } else {  // return void;
+          new ReturnInst(ssabb);
+        }
+        break;
+      }
+      case ir::IR::OpKind::GOTO: {
+        auto bb_val = dynamic_cast<BasicBlockValue*>(ResolveOpn2Value(&(ir.opn1_), ssabb));
+        MyAssert(nullptr != bb_val);
+        new BranchInst(bb_val, ssabb);
+        break;
+      }
+      case ir::IR::OpKind::ASSIGN: {
+        auto val = ResolveOpn2Value(&(ir.opn1_), ssabb);
+        auto res_comp_name = ir.res_.GetCompName();
+        Value* res = nullptr;
+        if (ir.res_.type_ != ir::Opn::Type::Array) {  // NOTE: consider array address
+          if (0 == ir.res_.scope_id_) {
+            auto glob_var = glob_map[res_comp_name];
+            new StoreInst(val, glob_var, ssabb);
+
+            // maintain used_glob_var
+            ssafunc->AddUsedGlobVar(dynamic_cast<GlobalVariable*>(glob_var));
+          } else {
+            res = new MovInst(val->GetType(), res_comp_name, val, ssabb);
+            work_map[res_comp_name] = res;
+          }
+        } else {
+          auto arr_base_ptr = ResolveOpn2Value(&(ir.res_), ssabb);
+          MyAssert(arr_base_ptr->GetType()->IsPointer());
+          auto offset = ResolveOpn2Value(ir.res_.offset_, ssabb);
+          new StoreInst(val, arr_base_ptr, offset, ssabb);
+        }
+        break;
+      }
+      case ir::IR::OpKind::ASSIGN_OFFSET: {
+        MyAssert(ir.opn1_.type_ == ir::Opn::Type::Array);
+        auto arr_base_ptr = ResolveOpn2Value(&(ir.opn1_), ssabb);
+        MyAssert(arr_base_ptr->GetType()->IsPointer());
+        auto offset = ResolveOpn2Value(ir.opn1_.offset_, ssabb);
+
+        auto res_comp_name = ir.res_.GetCompName();
+        auto res = new LoadInst(new Type(Type::IntegerTyID), res_comp_name, arr_base_ptr, offset, ssabb);
+        ProcessResValue(res_comp_name, &(ir.res_), res, ssabb);
+        break;
+      }
+      case ir::IR::OpKind::JEQ:
+      case ir::IR::OpKind::JNE:
+      case ir::IR::OpKind::JLT:
+      case ir::IR::OpKind::JLE:
+      case ir::IR::OpKind::JGT:
+      case ir::IR::OpKind::JGE: {
+        auto lhs = ResolveOpn2Value(&(ir.opn1_), ssabb);
+        auto rhs = ResolveOpn2Value(&(ir.opn2_), ssabb);
+        auto bb_val = dynamic_cast<BasicBlockValue*>(ResolveOpn2Value(&(ir.res_), ssabb));
+        MyAssert(nullptr != bb_val);
+        new BranchInst(static_cast<BranchInst::Cond>(GetOpKind(ir.op_)), lhs, rhs, bb_val, ssabb);
+        break;
+      }
+      case ir::IR::OpKind::VOID: {
+        MyAssert(0);
+        break;
+      }
+      case ir::IR::OpKind::PHI: {
+        MyAssert(0 != ir.res_.scope_id_);  // 不会出现全局变量的phi结点
+        auto res_comp_name = ir.res_.GetCompName();
+        auto phi_inst = new PhiInst(new Type(Type::IntegerTyID), res_comp_name, ssabb);
+        // 此时有的变量还未定义 不能在现在填
+        // for (int i = 0; i < ir.phi_args_.size(); ++i) {
+        //   auto arg_val = ResolveOpn2Value(&ir.phi_args_[i], ssabb);
+        //   phi_inst->AddParam(arg_val, bb_map[bb->pred_[i]]->GetValue());
+        // }
+        ProcessResValue(res_comp_name, &(ir.res_), phi_inst, ssabb);
+        break;
+      }
+      case ir::IR::OpKind::ALLOCA: {
+        // alloca opn - imm : alloca quad-ir only for array. regard opn as one dimensional array
+        MyAssert(ir.res_.type_ == ir::Opn::Type::Imm);
+
+        // create a value which owns i32 pointer type
+        auto ptr_type = new Type(Type::PointerTyID);
+        const auto& array_name = ir.opn1_.GetCompName();
+        auto value = new Value(ptr_type, array_name);
+        work_map[array_name] = value;
+
+        // auto type = new ArrayType(ir.res_.imm_num_);
+        // new AllocaInst(type, ssabb);
+        new AllocaInst(new ConstantInt(ir.res_.imm_num_), value, ssabb);
+
+        break;
+      }
+      case ir::IR::OpKind::DECLARE: {
+        // 生成argument 记录映射 以防函数参数被认为是未定义变量
+        auto arg_comp_name = ir.opn1_.GetCompName();
+        if (ir.opn1_.type_ == Opn::Type::Var) {
+          work_map[arg_comp_name] =
+              new Argument(new Type(Type::IntegerTyID), arg_comp_name, ir.res_.imm_num_, ssafunc->GetValue());
+        } else {
+          work_map[arg_comp_name] =
+              new Argument(new Type(Type::PointerTyID), arg_comp_name, ir.res_.imm_num_, ssafunc->GetValue());
+        }
+        break;
+      }
+      default: {
+        MyAssert(0);
+        break;
+      }
+    }  // end of ir_op switch
+  }    // end of ir for loop
+}
+
+void ConvertSSA::FillPhiInst(IRFunction* irfunc, SSAFunction* ssafunc,
+                             std::unordered_map<IRBasicBlock*, SSABasicBlock*>& bb_map) {
+  // 遍历每个irbb 如果bb开头有phi结点 就填充对应的ssabb中的phi结点
+  for (auto bb : irfunc->bb_list_) {
+    auto ssabb = bb_map[bb];
+    int i = 0;
+    for (auto ssa_inst : ssabb->GetInstList()) {
+      if (auto phi_inst = dynamic_cast<PhiInst*>(ssa_inst)) {
+        auto ir = *(bb->ir_list_[i]);
+        for (int i = 0; i < ir.phi_args_.size(); ++i) {
+          auto arg_val = ResolveOpn2Value(&ir.phi_args_[i], ssabb);
+          phi_inst->AddParam(arg_val, bb_map[bb->pred_[i]]->GetValue());
+        }
+        ++i;
+      } else {
+        break;
+      }
+    }
+  }
+}
+
 SSAModule* ConvertSSA::ConstructSSA(IRModule* module) {
   // 由ir module直接构建ssa module 构建的过程中把ir中的label语句删掉 转化成了基本块的label
   // NOTE: 可能会出现一些空的bb 有些基本块是unnamed
@@ -242,7 +453,7 @@ SSAModule* ConvertSSA::ConstructSSA(IRModule* module) {
 
   // for every ir func
   for (auto func : module->func_list_) {
-#ifdef DEBUG_CONVERT_SSA_PROCESS
+#ifdef DEBUG_CONSTRUCT_SSA_PROCESS
     std::cout << "--Process Func:" << func->name_ << std::endl;
 #endif
 
@@ -256,200 +467,20 @@ SSAModule* ConvertSSA::ConstructSSA(IRModule* module) {
 
     // for every ir basicblock
     for (auto bb : func->bb_list_) {
-#ifdef DEBUG_CONVERT_SSA_PROCESS
-      std::cout << "---Process BB:" << std::endl;
-#endif
+      ConstructSSA4BB(bb, ssafunc, bb_map);
+    }
 
-      auto ssabb = bb_map[bb];
-      MyAssert(nullptr != ssabb);
-
-      // for every ir
-      for (auto ir_iter = bb->ir_list_.begin(); ir_iter != bb->ir_list_.end(); ++ir_iter) {
-        auto ir = **ir_iter;
-#ifdef DEBUG_CONVERT_SSA_PROCESS
-        // std::cout << "----Process IR:" << std::endl;
-        ir.PrintIR(std::cout);
-#endif
-        switch (ir.op_) {
-          // NOTE: assign和param可能传递i32 pointer 其他传递i32或者void arraytype只在alloca中不会传递
-          // 从数组中取元素值只会出现在assign offset ir中 给数组元素赋值只会出现在assign ir中
-          case ir::IR::OpKind::ADD:
-          case ir::IR::OpKind::SUB:
-          case ir::IR::OpKind::MUL:
-          case ir::IR::OpKind::DIV:
-          case ir::IR::OpKind::MOD: {
-            auto lhs = ResolveOpn2Value(&(ir.opn1_), ssabb);
-            auto rhs = ResolveOpn2Value(&(ir.opn2_), ssabb);
-            auto res_comp_name = ir.res_.GetCompName();
-            auto res =
-                new BinaryOperator(new Type(Type::IntegerTyID), static_cast<BinaryOperator::OpKind>(GetOpKind(ir.op_)),
-                                   res_comp_name, lhs, rhs, ssabb);
-            ProcessResValue(res_comp_name, &(ir.res_), res, ssabb);
-            break;
-          }
-          case ir::IR::OpKind::NOT:
-          case ir::IR::OpKind::NEG: {
-            auto lhs = ResolveOpn2Value(&(ir.opn1_), ssabb);
-            auto res_comp_name = ir.res_.GetCompName();
-            auto res =
-                new UnaryOperator(new Type(Type::IntegerTyID), static_cast<UnaryOperator::OpKind>(GetOpKind(ir.op_)),
-                                  res_comp_name, lhs, ssabb);
-            ProcessResValue(res_comp_name, &(ir.res_), res, ssabb);
-            break;
-          }
-          case ir::IR::OpKind::LABEL: {  // label ir已经全被删了 执行流不会到这里
-            MyAssert(0);
-            break;
-          }
-          case ir::IR::OpKind::PARAM: {  // param ir全部跳过 等call的时候处理
-            break;
-          }
-          case ir::IR::OpKind::CALL: {
-            auto func_value = dynamic_cast<FunctionValue*>(glob_map[ir.opn1_.GetCompName()]);
-            MyAssert(nullptr != func_value);
-            // maintain call_func
-            ssafunc->AddCallFunc(func_value);
-
-            CallInst* call_inst = nullptr;
-            if (ir.res_.type_ == Opn::Type::Null) {
-              call_inst = new CallInst(func_value, ssabb);
-            } else {
-              auto res_comp_name = ir.res_.GetCompName();
-              call_inst = new CallInst(new Type(Type::IntegerTyID), res_comp_name, func_value, ssabb);
-              ProcessResValue(res_comp_name, &(ir.res_), call_inst, ssabb);
-            }
-            // 添加参数
-            MyAssert(ir.opn2_.type_ == Opn::Type::Imm);
-            int arg_num = ir.opn2_.imm_num_;
-            for (int i = 1; i <= arg_num; ++i) {
-              auto param_ir = **(ir_iter - i);
-              call_inst->AddArg(ResolveOpn2Value(&(param_ir.opn1_), ssabb));
-            }
-            break;
-          }
-          case ir::IR::OpKind::RET: {
-            if (ir.opn1_.type_ != ir::Opn::Type::Null) {  // return int;
-              auto ret_val = ResolveOpn2Value(&(ir.opn1_), ssabb);
-              new ReturnInst(ret_val, ssabb);
-            } else {  // return void;
-              new ReturnInst(ssabb);
-            }
-            break;
-          }
-          case ir::IR::OpKind::GOTO: {
-            auto bb_val = dynamic_cast<BasicBlockValue*>(ResolveOpn2Value(&(ir.opn1_), ssabb));
-            MyAssert(nullptr != bb_val);
-            new BranchInst(bb_val, ssabb);
-            break;
-          }
-          case ir::IR::OpKind::ASSIGN: {
-            auto val = ResolveOpn2Value(&(ir.opn1_), ssabb);
-            auto res_comp_name = ir.res_.GetCompName();
-            Value* res = nullptr;
-            if (ir.res_.type_ != ir::Opn::Type::Array) {  // NOTE: consider array address
-              if (0 == ir.res_.scope_id_) {
-                auto glob_var = glob_map[res_comp_name];
-                new StoreInst(val, glob_var, ssabb);
-
-                // maintain used_glob_var
-                ssafunc->AddUsedGlobVar(dynamic_cast<GlobalVariable*>(glob_var));
-              } else {
-                res = new MovInst(val->GetType(), res_comp_name, val, ssabb);
-                work_map[res_comp_name] = res;
-              }
-            } else {
-              auto arr_base_ptr = ResolveOpn2Value(&(ir.res_), ssabb);
-              MyAssert(arr_base_ptr->GetType()->IsPointer());
-              auto offset = ResolveOpn2Value(ir.res_.offset_, ssabb);
-              new StoreInst(val, arr_base_ptr, offset, ssabb);
-            }
-            break;
-          }
-          case ir::IR::OpKind::ASSIGN_OFFSET: {
-            MyAssert(ir.opn1_.type_ == ir::Opn::Type::Array);
-            auto arr_base_ptr = ResolveOpn2Value(&(ir.opn1_), ssabb);
-            MyAssert(arr_base_ptr->GetType()->IsPointer());
-            auto offset = ResolveOpn2Value(ir.opn1_.offset_, ssabb);
-
-            auto res_comp_name = ir.res_.GetCompName();
-            auto res = new LoadInst(new Type(Type::IntegerTyID), res_comp_name, arr_base_ptr, offset, ssabb);
-            ProcessResValue(res_comp_name, &(ir.res_), res, ssabb);
-            break;
-          }
-          case ir::IR::OpKind::JEQ:
-          case ir::IR::OpKind::JNE:
-          case ir::IR::OpKind::JLT:
-          case ir::IR::OpKind::JLE:
-          case ir::IR::OpKind::JGT:
-          case ir::IR::OpKind::JGE: {
-            auto lhs = ResolveOpn2Value(&(ir.opn1_), ssabb);
-            auto rhs = ResolveOpn2Value(&(ir.opn2_), ssabb);
-            auto bb_val = dynamic_cast<BasicBlockValue*>(ResolveOpn2Value(&(ir.res_), ssabb));
-            MyAssert(nullptr != bb_val);
-            new BranchInst(static_cast<BranchInst::Cond>(GetOpKind(ir.op_)), lhs, rhs, bb_val, ssabb);
-            break;
-          }
-          case ir::IR::OpKind::VOID: {
-            MyAssert(0);
-            break;
-          }
-          case ir::IR::OpKind::PHI: {
-            MyAssert(0 != ir.res_.scope_id_);  // 不会出现全局变量的phi结点
-            auto res_comp_name = ir.res_.GetCompName();
-            auto phi_inst = new PhiInst(new Type(Type::IntegerTyID), res_comp_name, ssabb);
-            for (int i = 0; i < ir.phi_args_.size(); ++i) {
-              auto arg_val = ResolveOpn2Value(&ir.phi_args_[i], ssabb);
-              MyAssert(nullptr != arg_val);
-              MyAssert(bb_map.find(bb->pred_[i]) != bb_map.end());
-              // std::cout << i << "label:" << bb_map[bb->pred_[i]]->GetLabel() << std::endl;
-              MyAssert(bb_map[bb->pred_[i]]->GetValue() != nullptr);
-              phi_inst->AddParam(arg_val, bb_map[bb->pred_[i]]->GetValue());
-            }
-            ProcessResValue(res_comp_name, &(ir.res_), phi_inst, ssabb);
-            break;
-          }
-          case ir::IR::OpKind::ALLOCA: {
-            // alloca opn - imm : alloca quad-ir only for array. regard opn as one dimensional array
-            MyAssert(ir.res_.type_ == ir::Opn::Type::Imm);
-
-            // create a value which owns i32 pointer type
-            auto ptr_type = new Type(Type::PointerTyID);
-            const auto& array_name = ir.opn1_.GetCompName();
-            auto value = new Value(ptr_type, array_name);
-            work_map[array_name] = value;
-
-            // auto type = new ArrayType(ir.res_.imm_num_);
-            // new AllocaInst(type, ssabb);
-            new AllocaInst(new ConstantInt(ir.res_.imm_num_), value, ssabb);
-
-            break;
-          }
-          case ir::IR::OpKind::DECLARE: {
-            // 生成argument 记录映射 以防函数参数被认为是未定义变量
-            auto arg_comp_name = ir.opn1_.GetCompName();
-            if (ir.opn1_.type_ == Opn::Type::Var) {
-              work_map[arg_comp_name] =
-                  new Argument(new Type(Type::IntegerTyID), arg_comp_name, ir.res_.imm_num_, ssafunc->GetValue());
-            } else {
-              work_map[arg_comp_name] =
-                  new Argument(new Type(Type::PointerTyID), arg_comp_name, ir.res_.imm_num_, ssafunc->GetValue());
-            }
-            break;
-          }
-          default: {
-            MyAssert(0);
-            break;
-          }
-        }  // end of ir_op switch
-      }    // end of ir for loop
-    }      // end of ir basicblock loop
-  }        // end of ir function loop
+    FillPhiInst(func, ssafunc, bb_map);
+  }  // end of ir function loop
 
   return ssamodule;
 }
 
 void ConvertSSA::Rename(IRBasicBlock* bb) {
-  // std::cout << "rename" << std::endl;
+#ifdef DEBUG_CONVERT_SSA_PROCESS
+  std::cout << "rename for irbb: " << std::endl;
+  // bb->EmitCode(std::cout);
+#endif
   std::unordered_map<std::string, int> deftimes;
   // 对bb中每条ir的使用和定值var rename
   for (auto ir : bb->ir_list_) {
@@ -522,7 +553,9 @@ Opn CompName2Opn(const std::string& name) {
 }
 
 void ConvertSSA::InsertPhiIR(IRFunction* f) {
-  // std::cout << "insert phi" << std::endl;
+#ifdef DEBUG_CONVERT_SSA_PROCESS
+  std::cout << "insert phi" << std::endl;
+#endif
   std::unordered_map<std::string, std::unordered_set<IRBasicBlock*>> defsites;  // 变量被定值的基本块集合
   std::unordered_map<IRBasicBlock*, std::unordered_set<std::string>> phi_vars;  // 一个基本块内拥有phi函数的变量
   // compute def_use without array
@@ -533,12 +566,14 @@ void ConvertSSA::InsertPhiIR(IRFunction* f) {
       defsites[def].insert(bb);
     }
   }
-  IRLivenessAnalysis::Run4Func(f);
+  IRLivenessAnalysis::Run4Func(f);  // 用于插入phi node的时候判断是否活跃决定是否插入
   for (auto& [var, defbbs] : defsites) {
-    // std::cout << "var:" << var << "在这些bb中def:" << std::endl;
     while (!defbbs.empty()) {
       auto bb = *defbbs.begin();
-      // std::cout << bb->IndexInFunc() << std::endl;
+#ifdef DEBUG_CONVERT_SSA_PROCESS
+      std::cout << "var:" << var << "在这些bb中def:" << std::endl;
+      std::cout << bb->IndexInFunc() << std::endl;
+#endif
       defbbs.erase(defbbs.begin());
       for (auto df : bb->df_) {  // 对于变量定值所在bb的每一个df都要加一个phi函数
         // NOTE: 如果var并不入口活跃就不用加入phi函数
@@ -548,7 +583,7 @@ void ConvertSSA::InsertPhiIR(IRFunction* f) {
           auto&& res = CompName2Opn(var);
           // NOTE: phi结点的scope id可能并不正确
           auto ir_list_it = df->ir_list_.begin();
-          while ((*ir_list_it)->op_ == IR::OpKind::LABEL) ++ir_list_it;
+          while (ir_list_it != df->ir_list_.end() && (*ir_list_it)->op_ == IR::OpKind::LABEL) ++ir_list_it;
           df->ir_list_.insert(ir_list_it, new IR{IR::OpKind::PHI, res, static_cast<int>(df->pred_.size())});
           if (df->def_.find(var) == df->def_.end()) {
             df->def_.insert(var);
@@ -557,7 +592,10 @@ void ConvertSSA::InsertPhiIR(IRFunction* f) {
         }
       }  // end of df for
     }    // end of defbbs while
-  }      // end of defsites for
+#ifdef DEBUG_CONVERT_SSA_PROCESS
+    std::cout << "end." << std::endl;
+#endif
+  }  // end of defsites for
 }
 
 #undef ASSERT_ENABLE  // disable assert. this should be placed at the end of every file.

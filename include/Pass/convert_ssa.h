@@ -29,6 +29,9 @@ class ConvertSSA : public Transform {
   void GenerateSSABasicBlocks(IRFunction* func, SSAFunction* ssafunc,
                               std::unordered_map<IRBasicBlock*, SSABasicBlock*>& bb_map);
   SSAModule* ConstructSSA(IRModule* module);
+  void ConstructSSA4BB(IRBasicBlock* bb, SSAFunction* ssafunc,
+                       std::unordered_map<IRBasicBlock*, SSABasicBlock*>& bb_map);
+  void FillPhiInst(IRFunction* irfunc, SSAFunction* ssafunc, std::unordered_map<IRBasicBlock*, SSABasicBlock*>& bb_map);
   Value* ResolveOpn2Value(Opn* opn, SSABasicBlock* ssabb);
   Value* FindValueFromOpn(Opn* opn, bool is_global);
   Value* FindValueFromCompName(const std::string& comp_name, bool is_global);
