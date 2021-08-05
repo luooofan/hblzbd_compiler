@@ -2,30 +2,34 @@
 #define ASSERT_ENABLE
 #include "../include/myassert.h"
 
-std::pair<std::vector<Opn *>, std::vector<Opn *>> GetDefUsePtr(IR *ir, bool consider_array) {
+std::pair<std::vector<Opn *>, std::vector<Opn *>> GetDefUsePtr(IR *ir, bool consider) {
   std::vector<Opn *> def;
   std::vector<Opn *> use;
 
-  auto process_opn = [&use, &consider_array](Opn *op) {
+  auto process_opn = [&use, &consider](Opn *op) {
     if (nullptr == op) return;
     if (op->type_ == Opn::Type::Imm || op->type_ == Opn::Type::Label || op->type_ == Opn::Type::Func ||
         op->type_ == Opn::Type::Null)
       return;
     if (op->type_ == Opn::Type::Array) {
-      if (consider_array) use.push_back(op);
-      if (op->offset_->type_ == Opn::Type::Var) use.push_back(op->offset_);
+      if (consider) use.push_back(op);
+      if (op->offset_->type_ == Opn::Type::Var)
+        if (consider || 0 != op->offset_->scope_id_) use.push_back(op->offset_);
     } else {  // var
+      if (!consider && 0 == op->scope_id_) return;
       use.push_back(op);
     }
   };
 
-  auto process_res = [&def, &use, &consider_array](Opn *res) {
+  auto process_res = [&def, &use, &consider](Opn *res) {
     if (nullptr == res) return;
     if (res->type_ == Opn::Type::Label || res->type_ == Opn::Type::Func || res->type_ == Opn::Type::Null) return;
     if (res->type_ == Opn::Type::Array) {
-      if (consider_array) def.push_back(res);
-      if (res->offset_->type_ == Opn::Type::Var) use.push_back(res->offset_);
+      if (consider) def.push_back(res);
+      if (res->offset_->type_ == Opn::Type::Var)
+        if (consider || 0 != res->offset_->scope_id_) use.push_back(res->offset_);
     } else {  // var
+      if (!consider && 0 == res->scope_id_) return;
       def.push_back(res);
     }
   };
@@ -77,32 +81,36 @@ std::pair<std::vector<Opn *>, std::vector<Opn *>> GetDefUsePtr(IR *ir, bool cons
 }
 
 //变量形式：变量名_#scope_id
-std::pair<std::vector<std::string>, std::vector<std::string>> GetDefUse(IR *ir, bool consider_array) {
+std::pair<std::vector<std::string>, std::vector<std::string>> GetDefUse(IR *ir, bool consider) {
   std::vector<std::string> def;
   std::vector<std::string> use;
 
-  auto process_opn = [&use, &consider_array](Opn *op) {
+  auto process_opn = [&use, &consider](Opn *op) {
     if (nullptr == op) return;
     if (op->type_ == Opn::Type::Imm || op->type_ == Opn::Type::Label || op->type_ == Opn::Type::Func ||
         op->type_ == Opn::Type::Null)
       return;
     if (op->type_ == Opn::Type::Array) {
-      if (consider_array) use.push_back(op->name_ + "." + std::to_string(op->scope_id_));
+      if (consider) use.push_back(op->name_ + "." + std::to_string(op->scope_id_));
       if (op->offset_->type_ == Opn::Type::Var)
-        use.push_back(op->offset_->name_ + "." + std::to_string(op->offset_->scope_id_));
+        if (consider || 0 != op->offset_->scope_id_)
+          use.push_back(op->offset_->name_ + "." + std::to_string(op->offset_->scope_id_));
     } else {  // var
+      if (!consider && 0 == op->scope_id_) return;
       use.push_back(op->name_ + "." + std::to_string(op->scope_id_));
     }
   };
 
-  auto process_res = [&def, &use, &consider_array](Opn *res) {
+  auto process_res = [&def, &use, &consider](Opn *res) {
     if (nullptr == res) return;
     if (res->type_ == Opn::Type::Label || res->type_ == Opn::Type::Func || res->type_ == Opn::Type::Null) return;
     if (res->type_ == Opn::Type::Array) {
-      if (consider_array) def.push_back(res->name_ + "." + std::to_string(res->scope_id_));
+      if (consider) def.push_back(res->name_ + "." + std::to_string(res->scope_id_));
       if (res->offset_->type_ == Opn::Type::Var)
-        use.push_back(res->offset_->name_ + "." + std::to_string(res->offset_->scope_id_));
+        if (consider || 0 != res->offset_->scope_id_)
+          use.push_back(res->offset_->name_ + "." + std::to_string(res->offset_->scope_id_));
     } else {
+      if (!consider && 0 == res->scope_id_) return;
       def.push_back(res->name_ + "." + std::to_string(res->scope_id_));
     }
   };
@@ -153,7 +161,7 @@ std::pair<std::vector<std::string>, std::vector<std::string>> GetDefUse(IR *ir, 
   return {def, use};
 }
 
-void GetDefUse4Func(IRFunction *f, bool consider_array) {
+void GetDefUse4Func(IRFunction *f, bool consider) {
   for (auto bb : f->bb_list_) {
     // bb->livein_.clear();
     // bb->liveout_.clear();
@@ -161,7 +169,7 @@ void GetDefUse4Func(IRFunction *f, bool consider_array) {
     bb->use_.clear();
 
     for (auto ir : bb->ir_list_) {
-      auto [def, use] = GetDefUse(ir, consider_array);
+      auto [def, use] = GetDefUse(ir, consider);
 
       for (auto &u : use) {
         bb->use_.insert(u);

@@ -56,7 +56,7 @@ class ArmBasicBlock {
   ArmFunction* func_;
 
   // all instructions
-  std::vector<arm::Instruction*> inst_list_;
+  std::vector<Instruction*> inst_list_;
 
   std::vector<ArmBasicBlock*> pred_;
   std::vector<ArmBasicBlock*> succ_;
