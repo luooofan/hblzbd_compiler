@@ -16,7 +16,8 @@ FunctionValue::FunctionValue(const std::string &name, SSAFunction *func)
   func->BindValue(this);
 }
 
-BasicBlockValue::BasicBlockValue(const std::string &name, SSABasicBlock *bb) : Value(new Type(Type::LabelTyID), name) {
+BasicBlockValue::BasicBlockValue(const std::string &name, SSABasicBlock *bb)
+    : Value(new Type(Type::LabelTyID), name), bb_(bb) {
   bb->BindValue(this);
 }
 

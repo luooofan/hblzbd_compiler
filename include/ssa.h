@@ -189,8 +189,12 @@ class Argument : public Value {
 
 // [used]
 class BasicBlockValue : public Value {
+ private:
+  SSABasicBlock* bb_ = nullptr;
+
  public:
   BasicBlockValue(const std::string& name, SSABasicBlock* bb);
+  SSABasicBlock* GetBB() const { return bb_; }
   virtual ~BasicBlockValue() {}
   virtual void Print(std::ostream& outfile = std::clog);
 };
