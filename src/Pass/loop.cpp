@@ -384,6 +384,11 @@ void MXD::Run()
                     use[ir_list[j]->opn2_.name_].push_back(make_pair(i,j));
                 if(ir_list[j]->res_.type_==ir::Opn::Type::Var)
                     def[ir_list[j]->res_.name_].push_back(make_pair(i,j));
+                else if(ir_list[j]->res_.type_==ir::Opn::Type::Array)
+                {
+                    def[ir_list[j]->res_.name_].push_back(make_pair(i,j));
+                    use[ir_list[j]->res_.offset_->name_].push_back(make_pair(i,j));
+                }
             }
         }
 
@@ -448,6 +453,7 @@ void MXD::Run()
                 break;
             }
 
+#define DEBUG_LOOP_PASS
 #ifdef DEBUG_LOOP_PASS
             //TODO:后续测一下递归地不变运算能不能识别出来
             cout<<"输出不变运算:\n";
@@ -547,7 +553,6 @@ void MXD::Run()
                 ir::Opn op1=id_bb[unchanged[i].first]->ir_list_[unchanged[i].second]->opn1_;
                 ir::Opn op2=id_bb[unchanged[i].first]->ir_list_[unchanged[i].second]->opn2_;
 
-                continue;
 // cout<<"遍历unchanged"<<unchanged[i].first<<' '<<unchanged[i].second<<endl;
 // cout<<"临时:";
 // cout<<res.name_<<' '<<op1.name_<<' '<<op2.name_<<endl;
@@ -562,14 +567,13 @@ void MXD::Run()
 
                 // 要能外提，需要满足以下3个条件：
                 // 1.要么是当前基本块为loop中所有出口节点的必经节点，也就是当前基本块在must_out里，要么
-                // 是当前变量后续不再活跃，即will_not_live(注意，这里那个网站说错了，网站说的是出了
-                // loop不再活跃，但loop内可能还会用，直接提出去就错了)
+                // 是当前变量后续不再活跃，即will_not_live
                 // 2.res在loop中不再有其他定值，即check2(解释：本句指令前后都不能有res的定值语句)
                 // 3.loop中其他对于res的使用都只会从本句指令到达，即check3(从loop中的入口往后走，看能不能不经过本基本块到达res的使用)
                 // if((have(unchanged[i].first,must_out) || will_not_live(unchanged[i],use[res.name_],suc,loop)) &&
                 //    check2(unchanged[i],loop,def[res.name_]) &&
                 //    check3(enter,to,out,unchanged[i].first,res.name_,id_bb,use[res.name_]))
-                if((have(unchanged[i].first,must_out)) &&
+                if((have(unchanged[i].first,must_out) || will_not_live(unchanged[i],use[res.name_],suc,loop)) &&
                    check2(unchanged[i],loop,def[res.name_]) &&
                    check3(enter,to,out,unchanged[i].first,res.name_,id_bb,use[res.name_]))
                 {
@@ -599,6 +603,11 @@ void MXD::Run()
                                 use[ir_list[j]->opn2_.name_].push_back(make_pair(i,j));
                             if(ir_list[j]->res_.type_==ir::Opn::Type::Var)
                                 def[ir_list[j]->res_.name_].push_back(make_pair(i,j));
+                            else if(ir_list[j]->res_.type_==ir::Opn::Type::Array)
+                            {
+                                def[ir_list[j]->res_.name_].push_back(make_pair(i,j));
+                                use[ir_list[j]->res_.offset_->name_].push_back(make_pair(i,j));
+                            }
                         }
                     }
                 }
