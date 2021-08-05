@@ -7,7 +7,7 @@
 #define ASSERT_ENABLE  // enable assert for this file.
 #include "../../include/myassert.h"
 
-#define DEBUG_CONVERT_SSA_PROCESS
+// #define DEBUG_CONVERT_SSA_PROCESS
 // #define DEBUG_CONSTRUCT_SSA_PROCESS
 
 void ConvertSSA::Run() {

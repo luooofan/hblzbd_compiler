@@ -115,10 +115,13 @@ Reg* GenerateArmFromSSA::ResolveValue2Reg(ArmBasicBlock* armbb, Value* val) {
   } else if (auto src_val = dynamic_cast<GlobalVariable*>(val)) {
     // 如果是全局量 在函数prologue中会把其地址或基址记录在var map中 直接返回地址即可
     return var_map[val];
-  } else if (auto src_val = dynamic_cast<UndefVariable*>(val)) {
-    val->Print(std::cout);
-    MyAssert(0);  // 测例不会出现UB 暂时先不处理
-  } else if (auto src_val = dynamic_cast<Argument*>(val)) {
+  }
+  // else if (auto src_val = dynamic_cast<UndefVariable*>(val)) {
+  // val->Print(std::cout);// MyAssert(0);
+  // 测例中会出现UB 但是测例用给定的输入数据不会有UB e.g. int c; while(c...){...} return c;
+  // 暂时和普通变量同处理
+  //}
+  else if (auto src_val = dynamic_cast<Argument*>(val)) {
     // 如果能在var map中找到 说明这是一次对参数的使用 返回即可 返回的寄存器中存的可能是参数变量值 也可能是数组参数的基址
     if (var_map.find(val) != var_map.end()) {
       return var_map[val];
