@@ -75,7 +75,7 @@ Value* ConvertSSA::ResolveOpn2Value(Opn* opn, SSABasicBlock* ssabb) {
     // new load load出的结果不需要记录 全局量每次都要load
     if (type == Opn::Type::Var) {
       static int glob_temp_index = 1;
-      res = new LoadInst(new Type(Type::IntegerTyID), "glotmp_" + std::to_string(glob_temp_index++), res, ssabb);
+      res = new LoadInst(new Type(Type::IntegerTyID), "glotmp-" + std::to_string(glob_temp_index++), res, ssabb);
     }  // 全局数组直接返回i32 pointer
 
   } else {  // label标签 或 局部变量数组 局部变量可能未定义 局部数组只会返回i32 pointer类型的value

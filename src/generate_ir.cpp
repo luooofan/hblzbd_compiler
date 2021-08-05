@@ -353,7 +353,8 @@ void FunctionCall::GenerateIR(ir::ContextInfo &ctx) {
     }
 
     // NOTE: 全局变量需要先赋值到一个temp中
-    if (0 == scope_id) {
+    // FIX: 全局数组不用
+    if (0 == scope_id && opn1.type_ == OpnType::Var) {
       std::string temp = ir::NewTemp();
       ir::gScopes[ctx.scope_id_].symbol_table_.insert({temp, {false, false, -1}});
       auto temp_opn = ir::Opn(OpnType::Var, temp, ctx.scope_id_);
