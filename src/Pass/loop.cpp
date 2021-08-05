@@ -199,9 +199,6 @@ void MXD::Run()
 
     for(auto& func:irmodule->func_list_)
     {
-        if(func->name_!="main")continue;
-
-
         auto bb_list=func->bb_list_;
         
         int n=0; // 点数（基本块数），先设为0待会当cnt用
@@ -455,7 +452,6 @@ void MXD::Run()
                 break;
             }
 
-#define DEBUG_LOOP_PASS
 #ifdef DEBUG_LOOP_PASS
             //TODO:后续测一下递归地不变运算能不能识别出来
             cout<<"输出不变运算:\n";
@@ -555,6 +551,7 @@ void MXD::Run()
                 ir::Opn op1=id_bb[unchanged[i].first]->ir_list_[unchanged[i].second]->opn1_;
                 ir::Opn op2=id_bb[unchanged[i].first]->ir_list_[unchanged[i].second]->opn2_;
 
+                continue;
 // cout<<"遍历unchanged"<<unchanged[i].first<<' '<<unchanged[i].second<<endl;
 // cout<<"临时:";
 // cout<<res.name_<<' '<<op1.name_<<' '<<op2.name_<<endl;
@@ -576,7 +573,7 @@ void MXD::Run()
                 // if((have(unchanged[i].first,must_out) || will_not_live(unchanged[i],use[res.name_],suc,loop)) &&
                 //    check2(unchanged[i],loop,def[res.name_]) &&
                 //    check3(enter,to,out,unchanged[i].first,res.name_,id_bb,use[res.name_]))
-                if((have(unchanged[i].first,must_out)) &&
+                if((have(unchanged[i].first,must_out) || will_not_live(unchanged[i],use[res.name_],suc,loop)) &&
                    check2(unchanged[i],loop,def[res.name_]) &&
                    check3(enter,to,out,unchanged[i].first,res.name_,id_bb,use[res.name_]))
                 {
