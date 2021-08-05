@@ -56,6 +56,8 @@ void ComputeDominance::ResetTempInfo(IRFunction* f) {
 void ComputeDominance::ComputeIDomInfo(IRFunction* f) {
   // 构造深度优先生成树 构造完后 保证vertex dfnum有效完整 parent[r]为空
   DFS(nullptr, f->bb_list_.front());
+  // std::cout << N << " " << f->bb_list_.size() << std::endl;
+  MyAssert(N == f->bb_list_.size());
 
   // 基于半必经结点定理计算所有 非根节点 的半必经结点
   for (int i = N - 1; i > 0; --i) {
