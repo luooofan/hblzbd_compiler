@@ -547,7 +547,6 @@ void MXD::Run()
                 ir::Opn op1=id_bb[unchanged[i].first]->ir_list_[unchanged[i].second]->opn1_;
                 ir::Opn op2=id_bb[unchanged[i].first]->ir_list_[unchanged[i].second]->opn2_;
 
-                continue;
 // cout<<"遍历unchanged"<<unchanged[i].first<<' '<<unchanged[i].second<<endl;
 // cout<<"临时:";
 // cout<<res.name_<<' '<<op1.name_<<' '<<op2.name_<<endl;
