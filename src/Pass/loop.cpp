@@ -380,6 +380,11 @@ void MXD::Run()
             {
                 if(ir_list[j]->opn1_.type_==ir::Opn::Type::Var)
                     use[ir_list[j]->opn1_.name_].push_back(make_pair(i,j));
+                else if(ir_list[j]->opn1_.type_==ir::Opn::Type::Array)
+                {
+                    use[ir_list[j]->opn1_.name_].push_back(make_pair(i,j));
+                    use[ir_list[j]->opn1_.offset_->name_].push_back(make_pair(i,j));
+                }
                 if(ir_list[j]->opn2_.type_==ir::Opn::Type::Var)
                     use[ir_list[j]->opn2_.name_].push_back(make_pair(i,j));
                 if(ir_list[j]->res_.type_==ir::Opn::Type::Var)
@@ -421,7 +426,8 @@ void MXD::Run()
                            ir_list[j]->op_==ir::IR::OpKind::MOD ||
                            ir_list[j]->op_==ir::IR::OpKind::NOT ||
                            ir_list[j]->op_==ir::IR::OpKind::NEG ||
-                           ir_list[j]->op_==ir::IR::OpKind::ASSIGN) // 必须得是计算或者赋值
+                           ir_list[j]->op_==ir::IR::OpKind::ASSIGN ||
+                           ir_list[j]->op_==ir::IR::OpKind::ASSIGN_OFFSET) // 必须得是计算或者赋值
                         {
                             if(vis.find(make_pair(loop[i],j))!=vis.end())continue;
                             // 下面这个是判断opn1、opn2是否能是不变的
@@ -599,6 +605,11 @@ void MXD::Run()
                         {
                             if(ir_list[j]->opn1_.type_==ir::Opn::Type::Var)
                                 use[ir_list[j]->opn1_.name_].push_back(make_pair(i,j));
+                            else if(ir_list[j]->opn1_.type_==ir::Opn::Type::Array)
+                            {
+                                use[ir_list[j]->opn1_.name_].push_back(make_pair(i,j));
+                                use[ir_list[j]->opn1_.offset_->name_].push_back(make_pair(i,j));
+                            }
                             if(ir_list[j]->opn2_.type_==ir::Opn::Type::Var)
                                 use[ir_list[j]->opn2_.name_].push_back(make_pair(i,j));
                             if(ir_list[j]->res_.type_==ir::Opn::Type::Var)
