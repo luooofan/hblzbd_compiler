@@ -13,6 +13,7 @@
 #include "../include/Pass/generate_arm_opt.h"
 #include "../include/Pass/pass_manager.h"
 #include "../include/Pass/simplify_armcode.h"
+#include "../include/Pass/simplify_cfg.h"
 #include "../include/arm.h"
 #include "../include/arm_struct.h"
 #include "../include/ast.h"
@@ -126,6 +127,7 @@ int main(int argc, char **argv) {
   // pm.AddPass<DeadCodeEliminate>(false);
 
   // ==================Add Quad-Pass Above==================
+  pm.AddPass<SimplifyCFG>(false);  // necessary
   pm.AddPass<ComputeDominance>(false);
   pm.AddPass<ConvertSSA>(false);
   // ==================Add SSA-Pass Below==================

@@ -7,11 +7,12 @@
 #define ASSERT_ENABLE
 #include "../../include/myassert.h"
 
-using namespace arm;
 // #define DEBUG_GENARM_FROMSSA_PROCESS
+
 #define NEW_INST(inst) static_cast<Instruction*>(new inst)
 #define ADD_NEW_INST(inst) armbb->inst_list_.push_back(static_cast<Instruction*>(new inst));
 
+using namespace arm;
 Cond GenerateArmFromSSA::GetCondType(BranchInst::Cond cond, bool exchange) {
   if (exchange) {
     switch (cond) {
@@ -115,6 +116,7 @@ Reg* GenerateArmFromSSA::ResolveValue2Reg(ArmBasicBlock* armbb, Value* val) {
     // 如果是全局量 在函数prologue中会把其地址或基址记录在var map中 直接返回地址即可
     return var_map[val];
   } else if (auto src_val = dynamic_cast<UndefVariable*>(val)) {
+    val->Print(std::cout);
     MyAssert(0);  // 测例不会出现UB 暂时先不处理
   } else if (auto src_val = dynamic_cast<Argument*>(val)) {
     // 如果能在var map中找到 说明这是一次对参数的使用 返回即可 返回的寄存器中存的可能是参数变量值 也可能是数组参数的基址
@@ -499,10 +501,68 @@ ArmModule* GenerateArmFromSSA::GenCode(SSAModule* module) {
 
     // NOTE: 中间代码保证了函数执行流最后一定有一条return语句 所以不必在最后再加一个epilogue
 
+    // handle phi nodes
+    // NOTE: 暂时用一些冗余的临时变量避免lost copy problem和swap problem 切割关键边待定
+    for (auto bb : func->GetBBList()) {
+      auto armbb = bb_map[bb];
+      // 处理当前bb的phi node和所有前驱bb
+      for (auto inst : bb->GetInstList()) {
+        if (auto src_inst = dynamic_cast<PhiInst*>(inst)) {
+          // 每次都新建个vreg 在前驱的最后一条语句或者跳转语句前加一条原value对应的vreg到该vreg的mov
+          // 在该基本块前面加一条vreg到原dest value的mov指令
+#ifdef DEBUG_GENARM_FROMSSA_PROCESS
+          src_inst->Print(std::cout);
+#endif
+          auto vreg = NewVirtualReg();
+          armbb->inst_list_.insert(armbb->inst_list_.begin(),
+                                   new Move(ResolveValue2Reg(armbb, src_inst), new Operand2(vreg)));
+
+          for (int i = 0; i < bb->GetPredBB().size(); ++i) {
+            // std::cout << i << std::endl;
+            // 第i个前驱对应的value是第2i个操作数 对应的bb是第i个前驱bb 或者第2i+1个操作数(拿到的是bbvalue)
+            auto val = src_inst->GetOperand(2 * i);
+            auto ssa_pred_bb = dynamic_cast<BasicBlockValue*>(src_inst->GetOperand(2 * i + 1))->GetBB();
+            auto arm_pred_bb = bb_map[ssa_pred_bb];
+            MyAssert(nullptr != ssa_pred_bb && nullptr != arm_pred_bb);
+            auto new_inst = new Move(vreg, ResolveValue2Operand2(armbb, val));
+            // arm_pred_bb如果为空 直接加在最后面
+            if (arm_pred_bb->inst_list_.empty()) {
+              arm_pred_bb->inst_list_.push_back(new_inst);
+              continue;
+            }
+            auto last_inst = arm_pred_bb->inst_list_.back();
+            auto last_branch_inst = dynamic_cast<Branch*>(last_inst);
+            // std::cout << i << std::endl;
+            // 最后一条如果是跳转语句
+            if (nullptr != last_branch_inst) {
+              // 条件跳转语句 前一句一定是cmp 在cmp前加入new_inst
+              if (last_branch_inst->cond_ != Cond::AL) {
+                arm_pred_bb->inst_list_.insert(arm_pred_bb->inst_list_.end() - 2, new_inst);
+              }
+              // 无条件跳转语句 在跳转语句前插入
+              else {
+                arm_pred_bb->inst_list_.insert(arm_pred_bb->inst_list_.end() - 1, new_inst);
+              }
+            }
+            // 其他语句 直接加载最后面
+            else {
+              arm_pred_bb->inst_list_.push_back(new_inst);
+            }
+            // std::cout << i << std::endl;
+          }
+        } else {
+          break;
+        }
+      }
+    }
+
     armfunc->sp_fixup_ = this->sp_fixup;
     armfunc->sp_arg_fixup_ = this->sp_arg_fixup;
     armfunc->virtual_reg_max = virtual_reg_id;
     armfunc->stack_size_ = stack_size;
+#ifdef DEBUG_GENARM_FROMSSA_PROCESS
+    std::cout << "Gen ArmCode From Every Function End." << std::endl;
+#endif
   }  // end of func loop
 
   // maintain call_func_list
