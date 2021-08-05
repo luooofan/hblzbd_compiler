@@ -586,8 +586,8 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
 #endif
       if (spilled_nodes.empty()) {
         done = true;
-      } else {
-        // MyAssert(0);
+      } else {  // 发生实际溢出
+                // MyAssert(0);
 #ifdef DEBUG_SPILL
         std::cout << "Actual Spill." << std::endl;
 #endif

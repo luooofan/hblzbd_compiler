@@ -383,13 +383,10 @@ ArmModule* GenerateArmFromSSA::GenCode(SSAModule* module) {
                 Branch(false, false, GetCondType(src_inst->cond_, is_opn1_imm), src_inst->GetOperand(2)->GetName()));
           }
         } else if (auto src_inst = dynamic_cast<CallInst*>(inst)) {
+          // NOTE: 这里对调用语句的处理并不规范 但方便目标代码的生成和寄存器溢出情况的处理
+
           // 第一个操作数一定是FunctionValue
           int param_num = src_inst->GetNumOperands() - 1;
-          // sub sp, sp, #(param_num-4)*4
-          if (param_num > 4) {
-            auto op2 = ResolveImm2Operand2(armbb, (param_num - 4) * 4);
-            ADD_NEW_INST(BinaryInst(BinaryInst::OpCode::SUB, new Reg(ArmReg::sp), new Reg(ArmReg::sp), op2));
-          }
 
           // mov r0-r3 op2 | str rd sp+x
           for (int i = 0; i < param_num; ++i) {
@@ -405,25 +402,32 @@ ArmModule* GenerateArmFromSSA::GenCode(SSAModule* module) {
             } else {
               // str rd, sp, #(order-4)*4 靠后的参数放在较高的地方 第5个(order=4)放在sp指向的内存
               auto rd = ResolveValue2Reg(armbb, val);
-              GenImmLdrStrInst(armbb, LdrStr::OpKind::STR, rd, new Reg(ArmReg::sp), (i - 4) * 4);
+              // GenImmLdrStrInst(armbb, LdrStr::OpKind::STR, rd, new Reg(ArmReg::sp), (i - 4) * 4);
+              // NOTE: 这将导致str语句中出现负立即数
+              GenImmLdrStrInst(armbb, LdrStr::OpKind::STR, rd, sp_vreg, -(param_num - i) * 4);
             }
           }
           // armbb->EmitCode(std::cout);
 
+          // sub sp, sp, #(param_num-4)*4 NOTE: 一定要放在bl前一句
+          if (param_num > 4) {
+            auto op2 = ResolveImm2Operand2(armbb, (param_num - 4) * 4);
+            ADD_NEW_INST(BinaryInst(BinaryInst::OpCode::SUB, new Reg(ArmReg::sp), new Reg(ArmReg::sp), op2));
+          }
           // BL label
           ADD_NEW_INST(Branch(true, false, Cond::AL, src_inst->GetOperand(0)->GetName()));
+
+          // add sp, sp, #(param_num-4)*4  NOTE: 一定要放在bl后一句
+          if (param_num > 4) {
+            auto op2 = ResolveImm2Operand2(armbb, (param_num - 4) * 4);
+            ADD_NEW_INST(BinaryInst(BinaryInst::OpCode::ADD, new Reg(ArmReg::sp), new Reg(ArmReg::sp), op2));
+          }
 
           // mov rd r0
           if (!src_inst->GetType()->IsVoid()) {
             // NOTE: 这里必须生成一条mov语句 会存在两个call ir接连出现的情况
             auto vreg = ResolveValue2Reg(armbb, src_inst);
             ADD_NEW_INST(Move(false, Cond::AL, vreg, new Operand2(new Reg(ArmReg::r0))));
-          }
-
-          // add sp, sp, #(param_num-4)*4
-          if (param_num > 4) {
-            auto op2 = ResolveImm2Operand2(armbb, (param_num - 4) * 4);
-            ADD_NEW_INST(BinaryInst(BinaryInst::OpCode::ADD, new Reg(ArmReg::sp), new Reg(ArmReg::sp), op2));
           }
 
         } else if (auto src_inst = dynamic_cast<ReturnInst*>(inst)) {
