@@ -107,9 +107,9 @@ void DAG_analysis::Run4bb(IRBasicBlock *bb){
              ir->op_ == ir::IR::OpKind::JLE ||
              ir->op_ == ir::IR::OpKind::JGT ||
              ir->op_ == ir::IR::OpKind::JGE){
-    // 这些语句只会出现在基本块的最后一行，
+    // 这些语句只会出现在基本块的最后一行，到时候直接加进去，不在DAG中为其创建节点
     }else if(ir->op_ == ir::IR::OpKind::VOID){
-
+      
     }else if(ir->op_ == ir::IR::OpKind::ASSIGN_OFFSET){
 
     }
