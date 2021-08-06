@@ -1,7 +1,6 @@
 #include "../../include/Pass/convert_ssa.h"
 
 #include "../../include/Pass/ir_liveness_analysis.h"
-#include "../../include/ir_getdefuse.h"
 #include "../../include/ssa.h"
 #include "../../include/ssa_struct.h"
 #define ASSERT_ENABLE  // enable assert for this file.
@@ -574,7 +573,7 @@ void ConvertSSA::InsertPhiIR(IRFunction* f) {
   std::unordered_map<std::string, std::unordered_set<IRBasicBlock*>> defsites;  // 变量被定值的基本块集合
   std::unordered_map<IRBasicBlock*, std::unordered_set<std::string>> phi_vars;  // 一个基本块内拥有phi函数的变量
   // compute def_use without array
-  GetDefUse4Func(f, false);
+  IRLivenessAnalysis::GetDefUse4Func(f, false);
   // fill defsites
   for (auto bb : f->bb_list_) {
     for (auto& def : bb->def_) {
