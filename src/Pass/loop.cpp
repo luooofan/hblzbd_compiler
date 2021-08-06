@@ -1,3 +1,7 @@
+/*
+new_loop是用来把不变运算放在最外层的
+*/
+
 #include <iostream>
 #include <vector>
 #include <map>
@@ -315,12 +319,11 @@ void MXD::Run()
         for(int i=0;i<back.size();i++)cout<<back[i].first<<' '<<back[i].second<<'\n';
 #endif
 
-        vector<vector<int> > loops;
         vector<bool> vis(n,false);
-        for(int i=0;i<back.size();i++)
+        for(auto bk:back)
         {
             vector<int> loop;
-            int u=back[i].first,v=back[i].second;
+            int u=bk.first,v=bk.second;
             if(u==v)
                 loop.push_back(u);
             else
@@ -346,11 +349,8 @@ void MXD::Run()
                 }
                 for(int j=0;j<loop.size();j++)vis[loop[j]]=false;
             }
-            loops.push_back(loop);
-        }
-
 #ifdef DEBUG_LOOP_PASS
-        cout<<"输出所有循环:\n";
+        cout<<"输出当前循环:\n";
         for(int i=0;i<loops.size();i++)
         {
             for(int j=0;j<loops[i].size();j++)
@@ -361,30 +361,22 @@ void MXD::Run()
 
         // 先不管数组
         // 先对整个函数计算每个变量的def、use，然后就可以找出每个循环中不变的运算了
-        map<string,vector<pair<int,int> > > def,use;
-        for(int i=0;i<n;i++)
-        {
-            auto bb=id_bb[i];
-            auto ir_list=bb->ir_list_;
-            for(int j=0;j<ir_list.size();j++)
+            map<string,vector<pair<int,int> > > def,use;
+            for(int i=0;i<n;i++)
             {
-                if(ir_list[j]->opn1_.type_==ir::Opn::Type::Var)
-                    use[ir_list[j]->opn1_.name_].push_back(make_pair(i,j));
-                if(ir_list[j]->opn2_.type_==ir::Opn::Type::Var)
-                    use[ir_list[j]->opn2_.name_].push_back(make_pair(i,j));
-                if(ir_list[j]->res_.type_==ir::Opn::Type::Var)
-                    def[ir_list[j]->res_.name_].push_back(make_pair(i,j));
+                auto bb=id_bb[i];
+                auto ir_list=bb->ir_list_;
+                for(int j=0;j<ir_list.size();j++)
+                {
+                    if(ir_list[j]->opn1_.type_==ir::Opn::Type::Var)
+                        use[ir_list[j]->opn1_.name_].push_back(make_pair(i,j));
+                    if(ir_list[j]->opn2_.type_==ir::Opn::Type::Var)
+                        use[ir_list[j]->opn2_.name_].push_back(make_pair(i,j));
+                    if(ir_list[j]->res_.type_==ir::Opn::Type::Var)
+                        def[ir_list[j]->res_.name_].push_back(make_pair(i,j));
+                }
             }
-        }
 
-        // 找出不变运算
-        for(auto loop:loops)
-        {
-#ifdef DEBUG_LOOP_PASS
-            cout<<"处理循环:";
-            for(int i=0;i<loop.size();i++)cout<<loop[i]<<' ';
-            cout<<endl;
-#endif
             vector<pair<int,int> > unchanged;
             map<pair<int,int>,bool> vis;
             int last=-1;
@@ -410,10 +402,9 @@ void MXD::Run()
                             // 下面这个是判断opn1、opn2是否能是不变的
                             // 不变的要求为：要么为常数；要么是变量的时候，定值点在loop外面或定值点也被标记为不变了
                             // 并且要求每个操作数不能是全局变量
-
                             auto op1=ir_list[j]->opn1_,op2=ir_list[j]->opn2_,res=ir_list[j]->res_;
                             bool flag=true;
-                            flag&=op1.scope_id_==0,flag&=op2.scope_id_==0,flag&=res.scope_id_==0;
+                            flag&=(op1.scope_id_!=0),flag&=(op2.scope_id_!=0),flag&=(res.scope_id_!=0);
                             if(res.type_==ir::Opn::Type::Array)
                                 flag&=check(*res.offset_,loop,def,unchanged);
                             if(op1.type_==ir::Opn::Type::Array)
@@ -435,12 +426,14 @@ void MXD::Run()
                 }
             }
 
+#define DEBUG_LOOP_PASS
 #ifdef DEBUG_LOOP_PASS
             //TODO:后续测一下递归地不变运算能不能识别出来
             cout<<"输出不变运算:\n";
             for(int i=0;i<unchanged.size();i++)cout<<'('<<unchanged[i].first<<','<<unchanged[i].second<<")\n";
             cout<<endl;
 #endif
+#undef DEBUG_LOOP_PASS
 
             // 对每个不变语句看是否能外提，能的话直接外提了
 
@@ -682,50 +675,51 @@ void MXD::Run()
                 }
         #endif
 
-        }
-        
-        for(int i=0;i<func->bb_list_.size();i++)
+    }
+    
+    // 把变量名后面的_#scope_id去掉
+    for(int i=0;i<func->bb_list_.size();i++)
+    {
+        for(int j=0;j<func->bb_list_[i]->ir_list_.size();j++)
         {
-            for(int j=0;j<func->bb_list_[i]->ir_list_.size();j++)
+            if(func->bb_list_[i]->ir_list_[j]->opn1_.type_==ir::Opn::Type::Var)
             {
-                if(func->bb_list_[i]->ir_list_[j]->opn1_.type_==ir::Opn::Type::Var)
-                {
-                    while(func->bb_list_[i]->ir_list_[j]->opn1_.name_[func->bb_list_[i]->ir_list_[j]->opn1_.name_.size()-1]!='#')func->bb_list_[i]->ir_list_[j]->opn1_.name_.pop_back();
-                    func->bb_list_[i]->ir_list_[j]->opn1_.name_.pop_back(),func->bb_list_[i]->ir_list_[j]->opn1_.name_.pop_back();
-                }
-                else if(func->bb_list_[i]->ir_list_[j]->opn1_.type_==ir::Opn::Type::Array)
-                {
-                    while(func->bb_list_[i]->ir_list_[j]->opn1_.name_[func->bb_list_[i]->ir_list_[j]->opn1_.name_.size()-1]!='#')func->bb_list_[i]->ir_list_[j]->opn1_.name_.pop_back();
-                    func->bb_list_[i]->ir_list_[j]->opn1_.name_.pop_back(),func->bb_list_[i]->ir_list_[j]->opn1_.name_.pop_back();
-                    while(func->bb_list_[i]->ir_list_[j]->opn1_.offset_->name_[func->bb_list_[i]->ir_list_[j]->opn1_.offset_->name_.size()-1]!='#')func->bb_list_[i]->ir_list_[j]->opn1_.offset_->name_.pop_back();
-                    func->bb_list_[i]->ir_list_[j]->opn1_.offset_->name_.pop_back(),func->bb_list_[i]->ir_list_[j]->opn1_.offset_->name_.pop_back();
-                }
-                if(func->bb_list_[i]->ir_list_[j]->opn2_.type_==ir::Opn::Type::Var)
-                {
-                    while(func->bb_list_[i]->ir_list_[j]->opn2_.name_[func->bb_list_[i]->ir_list_[j]->opn2_.name_.size()-1]!='#')func->bb_list_[i]->ir_list_[j]->opn2_.name_.pop_back();
-                    func->bb_list_[i]->ir_list_[j]->opn2_.name_.pop_back(),func->bb_list_[i]->ir_list_[j]->opn2_.name_.pop_back();
-                }
-                else if(func->bb_list_[i]->ir_list_[j]->opn2_.type_==ir::Opn::Type::Array)
-                {
-                    while(func->bb_list_[i]->ir_list_[j]->opn2_.name_[func->bb_list_[i]->ir_list_[j]->opn2_.name_.size()-1]!='#')func->bb_list_[i]->ir_list_[j]->opn2_.name_.pop_back();
-                    func->bb_list_[i]->ir_list_[j]->opn2_.name_.pop_back(),func->bb_list_[i]->ir_list_[j]->opn2_.name_.pop_back();
-                    while(func->bb_list_[i]->ir_list_[j]->opn2_.offset_->name_[func->bb_list_[i]->ir_list_[j]->opn2_.offset_->name_.size()-1]!='#')func->bb_list_[i]->ir_list_[j]->opn2_.offset_->name_.pop_back();
-                    func->bb_list_[i]->ir_list_[j]->opn2_.offset_->name_.pop_back(),func->bb_list_[i]->ir_list_[j]->opn2_.offset_->name_.pop_back();
-                }
-                if(func->bb_list_[i]->ir_list_[j]->res_.type_==ir::Opn::Type::Var)
-                {
-                    while(func->bb_list_[i]->ir_list_[j]->res_.name_[func->bb_list_[i]->ir_list_[j]->res_.name_.size()-1]!='#')func->bb_list_[i]->ir_list_[j]->res_.name_.pop_back();
-                    func->bb_list_[i]->ir_list_[j]->res_.name_.pop_back(),func->bb_list_[i]->ir_list_[j]->res_.name_.pop_back();
-                }
-                else if(func->bb_list_[i]->ir_list_[j]->res_.type_==ir::Opn::Type::Array)
-                {
-                    while(func->bb_list_[i]->ir_list_[j]->res_.name_[func->bb_list_[i]->ir_list_[j]->res_.name_.size()-1]!='#')func->bb_list_[i]->ir_list_[j]->res_.name_.pop_back();
-                    func->bb_list_[i]->ir_list_[j]->res_.name_.pop_back(),func->bb_list_[i]->ir_list_[j]->res_.name_.pop_back();
-                    while(func->bb_list_[i]->ir_list_[j]->res_.offset_->name_[func->bb_list_[i]->ir_list_[j]->res_.offset_->name_.size()-1]!='#')func->bb_list_[i]->ir_list_[j]->res_.offset_->name_.pop_back();
-                    func->bb_list_[i]->ir_list_[j]->res_.offset_->name_.pop_back(),func->bb_list_[i]->ir_list_[j]->res_.offset_->name_.pop_back();
-                }
+                while(func->bb_list_[i]->ir_list_[j]->opn1_.name_[func->bb_list_[i]->ir_list_[j]->opn1_.name_.size()-1]!='#')func->bb_list_[i]->ir_list_[j]->opn1_.name_.pop_back();
+                func->bb_list_[i]->ir_list_[j]->opn1_.name_.pop_back(),func->bb_list_[i]->ir_list_[j]->opn1_.name_.pop_back();
+            }
+            else if(func->bb_list_[i]->ir_list_[j]->opn1_.type_==ir::Opn::Type::Array)
+            {
+                while(func->bb_list_[i]->ir_list_[j]->opn1_.name_[func->bb_list_[i]->ir_list_[j]->opn1_.name_.size()-1]!='#')func->bb_list_[i]->ir_list_[j]->opn1_.name_.pop_back();
+                func->bb_list_[i]->ir_list_[j]->opn1_.name_.pop_back(),func->bb_list_[i]->ir_list_[j]->opn1_.name_.pop_back();
+                while(func->bb_list_[i]->ir_list_[j]->opn1_.offset_->name_[func->bb_list_[i]->ir_list_[j]->opn1_.offset_->name_.size()-1]!='#')func->bb_list_[i]->ir_list_[j]->opn1_.offset_->name_.pop_back();
+                func->bb_list_[i]->ir_list_[j]->opn1_.offset_->name_.pop_back(),func->bb_list_[i]->ir_list_[j]->opn1_.offset_->name_.pop_back();
+            }
+            if(func->bb_list_[i]->ir_list_[j]->opn2_.type_==ir::Opn::Type::Var)
+            {
+                while(func->bb_list_[i]->ir_list_[j]->opn2_.name_[func->bb_list_[i]->ir_list_[j]->opn2_.name_.size()-1]!='#')func->bb_list_[i]->ir_list_[j]->opn2_.name_.pop_back();
+                func->bb_list_[i]->ir_list_[j]->opn2_.name_.pop_back(),func->bb_list_[i]->ir_list_[j]->opn2_.name_.pop_back();
+            }
+            else if(func->bb_list_[i]->ir_list_[j]->opn2_.type_==ir::Opn::Type::Array)
+            {
+                while(func->bb_list_[i]->ir_list_[j]->opn2_.name_[func->bb_list_[i]->ir_list_[j]->opn2_.name_.size()-1]!='#')func->bb_list_[i]->ir_list_[j]->opn2_.name_.pop_back();
+                func->bb_list_[i]->ir_list_[j]->opn2_.name_.pop_back(),func->bb_list_[i]->ir_list_[j]->opn2_.name_.pop_back();
+                while(func->bb_list_[i]->ir_list_[j]->opn2_.offset_->name_[func->bb_list_[i]->ir_list_[j]->opn2_.offset_->name_.size()-1]!='#')func->bb_list_[i]->ir_list_[j]->opn2_.offset_->name_.pop_back();
+                func->bb_list_[i]->ir_list_[j]->opn2_.offset_->name_.pop_back(),func->bb_list_[i]->ir_list_[j]->opn2_.offset_->name_.pop_back();
+            }
+            if(func->bb_list_[i]->ir_list_[j]->res_.type_==ir::Opn::Type::Var)
+            {
+                while(func->bb_list_[i]->ir_list_[j]->res_.name_[func->bb_list_[i]->ir_list_[j]->res_.name_.size()-1]!='#')func->bb_list_[i]->ir_list_[j]->res_.name_.pop_back();
+                func->bb_list_[i]->ir_list_[j]->res_.name_.pop_back(),func->bb_list_[i]->ir_list_[j]->res_.name_.pop_back();
+            }
+            else if(func->bb_list_[i]->ir_list_[j]->res_.type_==ir::Opn::Type::Array)
+            {
+                while(func->bb_list_[i]->ir_list_[j]->res_.name_[func->bb_list_[i]->ir_list_[j]->res_.name_.size()-1]!='#')func->bb_list_[i]->ir_list_[j]->res_.name_.pop_back();
+                func->bb_list_[i]->ir_list_[j]->res_.name_.pop_back(),func->bb_list_[i]->ir_list_[j]->res_.name_.pop_back();
+                while(func->bb_list_[i]->ir_list_[j]->res_.offset_->name_[func->bb_list_[i]->ir_list_[j]->res_.offset_->name_.size()-1]!='#')func->bb_list_[i]->ir_list_[j]->res_.offset_->name_.pop_back();
+                func->bb_list_[i]->ir_list_[j]->res_.offset_->name_.pop_back(),func->bb_list_[i]->ir_list_[j]->res_.offset_->name_.pop_back();
             }
         }
+    }
 
 #ifdef DEBUG_LOOP_PASS
         cout<<"输出处理该函数后的IR:\n";
