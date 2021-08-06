@@ -139,17 +139,35 @@ bool check3(int enter,vector<vector<int> > to,vector<int> out,int def,string nam
 // enter用新建的那个空基本块作为入口，to就是图，out是出口节点，不能出去，因为有check2，所以def只会有1次，
 //所以这里def是int，然后x的use情况
 {
-    auto def_bb=id_bb[def];
-    for(int i=0;i<def_bb->ir_list_.size();i++)
-    {
-        if(def_bb->ir_list_[i]->opn1_.name_==name ||def_bb->ir_list_[i]->opn2_.name_==name)
-            return false;
-        if(def_bb->ir_list_[i]->res_.name_==name)
-            break;
-    }
-    set<int> u,o;
-    for(int i=0;i<use.size();i++)u.insert(use[i].first);
-    for(int i=0;i<out.size();i++)o.insert(out[i]);
+    // auto def_bb=id_bb[def];
+    // for(int i=0;i<def_bb->ir_list_.size();i++)
+    // {
+    //     if(def_bb->ir_list_[i]->opn1_.name_==name ||def_bb->ir_list_[i]->opn2_.name_==name)
+    //         return false;
+    //     if(def_bb->ir_list_[i]->res_.name_==name)
+    //         break;
+    // }
+    // set<int> u,o;
+    // for(int i=0;i<use.size();i++)u.insert(use[i].first);
+    // for(int i=0;i<out.size();i++)o.insert(out[i]);
+    // queue<int> qqq;
+    // set<int> vis;
+    // qqq.push(enter);
+    // if(u.find(enter)!=u.end())return false; // 添了这句，入口节点是否含有x的使用没检查
+    // while(!qqq.empty())
+    // {
+    //     int x=qqq.front();
+    //     qqq.pop();
+    //     for(int i=0;i<to[x].size();i++)
+    //     {
+    //         int y=to[x][i];
+    //         if(y==def)continue;
+    //         if(u.find(y)!=u.end())return false; // 发现了x的使用，则返回false
+    //         if(o.find(y)==o.end() && vis.find(y)==vis.end()) // 既不是出口节点，也没有vis过才能入队
+    //             qqq.push(y),vis.insert(y);
+    //     }
+    // }
+    // return true;
     queue<int> qqq;
     set<int> vis;
     qqq.push(enter);
@@ -157,13 +175,20 @@ bool check3(int enter,vector<vector<int> > to,vector<int> out,int def,string nam
     {
         int x=qqq.front();
         qqq.pop();
+        if(vis.find(x)!=vis.end())continue;
+        auto bb=id_bb[x];
+        for(int i=0;i<bb->ir_list_.size();i++)
+        {
+            auto op1=bb->ir_list_[i]->opn1_.name_,op2=bb->ir_list_[i]->opn2_.name_,res=bb->ir_list_[i]->res_.name_;
+            if(op1==name || op2==name)return false;
+            if(res==name)break;
+        }
+        vis.insert(x);
         for(int i=0;i<to[x].size();i++)
         {
             int y=to[x][i];
-            if(y==def)continue;
-            if(u.find(y)!=u.end())return false; // 发现了x的使用，则返回false
-            if(o.find(y)==o.end() && vis.find(y)==vis.end()) // 既不是出口节点，也没有vis过才能入队
-                qqq.push(y),vis.insert(y);
+            if(vis.find(y)!=vis.end())continue;
+            qqq.push(y);
         }
     }
     return true;
@@ -358,14 +383,11 @@ void MXD::Run()
                 }
                 for(int j=0;j<loop.size();j++)vis[loop[j]]=false;
             }
+
 #ifdef DEBUG_LOOP_PASS
         cout<<"输出当前循环:\n";
-        for(int i=0;i<loops.size();i++)
-        {
-            for(int j=0;j<loops[i].size();j++)
-                cout<<loops[i][j]<<' ';
-            cout<<'\n';
-        }
+        for(int i=0;i<loop.size();i++)cout<<loop[i]<<' ' ;
+        cout<<endl;
 #endif
 #undef DEBUG_LOOP_PASS
 
@@ -554,7 +576,8 @@ void MXD::Run()
                 // 1.要么是当前基本块为loop中所有出口节点的必经节点，也就是当前基本块在must_out里，要么
                 // 是当前变量后续不再活跃，即will_not_live
                 // 2.res在loop中不再有其他定值，即check2(解释：本句指令前后都不能有res的定值语句)
-                // 3.loop中其他对于res的使用都只会从本句指令到达，即check3(从loop中的入口往后走，看能不能不经过本基本块到达res的使用)
+                // 3.loop中其他对于res的使用都只会从本句指令到达，即check3(从loop中的入口往后走，
+                // 看能不能不经过本基本块到达res的使用)
                 // if((have(unchanged[i].first,must_out) || will_not_live(unchanged[i],use[res.name_],suc,loop)) &&
                 //    check2(unchanged[i],loop,def[res.name_]) &&
                 //    check3(enter,to,out,unchanged[i].first,res.name_,id_bb,use[res.name_]))

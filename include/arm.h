@@ -183,6 +183,9 @@ class BinaryInst : public Instruction {
     RON,  // 或非
     BIC,  // 位清零
 
+    SDIV,  // 有符号除法
+    // UDIV,  // 无符号除法
+
     // no Rd. omit S.
     CMP,  // 比较
     CMN,  // 与负数比较
@@ -214,7 +217,7 @@ class BinaryInst : public Instruction {
   virtual void Check() {
     if (nullptr != rd_) {
       MyAssert(opcode_ == OpCode::ADD || opcode_ == OpCode::SUB || opcode_ == OpCode::RSB ||
-               (opcode_ == OpCode::MUL && !op2_->is_imm_));
+               ((opcode_ == OpCode::MUL || opcode_ == OpCode::SDIV) && !op2_->is_imm_));
       rd_->Check();
     } else {
       MyAssert(opcode_ == OpCode::CMP);
