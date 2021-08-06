@@ -109,6 +109,29 @@ void GenerateArmFromSSA::GenImmLdrStrInst(ArmBasicBlock* armbb, LdrStr::OpKind o
   }
 }
 
+bool GenerateArmFromSSA::ConvertMul2Shift(ArmBasicBlock* armbb, Reg* rd, Value* val, int imm) {
+  // 如果乘数是0 生成一条mov rd 0的指令
+  if (0 == imm) {
+    ADD_NEW_INST(Move(rd, 0));
+    return true;
+  }
+  // 如果乘数是2的幂次方 生成一条mov rd rm LSL n的指令 LSL允许0-31位
+  if (0 == (imm & (imm - 1))) {
+    auto eval_n = [](int imm) {
+      int n = 0;
+      while (imm > 1) {
+        imm >>= 1;
+        ++n;
+      }
+      return n;
+    };
+    auto op2 = new Operand2(ResolveValue2Reg(armbb, val), new Shift(Shift::OpCode::LSL, eval_n(imm)));
+    ADD_NEW_INST(Move(rd, op2));
+    return true;
+  }
+  return false;
+}
+
 Reg* GenerateArmFromSSA::ResolveValue2Reg(ArmBasicBlock* armbb, Value* val) {
   if (auto src_val = dynamic_cast<ConstantInt*>(val)) {
     return ResolveImm2Reg(armbb, src_val->GetImm());
@@ -308,10 +331,15 @@ ArmModule* GenerateArmFromSSA::GenCode(SSAModule* module) {
               break;
             }
             case BinaryOperator::OpKind::MUL: {
+              // 应该不会出现同时为立即数的情况
+              Reg* rd = ResolveValue2Reg(armbb, res);
+              if (auto const_int = dynamic_cast<ConstantInt*>(lhs))
+                if (ConvertMul2Shift(armbb, rd, rhs, const_int->GetImm())) break;
+              if (auto const_int = dynamic_cast<ConstantInt*>(rhs))
+                if (ConvertMul2Shift(armbb, rd, lhs, const_int->GetImm())) break;
               rn = ResolveValue2Reg(armbb, lhs);
               // NOTE: MUL的两个操作数必须全为寄存器 不能是立即数
               op2 = new Operand2(ResolveValue2Reg(armbb, rhs));
-              Reg* rd = ResolveValue2Reg(armbb, res);
               gen_bi_inst(BinaryInst::OpCode::MUL, rd, rn, op2);
               break;
             }

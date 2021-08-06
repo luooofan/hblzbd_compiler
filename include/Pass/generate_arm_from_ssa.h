@@ -38,6 +38,7 @@ class GenerateArmFromSSA : public Transform {
   Operand2* ResolveValue2Operand2(ArmBasicBlock* armbb, Value* val);
   Operand2* ResolveImm2Operand2(ArmBasicBlock* armbb, int imm, bool record = false);
   void GenImmLdrStrInst(ArmBasicBlock* armbb, LdrStr::OpKind opkind, Reg* rd, Reg* rn, int imm, bool record = false);
+  bool ConvertMul2Shift(ArmBasicBlock* armbb, Reg* rd, Value* val, int imm);
   void AddEpilogue(ArmBasicBlock* armbb);
   void AddPrologue(ArmFunction* func, FunctionValue* func_val);
   void ResetFuncData();
