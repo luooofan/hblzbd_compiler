@@ -763,5 +763,5 @@ void MXD::Run() {
   cout << "MXD 结束\n";
 #endif
 #undef DEBUG_LOOP_PASS
-  cout << "外提了指令：" << cntcnt << "条" << endl;
+  // cout << "外提了指令：" << cntcnt << "条" << endl;
 }
