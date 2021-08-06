@@ -416,6 +416,7 @@ void MXD::Run()
                             auto op1=ir_list[j]->opn1_,op2=ir_list[j]->opn2_,res=ir_list[j]->res_;
                             bool flag=true;
                             flag&=(op1.scope_id_!=0),flag&=(op2.scope_id_!=0),flag&=(res.scope_id_!=0);
+                            flag&=(op1.type_!=ir::Opn::Type::Array),flag&=(res.type_!=ir::Opn::Type::Array);
                             if(res.type_==ir::Opn::Type::Array)
                                 flag&=check(*res.offset_,loop,def,unchanged);
                             if(op1.type_==ir::Opn::Type::Array)
@@ -438,7 +439,6 @@ void MXD::Run()
                 break;
             }
 
-#define DEBUG_LOOP_PASS
 #ifdef DEBUG_LOOP_PASS
             //TODO:后续测一下递归地不变运算能不能识别出来
             cout<<"输出不变运算:\n";
