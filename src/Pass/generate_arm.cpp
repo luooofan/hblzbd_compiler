@@ -3,6 +3,11 @@
 #include <algorithm>
 #include <functional>
 
+#include "../../include/arm.h"
+#include "../../include/arm_struct.h"
+#include "../../include/ir.h"
+#include "../../include/ir_struct.h"
+
 #define ASSERT_ENABLE
 #include "../../include/myassert.h"
 

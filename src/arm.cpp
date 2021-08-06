@@ -1,12 +1,13 @@
 #include "../include/arm.h"
 
-#include <cassert>
 #include <unordered_set>
 #define ASSERT_ENABLE
 #include "../include/myassert.h"
 
 namespace arm {
+
 std::unordered_set<std::string> gAllLabel;
+
 std::string CondToString(Cond cond) {
   switch (cond) {
     case Cond::AL:
@@ -30,6 +31,65 @@ std::string CondToString(Cond cond) {
   return "";
 }
 
+void Reg::Check() { MyAssert(reg_id_ >= 0 && reg_id_ < 16); }
+
+Shift::operator std::string() {
+  std::string opcode = "";
+  switch (opcode_) {
+    case OpCode::ASR:
+      opcode = "ASR";
+      break;
+    case OpCode::LSL:
+      opcode = "LSL";
+      break;
+    case OpCode::LSR:
+      opcode = "LSR";
+      break;
+    case OpCode::ROR:
+      opcode = "ROR";
+      break;
+    case OpCode::RRX:
+      return "RRX";
+    default:
+      MyAssert(0);
+      break;
+  }
+  if (is_imm_) {
+    return opcode + " #" + std::to_string(shift_imm_);
+  } else {
+    return opcode + " " + std::string(*shift_reg_);
+  }
+}
+void Shift::Check() {
+  // 如果是RRX 不应该跟立即数或寄存器 其他移位类型立即数有相应限制
+  if (is_imm_) {
+    switch (opcode_) {
+      case OpCode::LSL:
+        MyAssert(shift_imm_ >= 0 && shift_imm_ <= 31);
+        break;
+      case OpCode::LSR:
+      case OpCode::ASR:
+        MyAssert(shift_imm_ >= 1 && shift_imm_ <= 32);
+        break;
+      case OpCode::ROR:
+        MyAssert(shift_imm_ >= 1 && shift_imm_ <= 31);
+        break;
+      case OpCode::RRX:
+        MyAssert(0 == shift_imm_);
+        break;
+      default:
+        MyAssert(0);
+        break;
+    }
+  } else {
+    MyAssert(nullptr != shift_reg_);
+  }
+}
+
+Operand2::operator std::string() {
+  return is_imm_ ? ("#" + std::to_string(imm_num_))
+                 : (std::string(*reg_) + (nullptr == shift_ || shift_->IsNone() ? "" : ", " + std::string(*shift_)));
+}
 bool Operand2::CheckImm8m(int imm) {
   // NOTE: assign a int to unsigned int
   unsigned int encoding = imm;
@@ -41,6 +101,15 @@ bool Operand2::CheckImm8m(int imm) {
     encoding = (encoding << 30u) | (encoding >> 2u);
   }
   return false;
+}
+void Operand2::Check() {
+  if (is_imm_) {
+    MyAssert(CheckImm8m(imm_num_));
+  } else {
+    MyAssert(nullptr != reg_);
+    reg_->Check();
+    if (nullptr != shift_) shift_->Check();
+  }
 }
 
 BinaryInst::~BinaryInst() {
@@ -105,6 +174,18 @@ void BinaryInst::EmitCode(std::ostream& outfile) {
   outfile << "\t" << opcode << " " << (nullptr != this->rd_ ? (std::string(*this->rd_) + ", ") : "")
           << std::string(*this->rn_) << ", " << std::string(*this->op2_) << std::endl;
 }
+void BinaryInst::Check() {
+  if (nullptr != rd_) {
+    MyAssert(opcode_ == OpCode::ADD || opcode_ == OpCode::SUB || opcode_ == OpCode::RSB ||
+             ((opcode_ == OpCode::MUL || opcode_ == OpCode::SDIV) && !op2_->is_imm_));
+    rd_->Check();
+  } else {
+    MyAssert(opcode_ == OpCode::CMP);
+  }
+  MyAssert(nullptr != rn_ && nullptr != op2_);
+  rn_->Check();
+  op2_->Check();
+}
 
 Move::~Move() {}
 void Move::EmitCode(std::ostream& outfile) {
@@ -114,9 +195,15 @@ void Move::EmitCode(std::ostream& outfile) {
   outfile << "\t" << opcode << " " << std::string(*this->rd_);
   outfile << ", " << std::string(*this->op2_) << std::endl;
 }
+void Move::Check() {
+  MyAssert(nullptr != rd_ && nullptr != op2_);
+  rd_->Check();
+  op2_->Check();
+}
 
 Branch::~Branch() {}
 bool Branch::IsCall() {
+  // 所有的标签都要由.开头
   if (this->has_l_ && this->label_.size() > 0 && this->label_ != "lr" && this->label_[0] != '.') {
     return true;
   } else {
@@ -131,6 +218,15 @@ void Branch::EmitCode(std::ostream& outfile) {
   if (this->has_x_) opcode += "x";
   opcode += CondToString(this->cond_);
   outfile << "\t" << opcode << " " << this->label_ << std::endl;
+}
+void Branch::Check() {
+  MyAssert(label_ != "" && label_ != "putf");  // 要么以点开头 要么是函数名
+  // std::cout << label_ << std::endl;
+  // if (label_ != "lr") MyAssert(arm::gAllLabel.find(label_) != arm::gAllLabel.end());
+  // this->EmitCode();
+  if (has_x_) {
+    MyAssert(label_ == "lr");
+  }  // 目前没有blx bx只能是bx lr
 }
 
 LdrStr::~LdrStr() {}
@@ -158,6 +254,17 @@ void LdrStr::EmitCode(std::ostream& outfile) {
   }
   outfile << "\t" << prefix << std::endl;
 }
+void LdrStr::Check() {
+  MyAssert(nullptr != rd_ && nullptr != rn_);
+  rd_->Check();
+  rn_->Check();
+  if (is_offset_imm_) {
+    MyAssert(CheckImm12(offset_imm_) && nullptr == offset_);
+  } else {
+    MyAssert(nullptr != offset_);
+    offset_->Check();
+  }
+}
 
 LdrPseudo::~LdrPseudo() {}
 void LdrPseudo::EmitCode(std::ostream& outfile) {
@@ -180,6 +287,12 @@ void LdrPseudo::EmitCode(std::ostream& outfile) {
   outfile << "\tmov32 " << std::string(*(this->rd_)) << ", "
           << (this->is_imm_ ? std::to_string(this->imm_) : this->literal_) << std::endl;
 }
+void LdrPseudo::Check() {
+  MyAssert(nullptr != rd_);
+  rd_->Check();
+  // NOTE: literal_应该能在全局表中找到 TODO!!!
+  // MyAssert(IsImm() || (ir::gScopes[0].symbol_table_.find(literal_) != ir::gScopes[0].symbol_table_.end()));
+}
 
 PushPop::~PushPop() {}
 void PushPop::EmitCode(std::ostream& outfile) {
@@ -190,6 +303,12 @@ void PushPop::EmitCode(std::ostream& outfile) {
     outfile << ", " << std::string(**iter);
   }
   outfile << " }" << std::endl;
+}
+void PushPop::Check() {
+  MyAssert(!reg_list_.empty());
+  for (auto reg : reg_list_) {
+    reg->Check();
+  }
 }
 
 }  // namespace arm

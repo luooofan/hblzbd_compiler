@@ -3,9 +3,12 @@
 #include <unordered_set>
 
 #include "../arm.h"
-#include "../arm_struct.h"
 #include "pass_manager.h"
 using namespace arm;
+class ArmModule;
+class ArmFunction;
+class ArmBasicBlock;
+class IRModule;
 
 // NO OPT VERSION
 class GenerateArm : public Transform {

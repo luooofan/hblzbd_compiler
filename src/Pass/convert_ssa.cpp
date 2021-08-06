@@ -83,7 +83,7 @@ Value* ConvertSSA::ResolveOpn2Value(Opn* opn, SSABasicBlock* ssabb) {
     res = this->FindValueFromCompName(comp_name, false);
 
     if (nullptr == res) {  // 未定义变量
-      std::cout << std::string(*opn) << std::endl;
+      // std::cout << "Undefined variable:" << std::string(*opn) << std::endl;
       MyAssert(type == Opn::Type::Var);
       // new undefval
       res = new UndefVariable(new Type(Type::IntegerTyID), comp_name);
