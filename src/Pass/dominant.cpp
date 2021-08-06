@@ -56,6 +56,8 @@ void ComputeDominance::ResetTempInfo(IRFunction* f) {
 void ComputeDominance::ComputeIDomInfo(IRFunction* f) {
   // 构造深度优先生成树 构造完后 保证vertex dfnum有效完整 parent[r]为空
   DFS(nullptr, f->bb_list_.front());
+  // std::cout << N << " " << f->bb_list_.size() << std::endl;
+  MyAssert(N == f->bb_list_.size());
 
   // 基于半必经结点定理计算所有 非根节点 的半必经结点
   for (int i = N - 1; i > 0; --i) {
@@ -68,7 +70,8 @@ void ComputeDominance::ComputeIDomInfo(IRFunction* f) {
       if (dfnum[pred] <= dfnum[n]) {  // 该前驱在生成树上是n的祖先
         s_temp = pred;                // 则该结点是semi[n]的候选
       } else {                        // 该前驱在生成树上不是n的祖先
-        s_temp = AncestorWithLowestSemi(pred);  // 则该前驱到其公共祖先的路径上的y:min(dfnum[semi[y]])成为semi[n]候选
+        s_temp = semi[AncestorWithLowestSemi(pred)];
+        // 则该前驱到其公共祖先的路径上的y:min(dfnum[semi[y]]) semi[y]成为semi[n]候选
       }
       if (dfnum[s_temp] < dfnum[s]) {  // 半必经结点是dfnum最小的
         s = s_temp;

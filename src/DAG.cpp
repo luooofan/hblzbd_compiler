@@ -107,11 +107,11 @@ void DAG_analysis::Run4bb(IRBasicBlock *bb){
              ir->op_ == ir::IR::OpKind::JLE ||
              ir->op_ == ir::IR::OpKind::JGT ||
              ir->op_ == ir::IR::OpKind::JGE){
-      
+    // 这些语句只会出现在基本块的最后一行，
     }else if(ir->op_ == ir::IR::OpKind::VOID){
 
     }else if(ir->op_ == ir::IR::OpKind::ASSIGN_OFFSET){
-      
+
     }
   }
 }
