@@ -11,6 +11,7 @@
 #include "../include/Pass/generate_arm.h"
 #include "../include/Pass/generate_arm_from_ssa.h"
 #include "../include/Pass/generate_arm_opt.h"
+#include "../include/Pass/loop.h"
 #include "../include/Pass/pass_manager.h"
 #include "../include/Pass/simplify_armcode.h"
 #include "../include/Pass/simplify_cfg.h"
@@ -125,7 +126,7 @@ int main(int argc, char **argv) {
   PassManager pm(module_ptr_addr);
   // ==================Add Quad-Pass Below==================
   // pm.AddPass<DeadCodeEliminate>(false);
-
+  pm.AddPass<MXD>(false);
   // ==================Add Quad-Pass Above==================
   pm.AddPass<SimplifyCFG>(false);  // necessary
   pm.AddPass<ComputeDominance>(false);
