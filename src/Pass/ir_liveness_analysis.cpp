@@ -1,42 +1,36 @@
 #include "../../include/Pass/ir_liveness_analysis.h"
-
-#include <cassert>
 #define ASSERT_ENABLE
-// assert(res);
-#ifdef ASSERT_ENABLE
-#define MyAssert(res)                                                    \
-  if (!(res)) {                                                          \
-    std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl; \
-    exit(255);                                                           \
-  }
-#else
-#define MyAssert(res) ;
-#endif
+#include "../../include/myassert.h"
 
-std::pair<std::vector<Opn *>, std::vector<Opn *>> GetDefUsePtr(IR *ir) {
+std::pair<std::vector<Opn *>, std::vector<Opn *>> GetDefUsePtr(IR *ir, bool consider) {
   std::vector<Opn *> def;
   std::vector<Opn *> use;
 
-  auto process_opn = [&use](Opn *op) {
+  auto process_opn = [&use, &consider](Opn *op) {
     if (nullptr == op) return;
     if (op->type_ == Opn::Type::Imm || op->type_ == Opn::Type::Label || op->type_ == Opn::Type::Func ||
         op->type_ == Opn::Type::Null)
       return;
-    use.push_back(op);
-    if (op->type_ == Opn::Type::Array && op->offset_->type_ == Opn::Type::Var) {
-      use.push_back(op->offset_);
+    if (op->type_ == Opn::Type::Array) {
+      if (consider) use.push_back(op);
+      if (op->offset_->type_ == Opn::Type::Var)
+        if (consider || 0 != op->offset_->scope_id_) use.push_back(op->offset_);
+    } else {  // var
+      if (!consider && 0 == op->scope_id_) return;
+      use.push_back(op);
     }
   };
 
-  auto process_res = [&def, &use](Opn *res) {
+  auto process_res = [&def, &use, &consider](Opn *res) {
     if (nullptr == res) return;
     if (res->type_ == Opn::Type::Label || res->type_ == Opn::Type::Func || res->type_ == Opn::Type::Null) return;
-    def.push_back(res);
     if (res->type_ == Opn::Type::Array) {
-      if (res->offset_->type_ == Opn::Type::Imm || res->offset_->type_ == Opn::Type::Label ||
-          res->offset_->type_ == Opn::Type::Func || res->offset_->type_ == Opn::Type::Null)
-        return;
-      use.push_back(res->offset_);
+      if (consider) def.push_back(res);
+      if (res->offset_->type_ == Opn::Type::Var)
+        if (consider || 0 != res->offset_->scope_id_) use.push_back(res->offset_);
+    } else {  // var
+      if (!consider && 0 == res->scope_id_) return;
+      def.push_back(res);
     }
   };
 
@@ -70,7 +64,12 @@ std::pair<std::vector<Opn *>, std::vector<Opn *>> GetDefUsePtr(IR *ir) {
   } else if (ir->op_ == IR::OpKind::ASSIGN_OFFSET) {
     process_opn(&(ir->opn1_));
     process_res(&(ir->res_));
-  } else if (ir->op_ == IR::OpKind::ALLOCA) {  // 跳过
+  } else if (ir->op_ == IR::OpKind::PHI) {
+    for (auto &arg : ir->phi_args_) {
+      process_opn(&(arg));
+    }
+    process_res(&(ir->res_));
+  } else if (ir->op_ == IR::OpKind::ALLOCA) {
     process_res(&(ir->opn1_));
   } else if (ir->op_ == IR::OpKind::DECLARE) {
     process_res(&(ir->opn1_));
@@ -82,30 +81,37 @@ std::pair<std::vector<Opn *>, std::vector<Opn *>> GetDefUsePtr(IR *ir) {
 }
 
 //变量形式：变量名_#scope_id
-std::pair<std::vector<std::string>, std::vector<std::string>> GetDefUse(IR *ir) {
+std::pair<std::vector<std::string>, std::vector<std::string>> GetDefUse(IR *ir, bool consider) {
   std::vector<std::string> def;
   std::vector<std::string> use;
 
-  auto process_opn = [&use](Opn *op) {
+  auto process_opn = [&use, &consider](Opn *op) {
     if (nullptr == op) return;
     if (op->type_ == Opn::Type::Imm || op->type_ == Opn::Type::Label || op->type_ == Opn::Type::Func ||
         op->type_ == Opn::Type::Null)
       return;
-    use.push_back(op->name_ + "." + std::to_string(op->scope_id_));
-    if (op->type_ == Opn::Type::Array && op->offset_->type_ == Opn::Type::Var) {
-      use.push_back(op->offset_->name_ + "." + std::to_string(op->offset_->scope_id_));
+    if (op->type_ == Opn::Type::Array) {
+      if (consider) use.push_back(op->name_ + "." + std::to_string(op->scope_id_));
+      if (op->offset_->type_ == Opn::Type::Var)
+        if (consider || 0 != op->offset_->scope_id_)
+          use.push_back(op->offset_->name_ + "." + std::to_string(op->offset_->scope_id_));
+    } else {  // var
+      if (!consider && 0 == op->scope_id_) return;
+      use.push_back(op->name_ + "." + std::to_string(op->scope_id_));
     }
   };
 
-  auto process_res = [&def, &use](Opn *res) {
+  auto process_res = [&def, &use, &consider](Opn *res) {
     if (nullptr == res) return;
     if (res->type_ == Opn::Type::Label || res->type_ == Opn::Type::Func || res->type_ == Opn::Type::Null) return;
-    def.push_back(res->name_ + "." + std::to_string(res->scope_id_));
     if (res->type_ == Opn::Type::Array) {
-      if (res->offset_->type_ == Opn::Type::Imm || res->offset_->type_ == Opn::Type::Label ||
-          res->offset_->type_ == Opn::Type::Func || res->offset_->type_ == Opn::Type::Null)
-        return;
-      use.push_back(res->offset_->name_ + "." + std::to_string(res->offset_->scope_id_));
+      if (consider) def.push_back(res->name_ + "." + std::to_string(res->scope_id_));
+      if (res->offset_->type_ == Opn::Type::Var)
+        if (consider || 0 != res->offset_->scope_id_)
+          use.push_back(res->offset_->name_ + "." + std::to_string(res->offset_->scope_id_));
+    } else {
+      if (!consider && 0 == res->scope_id_) return;
+      def.push_back(res->name_ + "." + std::to_string(res->scope_id_));
     }
   };
 
@@ -138,6 +144,11 @@ std::pair<std::vector<std::string>, std::vector<std::string>> GetDefUse(IR *ir) 
     return {def, use};
   } else if (ir->op_ == IR::OpKind::ASSIGN_OFFSET) {
     process_opn(&(ir->opn1_));
+    process_res(&(ir->res_));
+  } else if (ir->op_ == IR::OpKind::PHI) {
+    for (auto &arg : ir->phi_args_) {
+      process_opn(&(arg));
+    }
     process_res(&(ir->res_));
   } else if (ir->op_ == IR::OpKind::ALLOCA) {
     process_res(&(ir->opn1_));
@@ -157,6 +168,28 @@ bool isFound(std::unordered_set<Opn *> &inbb, Opn *inir) {
     }
   }
   return false;
+}
+
+void IRLivenessAnalysis::GetDefUse4Func(IRFunction *f, bool consider) {
+  for (auto bb : f->bb_list_) {
+    // bb->livein_.clear();
+    // bb->liveout_.clear();
+    bb->def_.clear();
+    bb->use_.clear();
+
+    for (auto ir : bb->ir_list_) {
+      auto [def, use] = GetDefUse(ir, consider);
+
+      for (auto &u : use) {
+        bb->use_.insert(u);
+      }
+
+      for (auto &d : def) {
+        bb->def_.insert(d);
+      }
+    }
+    // bb->livein_ = bb->use_;
+  }  // for bb
 }
 
 void IRLivenessAnalysis::Run4Func(IRFunction *f) {
