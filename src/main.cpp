@@ -8,9 +8,7 @@
 #include "../include/Pass/arm_offset_fixup.h"
 #include "../include/Pass/convert_ssa.h"
 #include "../include/Pass/dominant.h"
-#include "../include/Pass/generate_arm.h"
 #include "../include/Pass/generate_arm_from_ssa.h"
-#include "../include/Pass/generate_arm_opt.h"
 #include "../include/Pass/loop.h"
 #include "../include/Pass/pass_manager.h"
 #include "../include/Pass/simplify_armcode.h"
@@ -125,7 +123,6 @@ int main(int argc, char **argv) {
 #endif
   PassManager pm(module_ptr_addr);
   // ==================Add Quad-Pass Below==================
-  // pm.AddPass<DeadCodeEliminate>(false);
   pm.AddPass<MXD>(false);
   // ==================Add Quad-Pass Above==================
   pm.AddPass<SimplifyCFG>(false);  // necessary
@@ -134,8 +131,6 @@ int main(int argc, char **argv) {
   // ==================Add SSA-Pass Below==================
 
   // ==================Add SSA-Pass Above==================
-  // pm.AddPass<GenerateArm>(false);  // 需要在genir中define NO_OPT
-  // pm.AddPass<GenerateArmOpt>(false);
   pm.AddPass<GenerateArmFromSSA>(false);
   pm.AddPass<RegAlloc>(false);
   pm.AddPass<SPOffsetFixup>(false);

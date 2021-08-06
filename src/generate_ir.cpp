@@ -20,6 +20,7 @@
 #include "../include/myassert.h"
 
 // #define NO_OPT
+// useless. it is only work for opt_genarm_regalloc branch. used to generate arm code from quad-ir.
 
 namespace ast {
 
