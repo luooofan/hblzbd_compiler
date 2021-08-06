@@ -46,12 +46,18 @@ class IRBasicBlock : public BasicBlock {
   std::vector<IRBasicBlock*> pred_;
   std::vector<IRBasicBlock*> succ_;
 
+  // use for ir_liveness_analysis
   std::unordered_set<std::string> def_;
   std::unordered_set<std::string> use_;
   std::unordered_set<std::string> livein_;
   std::unordered_set<std::string> liveout_;
 
+  // use for DAG
   std::vector<DAG_node*> node_list_;
+  std::vector<DAG_node*> root_node_;
+  //记录下这个基本块的Label，在基本块中就不处理label语句了
+  //形式：Label_#label or Label_#Func
+  std::string bb_label_ = nullptr;
 
   // used for ssa
   IRBasicBlock* idom_ = nullptr;          // 直接支配结点 即支配结点树中的父节点

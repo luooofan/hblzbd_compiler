@@ -1,14 +1,22 @@
-int f(int a, int b[])
+int f(int a, int b)
 {
-    return a + b[0];
+    return a + b;
+}
+
+int g(int a, int b)
+{
+    return a + b;
 }
 
 int main()
 {
     int a = 10;
-    int b[10] = {0};
+    int b = 10;
+    int c = 10;
+    int d = 10;
 
-    int c = f(a, b);
+    int e;
+    e = f(a + b, g(c, d));
 
     return 0;
 }

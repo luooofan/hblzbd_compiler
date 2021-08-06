@@ -22,7 +22,8 @@ public:
     Label, 
     Func,
     Null,
-    Array
+    Array, 
+    Assign
   };
 
   Type type_;
@@ -31,8 +32,12 @@ public:
   int scope_id_;
   ir::IR::OpKind op_;
 
+  // 如果只有一个子节点则副歌left指针
   DAG_node *left_, *right_;
-  std::vector<std::string> var_list_;
+  // 定值变量表中变量的形式： 变量名_#scope_id
+  std::unordered_set<std::string> var_list_;
+  // 只用于处理CALL语句和PARAM语句
+  std::vector<ir::IR*> param_and_call_;
 
   // 变量类型
   DAG_node(Type type, std::string name, int scope_id) : type_(type), name_(name), scope_id_(scope_id) {op_ = ir::IR::OpKind::VOID; imm_num_ = 0; left_ = right_ = nullptr; var_list_.clear();}
@@ -46,6 +51,8 @@ public:
   // DAG_node(Type type, std::string name) : type_(type), name_(name) {imm_num_ = 0; scope_id_ = -1; op_ = ir::IR::OpKind::VOID; left_ = right_ = nullptr; var_list_.clear();}
   // 空类型
   DAG_node(Type type) : type_(type) {imm_num_ = 0; scope_id_ = -1; op_ = ir::IR::OpKind::VOID; left_ = right_ = nullptr; var_list_.clear(); name_ = "";}
+  // 函数调用类型
+  DAG_node(Type type, std::string func_name, ir::IR::OpKind op, int arg_num) : type_(type), name_(func_name), op_(op), imm_num_(arg_num) {scope_id_ = -1; left_ = right_ = nullptr; }
 };
 
 
