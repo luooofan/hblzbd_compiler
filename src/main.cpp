@@ -121,7 +121,7 @@ int main(int argc, char **argv) {
 #endif
   PassManager pm(module_ptr_addr);
 
-  // pm.AddPass<MXD>(false);
+  pm.AddPass<InvariantExtrapolation>(false);
 
   pm.AddPass<ComputeDominance>(false);
   // pm.AddPass<GenerateArm>(false);  // 需要在genir中define NO_OPT
