@@ -37,7 +37,12 @@ enum class ArmReg {
   pc = r15,  // program counter
 };
 
+class Instruction;
+
 class Reg {
+ private:
+  std::unordered_set<Instruction*> used_inst_set;
+
  public:
   //   ArmReg reg_;
   int reg_id_;
@@ -45,6 +50,9 @@ class Reg {
   Reg(ArmReg armreg) : reg_id_(static_cast<int>(armreg)) {}
   explicit operator std::string() { return "r" + std::to_string(reg_id_); }
   void Check();  // NOTE: only used for final check.
+  void AddUsedInst(Instruction* inst) { used_inst_set.insert(inst); }
+  const std::unordered_set<Instruction*>& GetUsedInsts() const { return used_inst_set; }
+  const unsigned GetUsedInstNum() const { return used_inst_set.size(); }
 };
 
 class Shift {
@@ -67,6 +75,9 @@ class Shift {
   bool IsNone() { return opcode_ == OpCode::LSL && is_imm_ && 0 == shift_imm_; }
   explicit operator std::string();
   void Check();
+  void AddUsedInst(Instruction* inst) {
+    if (!is_imm_) shift_reg_->AddUsedInst(inst);
+  }
 };
 
 // Operand2 is a flexible second operand.
@@ -85,6 +96,11 @@ class Operand2 {
   explicit operator std::string();
   static bool CheckImm8m(int imm);
   void Check();
+  void AddUsedInst(Instruction* inst) {
+    if (!is_imm_) reg_->AddUsedInst(inst);
+    if (nullptr != shift_) shift_->AddUsedInst(inst);
+  }
+  bool HasShift() { return !is_imm_ && nullptr != shift_; }
 };
 
 enum class Cond {
@@ -108,6 +124,7 @@ class Instruction {
   virtual ~Instruction() = default;
   virtual void EmitCode(std::ostream& outfile = std::clog) = 0;
   virtual void Check() = 0;
+  virtual void AddUsedInst(){};
 };
 
 // BinaryInstruction: <OpCode>{S}{Cond} {Rd,} Rn, <Operand2>
@@ -145,19 +162,29 @@ class BinaryInst : public Instruction {
   Operand2* op2_;
 
   BinaryInst(OpCode opcode, bool has_s, Cond cond, Reg* rd, Reg* rn, Operand2* op2)
-      : Instruction(cond), opcode_(opcode), has_s_(has_s), rd_(rd), rn_(rn), op2_(op2) {}
-  BinaryInst(OpCode opcode, Reg* rd, Reg* rn, Operand2* op2) : opcode_(opcode), rd_(rd), rn_(rn), op2_(op2) {}
+      : Instruction(cond), opcode_(opcode), has_s_(has_s), rd_(rd), rn_(rn), op2_(op2) {
+    AddUsedInst();
+  }
+  BinaryInst(OpCode opcode, Reg* rd, Reg* rn, Operand2* op2) : opcode_(opcode), rd_(rd), rn_(rn), op2_(op2) {
+    AddUsedInst();
+  }
 
   // for TST TEQ CMP CMN: no rd. omit S.
   BinaryInst(OpCode opcode, Cond cond, Reg* rn, Operand2* op2)
-      : Instruction(cond), opcode_(opcode), rn_(rn), op2_(op2) {}
-  BinaryInst(OpCode opcode, Reg* rn, Operand2* op2) : opcode_(opcode), rn_(rn), op2_(op2) {}
+      : Instruction(cond), opcode_(opcode), rn_(rn), op2_(op2) {
+    AddUsedInst();
+  }
+  BinaryInst(OpCode opcode, Reg* rn, Operand2* op2) : opcode_(opcode), rn_(rn), op2_(op2) { AddUsedInst(); }
 
   virtual ~BinaryInst();
 
   bool HasS() { return has_s_; }
   virtual void EmitCode(std::ostream& outfile = std::clog) override;
   virtual void Check() override;
+  virtual void AddUsedInst() override {
+    if (nullptr != rn_) rn_->AddUsedInst(this);
+    if (nullptr != op2_) op2_->AddUsedInst(this);
+  }
 };
 
 // Move: MOV{S}{Cond} Rd, <Operand2>
@@ -169,13 +196,18 @@ class Move : public Instruction {
   Operand2* op2_;
 
   Move(bool has_s, Cond cond, Reg* rd, Operand2* op2, bool is_mvn = false)
-      : Instruction(cond), has_s_(has_s), rd_(rd), op2_(op2), is_mvn_(is_mvn) {}
-  Move(Reg* rd, Operand2* op2, bool is_mvn = false) : rd_(rd), op2_(op2), is_mvn_(is_mvn) {}
+      : Instruction(cond), has_s_(has_s), rd_(rd), op2_(op2), is_mvn_(is_mvn) {
+    AddUsedInst();
+  }
+  Move(Reg* rd, Operand2* op2, bool is_mvn = false) : rd_(rd), op2_(op2), is_mvn_(is_mvn) { AddUsedInst(); }
   virtual ~Move();
 
   bool HasS() { return has_s_; }
   virtual void EmitCode(std::ostream& outfile = std::clog) override;
   virtual void Check() override;
+  virtual void AddUsedInst() override {
+    if (nullptr != op2_) op2_->AddUsedInst(this);
+  }
 };
 
 // Branch: B{L}{Cond} <label> label can be "lr" or a func name or a normal label beginning with a dot.
@@ -208,17 +240,29 @@ class LdrStr : public Instruction {
   Operand2* offset_ = nullptr;  // a reg, or a scaled reg(imm_shift)
 
   LdrStr(OpKind opkind, Type type, Cond cond, Reg* rd, Reg* rn, Operand2* offset)
-      : Instruction(cond), opkind_(opkind), type_(type), rd_(rd), rn_(rn), offset_(offset) {}
-  LdrStr(OpKind opkind, Reg* rd, Reg* rn, Operand2* offset) : opkind_(opkind), rd_(rd), rn_(rn), offset_(offset) {}
+      : Instruction(cond), opkind_(opkind), type_(type), rd_(rd), rn_(rn), offset_(offset) {
+    AddUsedInst();
+  }
+  LdrStr(OpKind opkind, Reg* rd, Reg* rn, Operand2* offset) : opkind_(opkind), rd_(rd), rn_(rn), offset_(offset) {
+    AddUsedInst();
+  }
   LdrStr(OpKind opkind, Type type, Cond cond, Reg* rd, Reg* rn, int offset)
-      : Instruction(cond), opkind_(opkind), type_(type), rd_(rd), rn_(rn), is_offset_imm_(true), offset_imm_(offset) {}
+      : Instruction(cond), opkind_(opkind), type_(type), rd_(rd), rn_(rn), is_offset_imm_(true), offset_imm_(offset) {
+    AddUsedInst();
+  }
   LdrStr(OpKind opkind, Reg* rd, Reg* rn, int offset)
-      : opkind_(opkind), rd_(rd), rn_(rn), is_offset_imm_(true), offset_imm_(offset) {}
+      : opkind_(opkind), rd_(rd), rn_(rn), is_offset_imm_(true), offset_imm_(offset) {
+    AddUsedInst();
+  }
   virtual ~LdrStr();
 
   virtual void EmitCode(std::ostream& outfile = std::clog) override;
   static bool CheckImm12(int imm) { return (imm < 4096) && (imm > -4096); }
   virtual void Check() override;
+  virtual void AddUsedInst() override {
+    if (nullptr != rn_) rn_->AddUsedInst(this);
+    if (!is_offset_imm_ && nullptr != offset_) offset_->AddUsedInst(this);
+  }
 };
 
 // ldr-pseudo inst: ref: https://developer.arm.com/documentation/dui0041/c/Babbfdih
@@ -256,6 +300,7 @@ class PushPop : public Instruction {
   virtual void EmitCode(std::ostream& outfile = std::clog) override;
   virtual void Check() override;
 };
+
 }  // namespace arm
 
 #endif

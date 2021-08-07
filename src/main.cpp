@@ -132,10 +132,11 @@ int main(int argc, char **argv) {
 
   // ==================Add SSA-Pass Above==================
   pm.AddPass<GenerateArmFromSSA>(false);
+  // pm.AddPass<SimplifyArm>(false);
   pm.AddPass<RegAlloc>(false);
   pm.AddPass<SPOffsetFixup>(false);
   // ==================Add Arm-Pass Below==================
-  pm.AddPass<SimplifyArm>(false);  // 不能也不必在regalloc之前调用
+  pm.AddPass<SimplifyArm>(false);
   // ==================Add Arm-Pass Above==================
   if (logfile.is_open()) {
     pm.Run(true, logfile);
