@@ -2,9 +2,9 @@
 
 #include "pass_manager.h"
 
-class MXD : public Pass {
+class InvariantExtrapolation : public Pass {
  public:
   int x;
-  MXD(Module** m) : Pass(m) {}
+  InvariantExtrapolation(Module** m) : Pass(m) {}
   void Run();
 };

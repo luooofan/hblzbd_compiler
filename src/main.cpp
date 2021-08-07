@@ -123,7 +123,7 @@ int main(int argc, char **argv) {
 #endif
   PassManager pm(module_ptr_addr);
   // ==================Add Quad-Pass Below==================
-  pm.AddPass<MXD>(false);
+  pm.AddPass<InvariantExtrapolation>(false);
   // ==================Add Quad-Pass Above==================
   pm.AddPass<SimplifyCFG>(false);  // necessary
   pm.AddPass<ComputeDominance>(false);
