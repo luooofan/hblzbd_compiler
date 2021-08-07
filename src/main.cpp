@@ -132,7 +132,7 @@ int main(int argc, char **argv) {
 
   // ==================Add SSA-Pass Above==================
   pm.AddPass<GenerateArmFromSSA>(false);
-  // pm.AddPass<SimplifyArm>(false);
+  pm.AddPass<SimplifyArm>(false);
   pm.AddPass<RegAlloc>(false);
   pm.AddPass<SPOffsetFixup>(false);
   // ==================Add Arm-Pass Below==================
