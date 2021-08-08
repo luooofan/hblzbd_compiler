@@ -22,12 +22,14 @@ class SSAModule : public Module {
   std::list<SSAFunction*> func_list_;
 
  public:
-  ir::Scope& global_scope_;  // FIXME: terrible design
+  ir::Scope global_scope_;  // FIXME: terrible design
   // a symbol table
   std::string name_;
   SSAModule(ir::Scope& global_scope, std::string name = "") : Module(name), name_(name), global_scope_(global_scope){};
   // SSAModule(std::string name = "") : Module(name), name_(name){};
+  ~SSAModule();
 
+  std::list<SSAFunction*>& GetFuncList() { return func_list_; }
   const std::list<SSAFunction*>& GetFuncList() const { return func_list_; }
   const std::list<GlobalVariable*>& GetGlobVarList() const { return glob_var_list_; }
   void AddFunction(SSAFunction* f);
@@ -50,12 +52,17 @@ class SSAFunction {
   std::unordered_set<GlobalVariable*> used_glob_var_list_;  // may can be unorderd
 
  public:
-  void BindValue(FunctionValue* value) { value_ = value; }
-  FunctionValue* GetValue() const { return value_; }
-
-  const std::string& GetFuncName() const { return func_name_; }
   SSAFunction(const std::string& func_name, SSAModule* m) : func_name_(func_name), m_(m) { m->AddFunction(this); }
   SSAFunction(const std::string& func_name) : func_name_(func_name) {}  // builtin function will not be added to module
+  ~SSAFunction();
+
+  bool IsCalled();
+  void Remove();
+
+  const std::string& GetFuncName() const { return func_name_; }
+
+  void BindValue(FunctionValue* value) { value_ = value; }
+  FunctionValue* GetValue() const { return value_; }
 
   const std::list<SSABasicBlock*>& GetBBList() const { return bb_list_; }
 
@@ -93,6 +100,7 @@ class SSABasicBlock {
 
   SSABasicBlock(const std::string& label, SSAFunction* func) : label_(label), func_(func) { func->AddBasicBlock(this); }
   SSABasicBlock(SSAFunction* func) : func_(func) { func->AddBasicBlock(this); }
+  ~SSABasicBlock();
 
   const std::list<SSAInstruction*>& GetInstList() const { return inst_list_; }
 

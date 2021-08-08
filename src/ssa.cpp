@@ -30,6 +30,27 @@ SSAInstruction::SSAInstruction(Type *type, const std::string &name, SSAInstructi
   inst->parent_->AddInstruction(this, inst);
 };
 
+void Value::KillUse(Value *val) {
+  for (auto it = use_list_.begin(); it != use_list_.end();) {
+    if (val == (*it)->Get()) {
+      it = use_list_.erase(it);
+    } else {
+      ++it;
+    }
+  }
+}
+void Value::KillUse(FunctionValue *val) { KillUse(val->GetFunction()); }
+void Value::KillUse(SSAFunction *func) {
+  // 删除该值在该函数中的全部使用
+  for (auto it = use_list_.begin(); it != use_list_.end();) {
+    auto inst = dynamic_cast<SSAInstruction *>((*it)->Get());
+    if (nullptr != inst && inst->GetParent()->GetFunction() == func) {
+      it = use_list_.erase(it);
+    } else {
+      ++it;
+    }
+  }
+}
 void Value::Print(std::ostream &outfile) { outfile << std::setw(INDENT) << "%" + name_; }
 
 void ConstantInt::Print(std::ostream &outfile) { outfile << std::setw(INDENT) << "#" + std::to_string(imm_); }
@@ -42,10 +63,18 @@ void UndefVariable::Print(std::ostream &outfile) { Value::Print(outfile); }
 
 void Argument::Print(std::ostream &outfile) { Value::Print(outfile); }
 
-void FunctionValue::Print(std::ostream &outfile) { Value::Print(outfile); }
+void FunctionValue::Print(std::ostream &outfile) { outfile << std::setw(INDENT) << GetName(); }
 
 void BasicBlockValue::Print(std::ostream &outfile) { Value::Print(outfile); }
 
+User::~User() {
+  auto uses = GetUses();  // necessary. can't use reference
+  for (auto use : uses) {
+    use->Set(nullptr);  // necessary. when destruct a use instance, must ensure that its value_ is a valid pointer.
+  }
+  // 并没有删除使用它的那个user的operand 只是让operand的use中的value变为nullptr了
+  MyAssert(!IsUsed());
+}
 Value *User::GetOperand(unsigned i) {
   MyAssert(i < GetNumOperands());
   return operands_[i].Get();
@@ -54,7 +83,9 @@ void User::Print(std::ostream &outfile) {
   for (auto &opn : operands_) {
     auto val = opn.Get();
     outfile << std::setw(INDENT);
-    if (dynamic_cast<GlobalVariable *>(val)) {
+    if (nullptr == val) {
+      outfile << "nullptr";
+    } else if (dynamic_cast<GlobalVariable *>(val)) {
       outfile << "%g:" + val->GetName();
     } else if (auto src_val = dynamic_cast<ConstantInt *>(val)) {
       outfile << "#" + std::to_string(src_val->GetImm());

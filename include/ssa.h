@@ -10,20 +10,29 @@ class SSABasicBlock;
 class Type;
 class User;
 class Use;
+class FunctionValue;
 
 // [can be used or not]
 class Value {
  private:
   Type* type_;
-  std::list<Use*> use_list_;  // NOTE Use* or Use??
-  std::string name_;          // readable
+  std::list<Use*> use_list_;
+  std::string name_;
+
  public:
   Value(Type* type, const std::string& name = "") : type_(type), name_(name) {}
+
   Type* GetType() const { return type_; }
   const std::string& GetName() const { return name_; }
+  std::list<Use*>& GetUses() { return use_list_; }
+  bool IsUsed() { return !use_list_.empty(); }
+
   // use_list_目前只能被use对象操作
   void AddUse(Use* use) { use_list_.push_back(use); }
   void KillUse(Use* use) { use_list_.remove(use); }
+  void KillUse(Value* val);
+  void KillUse(FunctionValue* val);
+  void KillUse(SSAFunction* func);
   // TODO replaceAllUseWith
   virtual ~Value() {}
   virtual void Print(std::ostream& outfile = std::clog);
@@ -42,6 +51,13 @@ class Use {
   Use(Value* val, User* user) : val_(val), user_(user) {
     if (nullptr != val_) val_->AddUse(this);
   }
+  Use(const Use& u) : val_(u.Get()), user_(u.GetUser()) {
+    if (nullptr != val_) val_->AddUse(this);
+  }
+  Use(Use&& u) : val_(u.Get()), user_(u.GetUser()) {
+    u.Set(nullptr);
+    if (nullptr != val_) val_->AddUse(this);
+  }
   ~Use() {
     if (nullptr != val_) val_->KillUse(this);
   }
@@ -50,7 +66,6 @@ class Use {
     val_ = val;
     if (nullptr != val_) val_->AddUse(this);
   }
-  // TODO 把拷贝构造和复制构造实现为调用Set
 };
 
 // We don't need the type system acutally. It's redundent.
@@ -158,7 +173,7 @@ class Argument;
 // [used]
 class FunctionValue : public Value {
  private:
-  std::list<Argument*> arg_list_;  // not use. only record info. valid order.
+  std::list<Argument*> arg_list_;  // only record info. valid order.
   SSAFunction* func_ = nullptr;
 
  public:
@@ -203,19 +218,23 @@ class BasicBlockValue : public Value {
 class User : public Value {
  public:
   std::vector<Use> operands_;  // All Use instances are constructed in User
-  User(Type* type, const std::string& name) : Value(type, name) {}
+  User(Type* type, const std::string& name) : Value(type, name) { operands_.reserve(4); }
   Value* GetOperand(unsigned i);
+  std::vector<Use>& GetOperands() { return operands_; }
   unsigned GetNumOperands() const { return operands_.size(); }
-  virtual ~User() {}
+  virtual ~User();
   virtual void Print(std::ostream& outfile = std::clog);
 };
 
 // [can be used or not][operands info]
 class SSAInstruction : public User {
- public:
+ private:
   SSABasicBlock* parent_;
+
+ public:
   SSAInstruction(Type* type, const std::string& name, SSABasicBlock* parent);
   SSAInstruction(Type* type, const std::string& name, SSAInstruction* inst);
+  SSABasicBlock* GetParent() { return parent_; }
   void SetParent(SSABasicBlock* parent) { parent_ = parent; }
   virtual ~SSAInstruction() {}
   virtual void Print(std::ostream& outfile = std::clog) = 0;

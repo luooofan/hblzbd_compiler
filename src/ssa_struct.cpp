@@ -22,6 +22,11 @@ void SSAModule::RemoveGlobalVariable(GlobalVariable* g) {
   glob_var_list_.remove(g);
   // TODO: manage memory
 }
+SSAModule::~SSAModule() {
+  // glob_var_list_.clear();
+  for (auto func : func_list_) delete func;
+  // func_list_.clear();
+}
 
 void SSAFunction::AddBasicBlock(SSABasicBlock* bb) {
   bb_list_.push_back(bb);
@@ -37,6 +42,40 @@ void SSAFunction::RemoveBasicBlock(SSABasicBlock* bb) {
     succ->RemovePredBB(bb);
   }
 }
+void SSAFunction::AddCallFunc(SSAFunction* func) {
+  MyAssert(nullptr != func);
+  call_func_list_.insert(func);
+}
+void SSAFunction::AddCallFunc(FunctionValue* func_val) {
+  MyAssert(nullptr != func_val->GetFunction());
+  call_func_list_.insert(func_val->GetFunction());
+}
+void SSAFunction::AddUsedGlobVar(GlobalVariable* glob_var) {
+  MyAssert(nullptr != glob_var);
+  used_glob_var_list_.insert(glob_var);
+}
+bool SSAFunction::IsCalled() { return value_->IsUsed(); }
+void SSAFunction::Remove() {
+  // 要删除该函数 首先需要移除该函数在其调用的函数和使用的全局量中的使用信息 然后从module中删除它
+  // 该函数调用的函数对应的value的uselist中存着该函数对应的value 是在生成call语句的时候加进去的
+  for (auto call_func : call_func_list_) {
+    call_func->GetValue()->KillUse(this);
+  }
+  // 该函数使用的globalvariable的uselist中存着该函数中所有对该globvar的load和store
+  for (auto glob_var : used_glob_var_list_) {
+    glob_var->KillUse(this);
+  }
+  m_->RemoveFunction(this);
+  // FIXME: 在该函数中清空信息还是放到析构函数中清空???
+}
+SSAFunction::~SSAFunction() {
+  // m_ = nullptr;
+  // delete value_; // FIXME: should be delete and remove all use
+  for (auto bb : bb_list_) delete bb;
+  // bb_list_.clear();
+  // call_func_list_.clear();
+  // used_glob_var_list_.clear();
+}
 
 void SSABasicBlock::AddInstruction(SSAInstruction* inst) {
   inst_list_.push_back(inst);
@@ -51,6 +90,17 @@ void SSABasicBlock::RemoveInstruction(SSAInstruction* inst) {
   inst_list_.remove(inst);
   // TODO: manage memory and use used.
 }
+SSABasicBlock::~SSABasicBlock() {
+  // func_ = nullptr;
+  // delete value_; // FIXME: should be delete and remove all use
+  for (auto inst : inst_list_) {
+    delete inst;
+    // std::cout << "ok\n";
+  }
+  // inst_list_.clear();
+  // pred_.clear();
+  // succ_.clear();
+}
 
 void SSAModule::EmitCode(std::ostream& out) {
   for (auto glob : glob_var_list_) {
@@ -63,27 +113,22 @@ void SSAModule::EmitCode(std::ostream& out) {
   }
 }
 
-void SSAFunction::AddCallFunc(SSAFunction* func) {
-  MyAssert(nullptr != func);
-  call_func_list_.insert(func);
-}
-void SSAFunction::AddCallFunc(FunctionValue* func_val) {
-  MyAssert(nullptr != func_val->GetFunction());
-  call_func_list_.insert(func_val->GetFunction());
-}
-void SSAFunction::AddUsedGlobVar(GlobalVariable* glob_var) {
-  MyAssert(nullptr != glob_var);
-  used_glob_var_list_.insert(glob_var);
-}
 void SSAFunction::EmitCode(std::ostream& out) {
-  out << GetFuncName() << ":" << std::endl;
+  out << func_name_ << ":" << std::endl;
   out << "; Function Begin:" << std::endl;
-  out << "  ; call func set: ";
+  out << "  ; called by func: ";
+  for (auto called_func_use : value_->GetUses()) {
+    // called_func_use->Get()->Print();
+    out << 1;
+    out << called_func_use->Get()->GetName() << " ";
+  }
+  out << std::endl;
+  out << "  ; call func: ";
   for (auto call_func : call_func_list_) {
     out << call_func->GetFuncName() << " ";
   }
   out << std::endl;
-  out << "  ; used global var set: ";
+  out << "  ; used global var: ";
   for (auto glob_var : used_glob_var_list_) {
     out << glob_var->GetName() << " ";
   }
@@ -96,7 +141,7 @@ void SSAFunction::EmitCode(std::ostream& out) {
 }
 
 void SSABasicBlock::EmitCode(std::ostream& out) {
-  out << GetLabel() << ":" << std::endl;
+  out << label_ << ":" << std::endl;
   out << "; BB Begin:" << std::endl;
   for (auto inst : inst_list_) {
     inst->Print(out);
