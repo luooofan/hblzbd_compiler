@@ -7,7 +7,7 @@
 #define ASSERT_ENABLE
 #include "../include/myassert.h"
 
-#define GET_BB_LABEL_STR(bb_ptr) (nullptr != bb_ptr->label_ ? (*(bb_ptr->label_)) : ("UnamedBB"))
+#define GET_BB_LABEL_STR(bb_ptr) (bb_ptr->HasLabel() ? bb_ptr->label_ : ("UnamedBB"))
 #define GET_BB_IDENT(bb_ptr) (GET_BB_LABEL_STR(bb_ptr) + ":" + std::to_string(bb_ptr->IndexInFunc()))
 
 void ArmModule::EmitCode(std::ostream& out) {
@@ -116,7 +116,7 @@ void ArmFunction::Check() {
 
 void ArmBasicBlock::EmitCode(std::ostream& out) {
   if (this->HasLabel()) {
-    out << *this->label_ << ":" << std::endl;
+    out << this->label_ << ":" << std::endl;
   }
   out << "  @ ID: " << this->IndexInFunc() << std::endl;
   out << "  @ BasicBlock Begin:" << std::endl;

@@ -15,7 +15,7 @@ class ArmModule : public Module {
  public:
   // functions: ordered
   std::vector<ArmFunction*> func_list_;
-  ir::Scope& global_scope_;  // FIXME: terrible design
+  ir::Scope global_scope_;  // FIXME: terrible design
 
  public:
   ArmModule(const std::string& name, ir::Scope& global_scope) : Module(name), global_scope_(global_scope) {}
@@ -51,7 +51,7 @@ class ArmFunction {
 
 class ArmBasicBlock {
  public:
-  std::string* label_;
+  std::string label_;
   // only used for emitting
   ArmFunction* func_;
 
@@ -68,10 +68,11 @@ class ArmBasicBlock {
   std::unordered_set<int> liveout_;
 
   ArmBasicBlock() : label_(nullptr) {}
-  ArmBasicBlock(std::string* label) : label_(label) {}
+  ArmBasicBlock(std::string* label) : label_(*label) {}
+  ArmBasicBlock(const std::string& label) : label_(label) {}
   virtual ~ArmBasicBlock() {}
 
-  bool HasLabel() { return nullptr != label_; }
+  bool HasLabel() { return !label_.empty(); }
   void EmitCode(std::ostream& out = std::cout);
   void Check();
   int IndexInFunc();
