@@ -61,7 +61,7 @@ class IRBasicBlock {
   std::vector<DAG_node*> root_node_;
   //记录下这个基本块的Label，在基本块中就不处理label语句了
   //形式：Label_#label or Label_#Func
-  std::string bb_label_ = nullptr;
+  std::string bb_label_;
 
   // used for ssa
   IRBasicBlock* idom_ = nullptr;          // 直接支配结点 即支配结点树中的父节点
