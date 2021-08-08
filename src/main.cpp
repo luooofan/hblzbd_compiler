@@ -7,6 +7,7 @@
 #include "../include/Pass/arm_liveness_analysis.h"
 #include "../include/Pass/arm_offset_fixup.h"
 #include "../include/Pass/convert_ssa.h"
+#include "../include/Pass/dead_code_eliminate.h"
 #include "../include/Pass/dominant.h"
 #include "../include/Pass/generate_arm_from_ssa.h"
 #include "../include/Pass/loop.h"
@@ -127,11 +128,11 @@ int main(int argc, char **argv) {
   // ==================Add Quad-Pass Above==================
   pm.AddPass<SimplifyCFG>(false);  // necessary
   pm.AddPass<ComputeDominance>(false);
-  pm.AddPass<ConvertSSA>(false);
+  pm.AddPass<ConvertSSA>(true);
   // ==================Add SSA-Pass Below==================
-
+  pm.AddPass<DeadCodeEliminate>(true);
   // ==================Add SSA-Pass Above==================
-  pm.AddPass<GenerateArmFromSSA>(false);
+  pm.AddPass<GenerateArmFromSSA>(true);
   pm.AddPass<SimplifyArm>(false);
   pm.AddPass<RegAlloc>(false);
   pm.AddPass<SPOffsetFixup>(false);
@@ -139,7 +140,7 @@ int main(int argc, char **argv) {
   pm.AddPass<SimplifyArm>(false);
   // ==================Add Arm-Pass Above==================
   if (logfile.is_open()) {
-    pm.Run(true, logfile);
+    pm.Run(false, logfile);
   } else {
     pm.Run();
   }
