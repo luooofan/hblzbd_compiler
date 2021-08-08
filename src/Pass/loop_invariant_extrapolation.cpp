@@ -2,8 +2,6 @@
 new_loop是用来把不变运算放在最外层的
 */
 
-#include "../../include/Pass/loop.h"
-
 #include <algorithm>
 #include <iostream>
 #include <iterator>
@@ -13,6 +11,7 @@ new_loop是用来把不变运算放在最外层的
 #include <vector>
 
 #include "../../include/Pass/ir_liveness_analysis.h"
+#include "../../include/Pass/loop.h"
 #include "../../include/general_struct.h"
 #include "../../include/ir.h"
 #include "../../include/ir_struct.h"
@@ -756,5 +755,5 @@ void InvariantExtrapolation::Run() {
   cout << "MXD 结束\n";
 #endif
 #undef DEBUG_LOOP_PASS
-  cout << "外提了指令：" << cntcnt << "条" << endl;
+  // cout << "外提了指令：" << cntcnt << "条" << endl;
 }
