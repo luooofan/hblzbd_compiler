@@ -20,6 +20,7 @@ class SSAModule : public Module {
  private:
   std::list<GlobalVariable*> glob_var_list_;
   std::list<SSAFunction*> func_list_;
+  std::list<SSAFunction*> builtin_func_list_;
 
  public:
   ir::Scope global_scope_;  // FIXME: terrible design
@@ -30,9 +31,12 @@ class SSAModule : public Module {
   ~SSAModule();
 
   std::list<SSAFunction*>& GetFuncList() { return func_list_; }
+  std::list<SSAFunction*>& GetBuiltinFuncList() { return builtin_func_list_; }
   const std::list<SSAFunction*>& GetFuncList() const { return func_list_; }
+  const std::list<SSAFunction*>& GetBuiltinFuncList() const { return builtin_func_list_; }
   const std::list<GlobalVariable*>& GetGlobVarList() const { return glob_var_list_; }
   void AddFunction(SSAFunction* f);
+  void AddBuiltinFunction(SSAFunction* f);
   void RemoveFunction(SSAFunction* f);
   void AddGlobalVariable(GlobalVariable* g);
   void RemoveGlobalVariable(GlobalVariable* g);
@@ -68,6 +72,7 @@ class SSAFunction {
 
   void AddCallFunc(SSAFunction* func);
   void AddCallFunc(FunctionValue* func_val);
+  void MaintainCallFunc();
   std::unordered_set<SSAFunction*>& GetCallFuncList() { return call_func_list_; }
 
   void AddUsedGlobVar(GlobalVariable* glob_var);

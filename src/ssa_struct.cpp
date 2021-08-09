@@ -10,6 +10,10 @@ void SSAModule::AddFunction(SSAFunction* f) {
   func_list_.push_back(f);
   f->SetModule(this);
 }
+void SSAModule::AddBuiltinFunction(SSAFunction* f) {
+  builtin_func_list_.push_back(f);
+  // f->SetModule(this);
+}
 void SSAModule::RemoveFunction(SSAFunction* f) {
   func_list_.remove(f);
   // TODO: manage memory
@@ -42,6 +46,18 @@ void SSAFunction::RemoveBasicBlock(SSABasicBlock* bb) {
     succ->RemovePredBB(bb);
   }
 }
+void SSAFunction::MaintainCallFunc() {
+  call_func_list_.clear();
+  for (auto bb : bb_list_) {
+    for (auto inst : bb->GetInstList()) {
+      if (auto call_inst = dynamic_cast<CallInst*>(inst)) {
+        auto func_val = dynamic_cast<FunctionValue*>(call_inst->GetOperand(0));
+        MyAssert(nullptr != func_val);
+        call_func_list_.insert(func_val->GetFunction());
+      }
+    }
+  }
+}
 void SSAFunction::AddCallFunc(SSAFunction* func) {
   MyAssert(nullptr != func);
   call_func_list_.insert(func);
@@ -56,9 +72,12 @@ void SSAFunction::AddUsedGlobVar(GlobalVariable* glob_var) {
 }
 bool SSAFunction::IsCalled() { return value_->IsUsed(); }
 void SSAFunction::Remove() {
-  // 要删除该函数 首先需要移除该函数在其调用的函数和使用的全局量中的使用信息 然后从module中删除它
+  // 要删除该函数 必须保证module内没有调用该函数的语句
+  MyAssert(GetValue()->GetUses().empty());
+  // 首先需要移除该函数在其调用的函数和使用的全局量中的使用信息 然后从module中删除它
   // 该函数调用的函数对应的value的uselist中存着该函数对应的value 是在生成call语句的时候加进去的
   for (auto call_func : call_func_list_) {
+    std::cout << call_func->GetFuncName() << std::endl;
     call_func->GetValue()->KillUse(this);
   }
   // 该函数使用的globalvariable的uselist中存着该函数中所有对该globvar的load和store
@@ -107,6 +126,10 @@ void SSAModule::EmitCode(std::ostream& out) {
     glob->Print(out);
   }
   out << std::endl;
+  for (auto func : builtin_func_list_) {
+    func->EmitCode(out);
+    out << std::endl;
+  }
   for (auto func : func_list_) {
     func->EmitCode(out);
     out << std::endl;
@@ -119,8 +142,9 @@ void SSAFunction::EmitCode(std::ostream& out) {
   out << "  ; called by func: ";
   for (auto called_func_use : value_->GetUses()) {
     // called_func_use->Get()->Print();
-    out << 1;
-    out << called_func_use->Get()->GetName() << " ";
+    auto inst = dynamic_cast<SSAInstruction*>(called_func_use->GetUser());
+    MyAssert(nullptr != inst);
+    out << inst->GetParent()->GetFunction()->GetFuncName() << " ";
   }
   out << std::endl;
   out << "  ; call func: ";

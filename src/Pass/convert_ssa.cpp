@@ -177,16 +177,34 @@ void ConvertSSA::ProcessGlobalVariable(IRModule* irm, SSAModule* ssam) {
 #endif
 }
 
-void ConvertSSA::AddBuiltInFunction() {
-  glob_map["memset"] = new FunctionValue("memset", new SSAFunction("memset"));
-  glob_map["getint"] = new FunctionValue("getint", new SSAFunction("getint"));
-  glob_map["getch"] = new FunctionValue("getch", new SSAFunction("getch"));
-  glob_map["getarray"] = new FunctionValue("getarray", new SSAFunction("getarray"));
-  glob_map["putint"] = new FunctionValue("putint", new SSAFunction("putint"));
-  glob_map["putch"] = new FunctionValue("putch", new SSAFunction("putch"));
-  glob_map["putarray"] = new FunctionValue("putarray", new SSAFunction("putarray"));
-  glob_map["_sysy_starttime"] = new FunctionValue("_sysy_starttime", new SSAFunction("_sysy_starttime"));
-  glob_map["_sysy_stoptime"] = new FunctionValue("_sysy_stoptime", new SSAFunction("_sysy_stoptime"));
+void ConvertSSA::AddBuiltInFunction(SSAModule* m) {
+  auto memset_func = new SSAFunction("memset");
+  m->AddBuiltinFunction(memset_func);
+  glob_map["memset"] = new FunctionValue("memset", memset_func);
+  auto getint_func = new SSAFunction("getint");
+  m->AddBuiltinFunction(getint_func);
+  glob_map["getint"] = new FunctionValue("getint", getint_func);
+  auto getch_func = new SSAFunction("getch");
+  m->AddBuiltinFunction(getch_func);
+  glob_map["getch"] = new FunctionValue("getch", getch_func);
+  auto getarray_func = new SSAFunction("getarray");
+  m->AddBuiltinFunction(getarray_func);
+  glob_map["getarray"] = new FunctionValue("getarray", getarray_func);
+  auto putint_func = new SSAFunction("putint");
+  m->AddBuiltinFunction(putint_func);
+  glob_map["putint"] = new FunctionValue("putint", putint_func);
+  auto putch_func = new SSAFunction("putch");
+  m->AddBuiltinFunction(putch_func);
+  glob_map["putch"] = new FunctionValue("putch", putch_func);
+  auto putarray_func = new SSAFunction("putarray");
+  m->AddBuiltinFunction(putarray_func);
+  glob_map["putarray"] = new FunctionValue("putarray", putarray_func);
+  auto _sysy_starttime_func = new SSAFunction("_sysy_starttime");
+  m->AddBuiltinFunction(_sysy_starttime_func);
+  glob_map["_sysy_starttime"] = new FunctionValue("_sysy_starttime", _sysy_starttime_func);
+  auto _sysy_stoptime_func = new SSAFunction("_sysy_stoptime");
+  m->AddBuiltinFunction(_sysy_stoptime_func);
+  glob_map["_sysy_stoptime"] = new FunctionValue("_sysy_stoptime", _sysy_stoptime_func);
 }
 
 void ConvertSSA::GenerateSSABasicBlocks(IRFunction* func, SSAFunction* ssafunc,
@@ -463,7 +481,7 @@ SSAModule* ConvertSSA::ConstructSSA(IRModule* module) {
 
   // process all global variable
   this->ProcessGlobalVariable(module, ssamodule);
-  this->AddBuiltInFunction();
+  this->AddBuiltInFunction(ssamodule);
 
   // for every ir func
   for (auto func : module->func_list_) {
