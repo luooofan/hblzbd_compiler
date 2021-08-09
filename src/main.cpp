@@ -29,6 +29,10 @@ extern void yyset_lineno(int _line_number);
 
 // #define DEBUG_PROCESS
 
+bool AST_LOG = false;
+bool IRLIST_LOG = false;
+bool PASS_LOG = false;
+
 #define ASSERT_ENABLE
 #include "../include/myassert.h"
 
@@ -88,7 +92,7 @@ int main(int argc, char **argv) {
   yylex_destroy();
 
   MyAssert(nullptr != ast_root);
-  if (logfile.is_open()) {
+  if (logfile.is_open() && AST_LOG) {
     logfile << "AST:" << std::endl;
     ast_root->PrintNode(0, logfile);
   }
@@ -104,7 +108,7 @@ int main(int argc, char **argv) {
   // MyAssert(0);
   delete ast_root;
 
-  if (logfile.is_open()) {
+  if (logfile.is_open() && IRLIST_LOG) {
     ir::PrintFuncTable(logfile);
     ir::PrintScopes(logfile);
     logfile << "IRList:" << std::endl;
@@ -132,7 +136,7 @@ int main(int argc, char **argv) {
   // ==================Add SSA-Pass Below==================
   pm.AddPass<DeadCodeEliminate>(true);
   // ==================Add SSA-Pass Above==================
-  pm.AddPass<GenerateArmFromSSA>(true);
+  pm.AddPass<GenerateArmFromSSA>(false);
   pm.AddPass<SimplifyArm>(false);
   pm.AddPass<RegAlloc>(false);
   pm.AddPass<SPOffsetFixup>(false);
@@ -140,7 +144,7 @@ int main(int argc, char **argv) {
   pm.AddPass<SimplifyArm>(false);
   // ==================Add Arm-Pass Above==================
   if (logfile.is_open()) {
-    pm.Run(false, logfile);
+    pm.Run(PASS_LOG, logfile);
   } else {
     pm.Run();
   }
