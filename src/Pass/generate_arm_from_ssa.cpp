@@ -112,7 +112,7 @@ void GenerateArmFromSSA::GenImmLdrStrInst(ArmBasicBlock* armbb, LdrStr::OpKind o
 bool GenerateArmFromSSA::ConvertMul2Shift(ArmBasicBlock* armbb, Reg* rd, Value* val, int imm) {
   // 如果乘数是0 生成一条mov rd 0的指令
   if (0 == imm) {
-    ADD_NEW_INST(Move(rd, 0));
+    ADD_NEW_INST(Move(rd, new Operand2(0)));
     return true;
   }
   // 如果乘数是2的幂次方 生成一条mov rd rm LSL n的指令 LSL允许0-31位
@@ -559,9 +559,9 @@ ArmModule* GenerateArmFromSSA::GenCode(SSAModule* module) {
             auto ssa_pred_bb = dynamic_cast<BasicBlockValue*>(src_inst->GetOperand(2 * i + 1))->GetBB();
             auto arm_pred_bb = bb_map[ssa_pred_bb];
             MyAssert(nullptr != ssa_pred_bb && nullptr != arm_pred_bb);
-            auto new_inst = new Move(vreg, ResolveValue2Operand2(armbb, val));
             // arm_pred_bb如果为空 直接加在最后面
             if (arm_pred_bb->inst_list_.empty()) {
+              auto new_inst = new Move(vreg, ResolveValue2Operand2(arm_pred_bb, val));
               arm_pred_bb->inst_list_.push_back(new_inst);
               continue;
             }
@@ -570,17 +570,29 @@ ArmModule* GenerateArmFromSSA::GenCode(SSAModule* module) {
             // std::cout << i << std::endl;
             // 最后一条如果是跳转语句
             if (nullptr != last_branch_inst) {
+              auto pred_last_inst1 = arm_pred_bb->inst_list_.back();
+              arm_pred_bb->inst_list_.pop_back();
               // 条件跳转语句 前一句一定是cmp 在cmp前加入new_inst
               if (last_branch_inst->cond_ != Cond::AL) {
-                arm_pred_bb->inst_list_.insert(arm_pred_bb->inst_list_.end() - 2, new_inst);
+                auto pred_last_inst2 = arm_pred_bb->inst_list_.back();
+                arm_pred_bb->inst_list_.pop_back();
+                auto new_inst = new Move(vreg, ResolveValue2Operand2(arm_pred_bb, val));
+                // arm_pred_bb->inst_list_.insert(arm_pred_bb->inst_list_.end() - 2, new_inst);
+                arm_pred_bb->inst_list_.push_back(new_inst);
+                arm_pred_bb->inst_list_.push_back(pred_last_inst2);
+
               }
               // 无条件跳转语句 在跳转语句前插入
               else {
-                arm_pred_bb->inst_list_.insert(arm_pred_bb->inst_list_.end() - 1, new_inst);
+                auto new_inst = new Move(vreg, ResolveValue2Operand2(arm_pred_bb, val));
+                // arm_pred_bb->inst_list_.insert(arm_pred_bb->inst_list_.end() - 1, new_inst);
+                arm_pred_bb->inst_list_.push_back(new_inst);
               }
+              arm_pred_bb->inst_list_.push_back(pred_last_inst1);
             }
-            // 其他语句 直接加载最后面
+            // 其他语句 直接加在最后面
             else {
+              auto new_inst = new Move(vreg, ResolveValue2Operand2(arm_pred_bb, val));
               arm_pred_bb->inst_list_.push_back(new_inst);
             }
             // std::cout << i << std::endl;

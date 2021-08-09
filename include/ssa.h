@@ -33,7 +33,7 @@ class Value {
   void KillUse(Value* val);
   void KillUse(FunctionValue* val);
   void KillUse(SSAFunction* func);
-  // TODO replaceAllUseWith
+  void ReplaceAllUseWith(Value* val);
   virtual ~Value() {}
   virtual void Print(std::ostream& outfile = std::clog);
 };
@@ -236,6 +236,7 @@ class SSAInstruction : public User {
   SSAInstruction(Type* type, const std::string& name, SSAInstruction* inst);
   SSABasicBlock* GetParent() { return parent_; }
   void SetParent(SSABasicBlock* parent) { parent_ = parent; }
+  void Remove();
   virtual ~SSAInstruction() {}
   virtual void Print(std::ostream& outfile = std::clog) = 0;
 };
@@ -261,6 +262,7 @@ class BinaryOperator : public SSAInstruction {
     operands_.push_back(Use(lhs, this));
     operands_.push_back(Use(rhs, this));
   };
+  int ComputeConstInt(int lhs, int rhs);
   virtual ~BinaryOperator() {}
   virtual void Print(std::ostream& outfile = std::clog);
 };
@@ -277,6 +279,7 @@ class UnaryOperator : public SSAInstruction {
       : SSAInstruction(type, name, parent), op_(op) {
     operands_.push_back(Use(lhs, this));
   }
+  int ComputeConstInt(int lhs);
   virtual ~UnaryOperator() {}
   virtual void Print(std::ostream& outfile = std::clog);
 };
@@ -398,6 +401,9 @@ class StoreInst : public SSAInstruction {
 class MovInst : public SSAInstruction {
  public:
   MovInst(Type* type, const std::string& name, Value* v, SSABasicBlock* parent) : SSAInstruction(type, name, parent) {
+    operands_.push_back(Use(v, this));
+  }
+  MovInst(Type* type, const std::string& name, Value* v, SSAInstruction* inst) : SSAInstruction(type, name, inst) {
     operands_.push_back(Use(v, this));
   }
   virtual ~MovInst() {}

@@ -6,29 +6,6 @@
 #define INDENT 12
 #define ASSERT_ENABLE
 #include "../include/myassert.h"
-// FunctionValue::FunctionValue(FunctionType *type, const std::string &name, SSAFunction *func) : Value(type, name) {
-//   func->BindValue(this);
-// }
-// FunctionValue::FunctionValue(const std::string &name) : Value(new Type(Type::FunctionTyID), name) {}
-
-FunctionValue::FunctionValue(const std::string &name, SSAFunction *func)
-    : Value(new Type(Type::FunctionTyID), name), func_(func) {
-  func->BindValue(this);
-}
-
-BasicBlockValue::BasicBlockValue(const std::string &name, SSABasicBlock *bb)
-    : Value(new Type(Type::LabelTyID), name), bb_(bb) {
-  bb->BindValue(this);
-}
-
-SSAInstruction::SSAInstruction(Type *type, const std::string &name, SSABasicBlock *parent)
-    : User(type, name), parent_(nullptr) {
-  parent->AddInstruction(this);
-};
-SSAInstruction::SSAInstruction(Type *type, const std::string &name, SSAInstruction *inst)
-    : User(type, name), parent_(nullptr) {
-  inst->parent_->AddInstruction(this, inst);
-};
 
 void Value::KillUse(Value *val) {
   for (auto it = use_list_.begin(); it != use_list_.end();) {
@@ -51,6 +28,85 @@ void Value::KillUse(SSAFunction *func) {
     }
   }
 }
+void Value::ReplaceAllUseWith(Value *val) {
+  auto uses = GetUses();
+  for (auto use : uses) {
+    use->Set(val);
+  }
+  MyAssert(!IsUsed());
+}
+
+// FunctionValue::FunctionValue(FunctionType *type, const std::string &name, SSAFunction *func) : Value(type, name) {
+//   func->BindValue(this);
+// }
+// FunctionValue::FunctionValue(const std::string &name) : Value(new Type(Type::FunctionTyID), name) {}
+
+FunctionValue::FunctionValue(const std::string &name, SSAFunction *func)
+    : Value(new Type(Type::FunctionTyID), name), func_(func) {
+  func->BindValue(this);
+}
+
+BasicBlockValue::BasicBlockValue(const std::string &name, SSABasicBlock *bb)
+    : Value(new Type(Type::LabelTyID), name), bb_(bb) {
+  bb->BindValue(this);
+}
+
+User::~User() {
+  // MyAssert(!IsUsed()); // delete module 或者 function时 才允许仍有使用
+  auto uses = GetUses();  // necessary. can't use reference
+  for (auto use : uses) {
+    use->Set(nullptr);  // necessary. when destruct a use instance, must ensure that its value_ is a valid pointer.
+  }
+  // 并没有删除使用它的那个user的operand 只是让operand的use中的value变为nullptr了
+  MyAssert(!IsUsed());
+}
+Value *User::GetOperand(unsigned i) {
+  MyAssert(i < GetNumOperands());
+  return operands_[i].Get();
+}
+
+SSAInstruction::SSAInstruction(Type *type, const std::string &name, SSABasicBlock *parent)
+    : User(type, name), parent_(nullptr) {
+  parent->AddInstruction(this);
+};
+SSAInstruction::SSAInstruction(Type *type, const std::string &name, SSAInstruction *inst)
+    : User(type, name), parent_(nullptr) {
+  inst->parent_->AddInstruction(this, inst);
+};
+void SSAInstruction::Remove() { GetParent()->RemoveInstruction(this); }
+
+int BinaryOperator::ComputeConstInt(int lhs, int rhs) {
+  switch (op_) {
+    case ADD:
+      return lhs + rhs;
+    case SUB:
+      return lhs - rhs;
+    case MUL:
+      return lhs * rhs;
+    case DIV:
+      return lhs / rhs;
+    case MOD:
+      return lhs % rhs;
+    default:
+      MyAssert(0);
+      break;
+  }
+  return 0;
+}
+
+int UnaryOperator::ComputeConstInt(int lhs) {
+  switch (op_) {
+    case NEG:
+      return -lhs;
+    case NOT:
+      return !lhs;
+    default:
+      MyAssert(0);
+      break;
+  }
+  return 0;
+}
+
 void Value::Print(std::ostream &outfile) { outfile << std::setw(INDENT) << "%" + name_; }
 
 void ConstantInt::Print(std::ostream &outfile) { outfile << std::setw(INDENT) << "#" + std::to_string(imm_); }
@@ -67,18 +123,6 @@ void FunctionValue::Print(std::ostream &outfile) { outfile << std::setw(INDENT) 
 
 void BasicBlockValue::Print(std::ostream &outfile) { Value::Print(outfile); }
 
-User::~User() {
-  auto uses = GetUses();  // necessary. can't use reference
-  for (auto use : uses) {
-    use->Set(nullptr);  // necessary. when destruct a use instance, must ensure that its value_ is a valid pointer.
-  }
-  // 并没有删除使用它的那个user的operand 只是让operand的use中的value变为nullptr了
-  MyAssert(!IsUsed());
-}
-Value *User::GetOperand(unsigned i) {
-  MyAssert(i < GetNumOperands());
-  return operands_[i].Get();
-}
 void User::Print(std::ostream &outfile) {
   for (auto &opn : operands_) {
     auto val = opn.Get();
