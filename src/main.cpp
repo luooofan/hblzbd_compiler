@@ -14,6 +14,7 @@
 #include "../include/Pass/pass_manager.h"
 #include "../include/Pass/simplify_armcode.h"
 #include "../include/Pass/simplify_cfg.h"
+#include "../include/Pass/ssa_simple_optimize.h"
 #include "../include/arm.h"
 #include "../include/arm_struct.h"
 #include "../include/ast.h"
@@ -135,8 +136,10 @@ int main(int argc, char **argv) {
   pm.AddPass<ConvertSSA>(true);
   // ==================Add SSA-Pass Below==================
   pm.AddPass<DeadCodeEliminate>(true);
+  pm.AddPass<SimpleOptimize>(true);
+  pm.AddPass<DeadCodeEliminate>(true);
   // ==================Add SSA-Pass Above==================
-  pm.AddPass<GenerateArmFromSSA>(false);
+  pm.AddPass<GenerateArmFromSSA>(true);
   pm.AddPass<SimplifyArm>(false);
   pm.AddPass<RegAlloc>(false);
   pm.AddPass<SPOffsetFixup>(false);
