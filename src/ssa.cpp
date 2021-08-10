@@ -35,6 +35,14 @@ void Value::ReplaceAllUseWith(Value *val) {
   }
   MyAssert(!IsUsed());
 }
+Value::~Value() {
+  auto uses = GetUses();  // necessary. can't use reference
+  for (auto use : uses) {
+    use->Set(nullptr);  // necessary. when destruct a use instance, must ensure that its value_ is a valid pointer.
+  }
+  // 并没有删除使用它的那个user的operand 只是让operand的use中的value变为nullptr了
+  MyAssert(!IsUsed());
+}
 
 // FunctionValue::FunctionValue(FunctionType *type, const std::string &name, SSAFunction *func) : Value(type, name) {
 //   func->BindValue(this);
@@ -53,12 +61,6 @@ BasicBlockValue::BasicBlockValue(const std::string &name, SSABasicBlock *bb)
 
 User::~User() {
   // MyAssert(!IsUsed()); // delete module 或者 function时 才允许仍有使用
-  auto uses = GetUses();  // necessary. can't use reference
-  for (auto use : uses) {
-    use->Set(nullptr);  // necessary. when destruct a use instance, must ensure that its value_ is a valid pointer.
-  }
-  // 并没有删除使用它的那个user的operand 只是让operand的use中的value变为nullptr了
-  MyAssert(!IsUsed());
 }
 Value *User::GetOperand(unsigned i) {
   MyAssert(i < GetNumOperands());

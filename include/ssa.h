@@ -34,11 +34,11 @@ class Value {
   void KillUse(FunctionValue* val);
   void KillUse(SSAFunction* func);
   void ReplaceAllUseWith(Value* val);
-  virtual ~Value() {}
+  virtual ~Value();
   virtual void Print(std::ostream& outfile = std::clog);
 };
 
-// Use represents a relationship. Only can be instantiated in User instance.
+// Use represents a relationship. Only can be constructed in User instance.
 // Designed to automatically maintain Value use_list_ info.
 class Use {
  private:
@@ -68,7 +68,7 @@ class Use {
   }
 };
 
-// We don't need the type system acutally. It's redundent.
+// In fact, we just need a simple type system to distinguish integer type(i32) and array pointer type(i32 pointer).
 class Type {
  public:
   enum TypeID {
@@ -214,6 +214,7 @@ class BasicBlockValue : public Value {
   virtual void Print(std::ostream& outfile = std::clog);
 };
 
+// We also don't need User actually. SSAInstruction is the only user in our case.
 // [can be used or not][operands info]
 class User : public Value {
  public:
