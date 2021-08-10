@@ -1,9 +1,0 @@
-void test(int a) {}
-void testarray(int a[2][3][4]) {}
-int main() {
-  const int a = 1;
-  test(a);
-  const int b[2][3][4] = {0};
-  testarray(b);
-  return 0;
-}
