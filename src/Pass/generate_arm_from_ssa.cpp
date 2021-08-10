@@ -12,6 +12,8 @@
 #define NEW_INST(inst) static_cast<Instruction*>(new inst)
 #define ADD_NEW_INST(inst) armbb->inst_list_.push_back(static_cast<Instruction*>(new inst));
 
+// #define MUL_TO_SHIFT
+
 using namespace arm;
 Cond GenerateArmFromSSA::GetCondType(BranchInst::Cond cond, bool exchange) {
   if (exchange) {
@@ -333,10 +335,12 @@ ArmModule* GenerateArmFromSSA::GenCode(SSAModule* module) {
             case BinaryOperator::OpKind::MUL: {
               // 应该不会出现同时为立即数的情况
               Reg* rd = ResolveValue2Reg(armbb, res);
+#ifdef MUL_TO_SHIFT
               if (auto const_int = dynamic_cast<ConstantInt*>(lhs))
                 if (ConvertMul2Shift(armbb, rd, rhs, const_int->GetImm())) break;
               if (auto const_int = dynamic_cast<ConstantInt*>(rhs))
                 if (ConvertMul2Shift(armbb, rd, lhs, const_int->GetImm())) break;
+#endif
               rn = ResolveValue2Reg(armbb, lhs);
               // NOTE: MUL的两个操作数必须全为寄存器 不能是立即数
               op2 = new Operand2(ResolveValue2Reg(armbb, rhs));
