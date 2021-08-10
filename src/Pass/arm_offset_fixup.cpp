@@ -69,17 +69,47 @@ void SPOffsetFixup::Fixup4Func(ArmFunction *func) {
 #ifdef DEBUG_FIXUP_PROCESS
   std::cout << "Fixup sp_arg Start:" << std::endl;
 #endif
-  // std::cout << offset_fixup_diff << " " << stack_size_diff << std::endl;
+
+  auto merge_ldrpseudo_with_ldr = [&func](std::vector<Instruction *>::iterator it) {
+    // 把ldrpseudo和后面的ldr合起来
+    for (auto bb : func->bb_list_) {
+      for (auto inst_it = bb->inst_list_.begin(); inst_it != bb->inst_list_.end(); ++inst_it) {
+        if (*inst_it == *it) {
+          int imm = 0;
+          auto src_inst = dynamic_cast<LdrPseudo *>(*inst_it);
+          MyAssert(nullptr != src_inst && src_inst->IsImm());
+          imm = src_inst->imm_;
+          inst_it = bb->inst_list_.erase(inst_it);
+          // inst_it现在指向了ldr vreg sp op2指令 要把op2改为立即数类型
+          auto ldr_inst = dynamic_cast<LdrStr *>(*inst_it);
+          MyAssert(nullptr != ldr_inst && !ldr_inst->is_offset_imm_ && nullptr != ldr_inst->offset_ &&
+                   ldr_inst->rn_->reg_id_ == (int)ArmReg::sp && !ldr_inst->offset_->is_imm_ &&
+                   ldr_inst->offset_->reg_->reg_id_ == src_inst->rd_->reg_id_);
+          // TODO delete src op2
+          ldr_inst->offset_ = new Operand2(imm);
+          *it = ldr_inst;  // 之后sp_arg_fixup中会出现ldr指令
+          return;
+        }
+      }
+    }
+    MyAssert(0);
+  };
+
   // 针对sp_arg的修复 需要修复栈中高处实参的位置 一定是一条ldr-pseudo指令
   for (auto it = func->sp_arg_fixup_.begin(); it != func->sp_arg_fixup_.end(); ++it) {
     auto src_inst = dynamic_cast<LdrPseudo *>(*it);
     MyAssert(nullptr != src_inst && src_inst->IsImm());
     src_inst->imm_ += offset_fixup_diff;
+    if (LdrStr::CheckImm12(src_inst->imm_)) {
+      merge_ldrpseudo_with_ldr(it);
+    }
   }
+
 #ifdef DEBUG_FIXUP_PROCESS
   std::cout << "Fixup sp_arg End." << std::endl;
   std::cout << "Fixup sp Start:" << std::endl;
 #endif
+
   auto convert_imm_inst = [&func](std::vector<Instruction *>::iterator it) {
     // 把mov/mvn转换成ldrpseudo
     for (auto bb : func->bb_list_) {
