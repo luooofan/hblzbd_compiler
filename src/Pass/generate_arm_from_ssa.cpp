@@ -12,7 +12,7 @@
 #define NEW_INST(inst) static_cast<Instruction*>(new inst)
 #define ADD_NEW_INST(inst) armbb->inst_list_.push_back(static_cast<Instruction*>(new inst));
 
-#define MUL_TO_SHIFT
+// #define MUL_TO_SHIFT
 
 using namespace arm;
 Cond GenerateArmFromSSA::GetCondType(BranchInst::Cond cond, bool exchange) {
