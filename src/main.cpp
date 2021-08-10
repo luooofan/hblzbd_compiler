@@ -119,9 +119,9 @@ int main(int argc, char **argv) {
   std::cout << "Passes Start:" << std::endl;
 #endif
   PassManager pm(module_ptr_addr);
-  pm.AddPass<ComputeDominance>(false);
-  // pm.AddPass<GenerateArm>(false);  // 需要在genir中define NO_OPT
-  pm.AddPass<GenerateArmOpt>(false);
+  // pm.AddPass<ComputeDominance>(false);
+  pm.AddPass<GenerateArm>(false);  // 需要在genir中define NO_OPT
+  // pm.AddPass<GenerateArmOpt>(false);
   pm.AddPass<RegAlloc>(false);
   pm.AddPass<SimplifyArm>(false);  // 不能也不必在regalloc之前调用
   if (logfile.is_open()) {
