@@ -129,22 +129,22 @@ int main(int argc, char **argv) {
 #endif
   PassManager pm(module_ptr_addr);
   // ==================Add Quad-Pass Below==================
-  pm.AddPass<InvariantExtrapolation>(false);
+  // pm.AddPass<InvariantExtrapolation>(false);
   // ==================Add Quad-Pass Above==================
   pm.AddPass<SimplifyCFG>(false);  // necessary
   pm.AddPass<ComputeDominance>(false);
   pm.AddPass<ConvertSSA>(true);
   // ==================Add SSA-Pass Below==================
-  pm.AddPass<DeadCodeEliminate>(true);
-  pm.AddPass<SimpleOptimize>(true);
-  pm.AddPass<DeadCodeEliminate>(true);
+  // pm.AddPass<DeadCodeEliminate>(true);
+  // pm.AddPass<SimpleOptimize>(true);
+  // pm.AddPass<DeadCodeEliminate>(true);
   // ==================Add SSA-Pass Above==================
-  pm.AddPass<GenerateArmFromSSA>(true);
-  pm.AddPass<SimplifyArm>(false);
+  pm.AddPass<GenerateArmFromSSA>(true);  // define macro control MUL_TO_SHIFT optimize
+  // pm.AddPass<SimplifyArm>(false); // optional
   pm.AddPass<RegAlloc>(false);
   pm.AddPass<SPOffsetFixup>(false);
   // ==================Add Arm-Pass Below==================
-  pm.AddPass<SimplifyArm>(false);
+  // pm.AddPass<SimplifyArm>(false);
   // ==================Add Arm-Pass Above==================
   if (logfile.is_open()) {
     pm.Run(PASS_LOG, logfile);
