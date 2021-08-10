@@ -35,6 +35,8 @@ if __name__ == '__main__':
   files = glob(args.test_path, recursive=True)
   files.sort()
   bug_num = len(files)
+  all_time_seconds=0
+  all_time_useconds=0
 
   for file in files:
     filepath_noext, _ = path.splitext(file)
@@ -90,6 +92,10 @@ if __name__ == '__main__':
         print("{:10s}:{:.6f}s".format("run time",run_time))
         if exec_time != None:
           exec_time=exec_time.group()
+          detail_time =re.search(("-([0-9]+)S-([0-9]+)us"), exec_time)
+          if detail_time != None:
+            all_time_seconds+=int(detail_time.group(1))
+            all_time_useconds+=int(detail_time.group(2))
           print("{:10s}:{}".format("exec time",exec_time))
 
       # Exec output
@@ -120,6 +126,10 @@ if __name__ == '__main__':
         print("{:10s}:{}".format("status",status))
         print()
     
-  print("{:10s}:{}".format("bug num",bug_num))
+  print("{:10s}:{:3d}".format("bug num",bug_num))
+  if args.all and args.verbose and args.run:
+    all_time_seconds+=all_time_useconds//1000000
+    all_time_useconds%=1000000
+    print("{:10s}:{:3d}s {:6d}us".format("all time",all_time_seconds, all_time_useconds))
   print("finish.")
         
