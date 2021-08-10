@@ -140,11 +140,11 @@ int main(int argc, char **argv) {
   // pm.AddPass<DeadCodeEliminate>(true);
   // ==================Add SSA-Pass Above==================
   pm.AddPass<GenerateArmFromSSA>(true);  // define macro control MUL_TO_SHIFT optimize
-  // pm.AddPass<SimplifyArm>(false); // optional
+  pm.AddPass<SimplifyArm>(false);        // optional
   pm.AddPass<RegAlloc>(false);
   pm.AddPass<SPOffsetFixup>(false);
   // ==================Add Arm-Pass Below==================
-  // pm.AddPass<SimplifyArm>(false);
+  pm.AddPass<SimplifyArm>(false);
   // ==================Add Arm-Pass Above==================
   if (logfile.is_open()) {
     pm.Run(PASS_LOG, logfile);
