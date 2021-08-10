@@ -118,37 +118,37 @@ void ArmBasicBlock::EmitCode(std::ostream& out) {
   if (this->HasLabel()) {
     out << this->label_ << ":" << std::endl;
   }
-  out << "  @ ID: " << this->IndexInFunc() << std::endl;
-  out << "  @ BasicBlock Begin:" << std::endl;
-  out << "  @ pred: ";
-  for (auto pred : this->pred_) {
-    out << GET_BB_IDENT(pred) << " ";
-  }
-  // out << std::endl;
-  out << "  @ succ: ";
-  for (auto succ : this->succ_) {
-    out << GET_BB_IDENT(succ) << " ";
-  }
-  // out << std::endl;
-  out << "  @ use: ";
-  for (auto use : this->use_) {
-    out << "r" << use << " ";
-  }
-  // out << std::endl;
-  out << "  @ def: ";
-  for (auto def : this->def_) {
-    out << "r" << def << " ";
-  }
-  // out << std::endl;
-  out << "  @ livein: ";
-  for (auto livein : this->livein_) {
-    out << "r" << livein << " ";
-  }
-  // out << std::endl;
-  out << "  @ liveout: ";
-  for (auto liveout : this->liveout_) {
-    out << "r" << liveout << " ";
-  }
+  // out << "  @ ID: " << this->IndexInFunc() << std::endl;
+  // out << "  @ BasicBlock Begin:" << std::endl;
+  // out << "  @ pred: ";
+  // for (auto pred : this->pred_) {
+  //   out << GET_BB_IDENT(pred) << " ";
+  // }
+  // // out << std::endl;
+  // out << "  @ succ: ";
+  // for (auto succ : this->succ_) {
+  //   out << GET_BB_IDENT(succ) << " ";
+  // }
+  // // out << std::endl;
+  // out << "  @ use: ";
+  // for (auto use : this->use_) {
+  //   out << "r" << use << " ";
+  // }
+  // // out << std::endl;
+  // out << "  @ def: ";
+  // for (auto def : this->def_) {
+  //   out << "r" << def << " ";
+  // }
+  // // out << std::endl;
+  // out << "  @ livein: ";
+  // for (auto livein : this->livein_) {
+  //   out << "r" << livein << " ";
+  // }
+  // // out << std::endl;
+  // out << "  @ liveout: ";
+  // for (auto liveout : this->liveout_) {
+  //   out << "r" << liveout << " ";
+  // }
   out << std::endl;
   for (auto inst : this->inst_list_) {
     inst->EmitCode(out);
