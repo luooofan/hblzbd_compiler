@@ -177,8 +177,72 @@ void GlobalValueNumbering::CommenExpressionEliminate(SSABasicBlock* bb) {
         exp.operands_.push_back(src_inst->GetOperand(i));
       }
 
-      bool check = [](SSAInstruction* source, SSAInstruction* target) {
+      auto check_inst_range = [this](std::list<SSAInstruction*>::iterator begin,
+                                     std::list<SSAInstruction*>::iterator end, Value* memory) {
+        for (; begin != end; ++begin) {
+          auto store_inst = dynamic_cast<StoreInst*>(*begin);
+          // 是对同一块内存区域的store语句
+          if (nullptr != store_inst && store_inst->GetOperand(1) == memory) {
+            // TODO: 如果load和store语句的偏移都是常量的话可以比较立即数 如果不同 则跳过这条store语句
+            return false;
+          }
+          auto call_inst = dynamic_cast<CallInst*>(*begin);
+          if (nullptr != call_inst) {
+            auto func_val = dynamic_cast<FunctionValue*>(call_inst->GetOperand(0));
+            if (no_side_effect_funcs.find(func_val->GetFunction()) == no_side_effect_funcs.end()) {
+              // 调用了副作用函数
+              return false;
+            }
+          }
+        }
+        return true;
+      };
+
+      auto check = [this, &check_inst_range](SSAInstruction* source, LoadInst* target) {
+        // 检查从source指令开始到target指定的所有路径上有没有对同一块内存区域的store语句或者对副作用函数的调用语句
         // source可能是load或store target一定是load
+        auto source_bb = source->GetParent();
+        auto target_bb = target->GetParent();
+        auto memory = target->GetOperand(0);
+        // 1 if source and target in the same bb
+        if (source_bb == target_bb) {
+          auto inst_list = source_bb->GetInstList();
+          auto st = ++std::find(inst_list.begin(), inst_list.end(), source),
+               ed = std::find(st, inst_list.end(), target);
+          return check_inst_range(st, ed, memory);
+        }
+        // 2 in different bbs
+        else {
+          // 2.1 check source bb
+          auto src_inst_list = source_bb->GetInstList();
+          if (!check_inst_range(++std::find(src_inst_list.begin(), src_inst_list.end(), source), src_inst_list.end(),
+                                memory))
+            return false;
+          // 2.2 check target bb
+          auto tar_inst_list = target_bb->GetInstList();
+          if (!check_inst_range(tar_inst_list.begin(), std::find(tar_inst_list.begin(), tar_inst_list.end(), target),
+                                memory))
+            return false;
+          // 2.3 dfs all road
+          // dfs get all roads
+          std::unordered_set<SSABasicBlock*> vis;
+          std::vector<SSABasicBlock*> road;
+          std::vector<std::vector<SSABasicBlock*>> roads;
+          GetAllRoads(source_bb, target_bb, road, roads, vis);
+          // check all roads
+          std::unordered_set<SSABasicBlock*> check_true_bbs;
+          for (auto& road : roads) {
+            for (auto bb : road) {
+              if (check_true_bbs.count(bb)) continue;
+              auto inst_list = bb->GetInstList();
+              if (!check_inst_range(inst_list.begin(), inst_list.end(), memory))
+                return false;
+              else
+                check_true_bbs.insert(bb);
+            }
+          }
+          return true;
+        }
       };
 
       // NOTE: reverse find 保证找到最新的一个
@@ -188,7 +252,7 @@ void GlobalValueNumbering::CommenExpressionEliminate(SSABasicBlock* bb) {
         ++it;
       } else {
         // check决定能否replace if check true, perform replace. otherwise add exp to exp_val_vec
-        if (false) {
+        if (check((*vec_it).first.inst_, src_inst)) {
           replace(src_inst, (*vec_it).second);
         } else {
           exp_val_vec.push_back({exp, src_inst});
@@ -220,6 +284,28 @@ void GlobalValueNumbering::CommenExpressionEliminate(SSABasicBlock* bb) {
 
   // erase now bb exps from exp_val_vec
   exp_val_vec.erase(exp_val_vec.begin() + src_vec_size, exp_val_vec.end());
+}
+
+void GlobalValueNumbering::GetAllRoads(SSABasicBlock* source, SSABasicBlock* target, std::vector<SSABasicBlock*>& road,
+                                       std::vector<std::vector<SSABasicBlock*>>& roads,
+                                       std::unordered_set<SSABasicBlock*>& vis) {
+  // source一定没有被访问过
+  MyAssert(!vis.count(source));
+
+  if (source == target) {
+    roads.push_back(road);
+    return;
+  }
+
+  road.push_back(source);
+  vis.insert(source);
+  for (auto succ : source->GetSuccBB()) {
+    if (vis.count(succ)) continue;
+    GetAllRoads(succ, target, road, roads, vis);
+  }
+  vis.erase(source);
+  road.pop_back();
+  return;
 }
 
 GlobalValueNumbering::Expression::operator std::string() const {

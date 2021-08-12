@@ -23,6 +23,8 @@ class GlobalValueNumbering : public Transform {
   // actually useless
   static void DFS(std::vector<SSABasicBlock*>& po, std::unordered_set<SSABasicBlock*>& vis, SSABasicBlock* bb);
   static std::vector<SSABasicBlock*> ComputeRPO(SSAFunction* func);
+  static void GetAllRoads(SSABasicBlock* source, SSABasicBlock* target, std::vector<SSABasicBlock*>& road,
+                          std::vector<std::vector<SSABasicBlock*>>& roads, std::unordered_set<SSABasicBlock*>& vis);
 
  private:
   // 一个Value唯一标识一个值(except ConstantInt) 所以Value*可作为number 不必真正地编号
