@@ -10,6 +10,7 @@
 #include "../include/Pass/dead_code_eliminate.h"
 #include "../include/Pass/dominant.h"
 #include "../include/Pass/generate_arm_from_ssa.h"
+#include "../include/Pass/global_value_numbering.h"
 #include "../include/Pass/loop.h"
 #include "../include/Pass/pass_manager.h"
 #include "../include/Pass/simplify_armcode.h"
@@ -133,11 +134,12 @@ int main(int argc, char **argv) {
   // ==================Add Quad-Pass Above==================
   pm.AddPass<SimplifyCFG>(false);  // necessary
   pm.AddPass<ComputeDominance>(false);
-  pm.AddPass<ConvertSSA>(true);
+  pm.AddPass<ConvertSSA>(false);
   // ==================Add SSA-Pass Below==================
+  pm.AddPass<DeadCodeEliminate>(false);
+  pm.AddPass<SimpleOptimize>(false);
   pm.AddPass<DeadCodeEliminate>(true);
-  pm.AddPass<SimpleOptimize>(true);
-  pm.AddPass<DeadCodeEliminate>(true);
+  pm.AddPass<GlobalValueNumbering>(true);  // actually redundant common expression eliminate
   // ==================Add SSA-Pass Above==================
   pm.AddPass<GenerateArmFromSSA>(true);  // define macro control MUL_TO_SHIFT optimize
   pm.AddPass<SimplifyArm>(false);        // optional
