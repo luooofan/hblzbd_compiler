@@ -34,7 +34,7 @@ void SimplifyArm::Run() {
             // 下一条语句是binaryinst
             if (auto next_bi_inst = dynamic_cast<BinaryInst*>(next_inst)) {
               auto op2 = next_bi_inst->op2_;
-              if (nullptr != op2 && !op2->is_imm_ && op2->reg_ == mov_rd) {
+              if (nullptr != op2 && !op2->HasShift() && !op2->is_imm_ && op2->reg_ == mov_rd) {
                 next_bi_inst->op2_ = mov_op2;
                 // TODO delete mov指令 delete mov_rd 从instlist中删除
                 it = bb->inst_list_.erase(it);
@@ -44,7 +44,7 @@ void SimplifyArm::Run() {
             // 下一条语句是moveinst
             else if (auto next_move_inst = dynamic_cast<Move*>(next_inst)) {
               auto op2 = next_move_inst->op2_;
-              if (nullptr != op2 && !op2->is_imm_ && op2->reg_ == mov_rd) {
+              if (nullptr != op2 && !op2->HasShift() && !op2->is_imm_ && op2->reg_ == mov_rd) {
                 next_move_inst->op2_ = mov_op2;
                 // TODO delete mov指令 delete mov_rd 从instlist中删除
                 it = bb->inst_list_.erase(it);
@@ -54,7 +54,7 @@ void SimplifyArm::Run() {
             // 下一条语句是ldrstr inst
             else if (auto next_ldrstr_inst = dynamic_cast<LdrStr*>(next_inst)) {
               auto op2 = next_ldrstr_inst->offset_;
-              if (nullptr != op2 && !op2->is_imm_ && op2->reg_ == mov_rd) {
+              if (nullptr != op2 && !op2->HasShift() && !op2->is_imm_ && op2->reg_ == mov_rd) {
                 next_ldrstr_inst->offset_ = mov_op2;
                 // TODO delete mov指令 delete mov_rd 从instlist中删除
                 it = bb->inst_list_.erase(it);
