@@ -5,6 +5,7 @@ using namespace arm;
 
 // #define DEBUG_SPILL
 // #define DEBUG_REGALLOC_PROCESS
+
 #define ASSERT_ENABLE
 #include "../../include/myassert.h"
 
@@ -391,8 +392,6 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
       auto select_spill = [&]() {
         // select node with max degree (heuristic)
         RegId reg = *std::max_element(spill_worklist.begin(), spill_worklist.end(), [&](auto a, auto b) {
-          // if (16 == a) return true;  // regard r16 as min
-          // if (16 == b) return false;
           if (spill_times.find(a) != spill_times.end() && spill_times.find(b) != spill_times.end()) {
             return spill_times[a] > spill_times[b];
           }
@@ -507,6 +506,7 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
       std::cout << "LivenessAnalysis Start:" << std::endl;
 #endif
       ArmLivenessAnalysis::Run4Func(func);
+
 #ifdef DEBUG_REGALLOC_PROCESS
       std::cout << "LivenessAnalysis End." << std::endl;
 #endif
@@ -590,11 +590,13 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
                 // MyAssert(0);
 #ifdef DEBUG_SPILL
         std::cout << "Actual Spill." << std::endl;
+        // func->EmitCode(std::cout);
 #endif
         // rewrite program 会导致func的virtual reg max和stack size属性发生变化
+        // NOTE: 根据ssa ir生成的带vreg的arm 因为其必经结点性质 可以不用每次定值和使用都str和ldr
         for (auto &spill_reg : spilled_nodes) {
 #ifdef DEBUG_SPILL
-          std::cout << "process spill node:" << spill_reg << std::endl;
+          std::cout << "process spill node:" << spill_reg << " degree: " << degree[spill_reg] << std::endl;
 #endif
           if (spill_times.find(spill_reg) == spill_times.end()) {
             spill_times[spill_reg] = 1;
@@ -604,14 +606,13 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
           // allocate on stack spill reg一定是virtual reg
           auto offset = func->stack_size_;
           for (auto bb : func->bb_list_) {
-            auto gen_ldrstr_inst = [&func, &offset, &bb, &spill_reg](std::vector<Instruction *>::iterator iter,
-                                                                     LdrStr::OpKind opkind) {
+            auto gen_ldrstr_inst = [&func, &offset, &bb](std::vector<Instruction *>::iterator iter,
+                                                         LdrStr::OpKind opkind, int new_vreg) {
               // 插入str语句后iter指向str语句 插入ldr语句后iter指向原语句
               Instruction *inst;
               if (LdrStr::CheckImm12(offset)) {
-                // NOTE: sp_vreg一定为r16
-                inst = static_cast<Instruction *>(new LdrStr(opkind, LdrStr::Type::Norm, Cond::AL, new Reg(spill_reg),
-                                                             /*new Reg(16)*/ new Reg(ArmReg::sp), offset));
+                inst = static_cast<Instruction *>(
+                    new LdrStr(opkind, LdrStr::Type::Norm, Cond::AL, new Reg(new_vreg), new Reg(ArmReg::sp), offset));
                 if (opkind == LdrStr::OpKind::LDR) {
                   return bb->inst_list_.insert(iter, inst) + 1;
                 } else {
@@ -628,9 +629,8 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
                 } else {
                   inst = static_cast<Instruction *>(new LdrPseudo(Cond::AL, vreg, offset));
                 }
-                auto inst2 =
-                    static_cast<Instruction *>(new LdrStr(opkind, LdrStr::Type::Norm, Cond::AL, new Reg(spill_reg),
-                                                          /*new Reg(16)*/ new Reg(ArmReg::sp), new Operand2(vreg)));
+                auto inst2 = static_cast<Instruction *>(new LdrStr(
+                    opkind, LdrStr::Type::Norm, Cond::AL, new Reg(new_vreg), new Reg(ArmReg::sp), new Operand2(vreg)));
                 if (opkind == LdrStr::OpKind::LDR) {
                   iter = bb->inst_list_.insert(iter, inst) + 1;
                   return bb->inst_list_.insert(iter, inst2) + 1;
@@ -640,18 +640,33 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
                 }
               }
             };
-            // 找到基本块中每一次定值和使用 添加相应的ldr和str语句
+
+            // 每个块内加load和store语句的策略:
+            // 1. 只要是def就要在后面加一条str
+            // 2. 每个ldr与最靠近它的前面一个ldr或者str的距离大于10条指令(hyperparameter)
+            bool need_load = true;
+            int i = 0;
             for (auto iter = bb->inst_list_.begin(); iter != bb->inst_list_.end();) {
               auto [def, use] = GetDefUsePtr(*iter);
+              if (++i > 10) {
+                need_load = true;
+                i = 0;
+              }
               for (auto &u : use) {
                 if (u->reg_id_ == spill_reg) {  // load
-                  iter = gen_ldrstr_inst(iter, LdrStr::OpKind::LDR);
+                  if (need_load) {
+                    iter = gen_ldrstr_inst(iter, LdrStr::OpKind::LDR, spill_reg);
+                    need_load = false;
+                    i = 0;
+                  }
                   break;  // 应该只有一次使用 多次使用也只需要ldr一次即可
                 }
               }
               for (auto &d : def) {
                 if (d->reg_id_ == spill_reg) {  // store
-                  iter = gen_ldrstr_inst(iter, LdrStr::OpKind::STR);
+                  need_load = false;
+                  i = 0;
+                  iter = gen_ldrstr_inst(iter, LdrStr::OpKind::STR, spill_reg);
                   break;  // 最多一次定值
                 }
               }
@@ -662,6 +677,7 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
         }
 #ifdef DEBUG_SPILL
         std::cout << "Rewrite Finish." << std::endl;
+        // func->EmitCode(std::cout);
 #endif
         done = false;
       }
