@@ -178,21 +178,31 @@ void GlobalValueNumbering::CommenExpressionEliminate(SSABasicBlock* bb) {
       }
 
       auto check_inst_range = [this](std::list<SSAInstruction*>::iterator begin,
-                                     std::list<SSAInstruction*>::iterator end, Value* memory) {
+                                     std::list<SSAInstruction*>::iterator end, LoadInst* target) {
+        Value* memory = target->GetOperand(0);
         for (; begin != end; ++begin) {
-          auto store_inst = dynamic_cast<StoreInst*>(*begin);
-          // 是对同一块内存区域的store语句
-          if (nullptr != store_inst && store_inst->GetOperand(1) == memory) {
-            // TODO: 如果load和store语句的偏移都是常量的话可以比较立即数 如果不同 则跳过这条store语句
-            return false;
-          }
+          // 是调用了有副作用函数的call语句
           auto call_inst = dynamic_cast<CallInst*>(*begin);
           if (nullptr != call_inst) {
             auto func_val = dynamic_cast<FunctionValue*>(call_inst->GetOperand(0));
             if (no_side_effect_funcs.find(func_val->GetFunction()) == no_side_effect_funcs.end()) {
-              // 调用了副作用函数
               return false;
             }
+          }
+
+          // 是对同一块内存区域的store语句
+          auto store_inst = dynamic_cast<StoreInst*>(*begin);
+          if (nullptr != store_inst && store_inst->GetOperand(1) == memory) {
+            // 如果load和store语句的偏移都是常量的话可以比较立即数 如果不同 则跳过这条store语句
+            // NOTE: 都有偏移 要么都有 要么都没 不会出现一个有一个没有
+            if (target->GetNumOperands() == 2 && store_inst->GetNumOperands() == 3) {
+              if (auto constint = dynamic_cast<ConstantInt*>(target->GetOperand(1))) {
+                if (auto constint2 = dynamic_cast<ConstantInt*>(store_inst->GetOperand(2))) {
+                  if (constint->GetImm() != constint2->GetImm()) continue;
+                }
+              }
+            }
+            return false;
           }
         }
         return true;
@@ -203,25 +213,26 @@ void GlobalValueNumbering::CommenExpressionEliminate(SSABasicBlock* bb) {
         // source可能是load或store target一定是load
         auto source_bb = source->GetParent();
         auto target_bb = target->GetParent();
-        auto memory = target->GetOperand(0);
         // 1 if source and target in the same bb
         if (source_bb == target_bb) {
           auto inst_list = source_bb->GetInstList();
           auto st = ++std::find(inst_list.begin(), inst_list.end(), source),
                ed = std::find(st, inst_list.end(), target);
-          return check_inst_range(st, ed, memory);
+          return check_inst_range(st, ed, target);
         }
         // 2 in different bbs
+        // NOTE: 好像会导致更多的溢出 禁用 等决赛可以取消禁用提交一次
         else {
+          // return false;
           // 2.1 check source bb
           auto src_inst_list = source_bb->GetInstList();
           if (!check_inst_range(++std::find(src_inst_list.begin(), src_inst_list.end(), source), src_inst_list.end(),
-                                memory))
+                                target))
             return false;
           // 2.2 check target bb
           auto tar_inst_list = target_bb->GetInstList();
           if (!check_inst_range(tar_inst_list.begin(), std::find(tar_inst_list.begin(), tar_inst_list.end(), target),
-                                memory))
+                                target))
             return false;
           // 2.3 dfs all road
           // dfs get all roads
@@ -235,7 +246,7 @@ void GlobalValueNumbering::CommenExpressionEliminate(SSABasicBlock* bb) {
             for (auto bb : road) {
               if (check_true_bbs.count(bb)) continue;
               auto inst_list = bb->GetInstList();
-              if (!check_inst_range(inst_list.begin(), inst_list.end(), memory))
+              if (!check_inst_range(inst_list.begin(), inst_list.end(), target))
                 return false;
               else
                 check_true_bbs.insert(bb);
@@ -260,7 +271,7 @@ void GlobalValueNumbering::CommenExpressionEliminate(SSABasicBlock* bb) {
         }
       }
     }
-    // Store语句 可以看成一条load语句 同时可以kill掉该基本块内的对同一块内存操作的load语句
+    // Store语句 可以看成一条load语句 同时或许可以kill掉该基本块内的对同一块内存操作的load语句
     else if (auto src_inst = dynamic_cast<StoreInst*>(inst)) {
       exp.op_ = Expression::LOAD;
       for (int i = 1; i < src_inst->GetNumOperands(); ++i) {
