@@ -12,6 +12,8 @@ class DeadCodeEliminate : public Transform {
  public:
   DeadCodeEliminate(Module** m) : Transform(m) {}
   void Run() override;
+  static void RemoveFromNoSideEffectFuncs(SSAFunction* func, std::unordered_set<SSAFunction*>& no_side_effect_funcs);
+  static void FindNoSideEffectFunc(SSAModule* m, std::unordered_set<SSAFunction*>& no_side_effect_funcs);
 
  private:
   std::unordered_set<SSAFunction*> no_side_effect_funcs;
@@ -20,8 +22,7 @@ class DeadCodeEliminate : public Transform {
   bool IsSideEffect(SSAInstruction* inst);
   void DeleteDeadFunc(SSAModule* m);
   void DeleteDeadInst(SSAFunction* func);
-  void FindNoSideEffectFunc(SSAModule* m);
-  void RemoveFromNoSideEffectFuncs(SSAFunction* func);
+  // void FindNoSideEffectFunc(SSAModule* m);
 };
 
 #endif

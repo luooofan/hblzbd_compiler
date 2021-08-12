@@ -14,7 +14,7 @@ void DeadCodeEliminate::Run() {
   auto m = dynamic_cast<SSAModule*>(*(this->m_));
   MyAssert(nullptr != m);
   DeleteDeadFunc(m);
-  FindNoSideEffectFunc(m);
+  FindNoSideEffectFunc(m, no_side_effect_funcs);
   for (auto func : m->GetFuncList()) {
     DeleteDeadInst(func);
     func->MaintainCallFunc();  // 有可能删除call语句
@@ -103,7 +103,8 @@ void DeadCodeEliminate::DeleteDeadInst(SSAFunction* func) {
   }
 }
 
-void DeadCodeEliminate::RemoveFromNoSideEffectFuncs(SSAFunction* func) {
+void DeadCodeEliminate::RemoveFromNoSideEffectFuncs(SSAFunction* func,
+                                                    std::unordered_set<SSAFunction*>& no_side_effect_funcs) {
   // 如果已经删了说明已经访问过直接返回
   if (no_side_effect_funcs.find(func) == no_side_effect_funcs.end()) return;
   // 先把func删了
@@ -114,14 +115,14 @@ void DeadCodeEliminate::RemoveFromNoSideEffectFuncs(SSAFunction* func) {
     MyAssert(nullptr != call_inst);
     auto caller = call_inst->GetParent()->GetFunction();
     // no_side_effect_funcs.erase(caller);
-    RemoveFromNoSideEffectFuncs(caller);
+    RemoveFromNoSideEffectFuncs(caller, no_side_effect_funcs);
   }
 }
 
-void DeadCodeEliminate::FindNoSideEffectFunc(SSAModule* m) {
+void DeadCodeEliminate::FindNoSideEffectFunc(SSAModule* m, std::unordered_set<SSAFunction*>& no_side_effect_funcs) {
   // NOTE: 这里并没有把副作用的信息记录到函数中
   // 没有副作用的函数为 1.函数自身没有对数组类型参数和全局量有赋值(store)行为 2.同时没有调用有副作用的函数
-  // 具体来说 如果函数pointer类型的argument的使用只有load语句 用了的globalvariable的使用也只有load语句即满足第一点
+  // 具体来说 如果函数pointer类型的argument的使用没有store语句 用了的globalvariable的使用也只有load语句即满足第一点
   no_side_effect_funcs.clear();
   for (auto func : m->GetFuncList()) {
     no_side_effect_funcs.insert(func);
@@ -130,7 +131,7 @@ void DeadCodeEliminate::FindNoSideEffectFunc(SSAModule* m) {
   // 每个builtin函数都是有副作用的
   for (auto builtin_func : m->GetBuiltinFuncList()) {
     no_side_effect_funcs.insert(builtin_func);
-    RemoveFromNoSideEffectFuncs(builtin_func);
+    RemoveFromNoSideEffectFuncs(builtin_func, no_side_effect_funcs);
   }
 
   for (auto func : m->GetFuncList()) {
@@ -138,7 +139,7 @@ void DeadCodeEliminate::FindNoSideEffectFunc(SSAModule* m) {
     bool has_side_effect = false;
     for (Argument* arg : func->GetValue()->GetArgList()) {
       for (Use* use : arg->GetUses()) {
-        if (nullptr == dynamic_cast<LoadInst*>(use->GetUser())) goto setflag;
+        if (nullptr != dynamic_cast<StoreInst*>(use->GetUser())) goto setflag;
       }
     }
     for (GlobalVariable* glo : func->GetUsedGlobVarList()) {
@@ -146,7 +147,7 @@ void DeadCodeEliminate::FindNoSideEffectFunc(SSAModule* m) {
         auto inst = dynamic_cast<SSAInstruction*>(use->GetUser());
         MyAssert(nullptr != inst);
         if (func == inst->GetParent()->GetFunction()) {
-          if (nullptr == dynamic_cast<LoadInst*>(inst)) goto setflag;
+          if (nullptr != dynamic_cast<StoreInst*>(inst)) goto setflag;
         }
       }
     }
@@ -154,7 +155,7 @@ void DeadCodeEliminate::FindNoSideEffectFunc(SSAModule* m) {
   setflag:
     has_side_effect = true;
     // propagate to caller
-    RemoveFromNoSideEffectFuncs(func);
+    RemoveFromNoSideEffectFuncs(func, no_side_effect_funcs);
   }
 #ifdef DEBUG_DEAD_CODE_ELIMINATE_PROCESS
   std::cout << "No side effect functions: ";
