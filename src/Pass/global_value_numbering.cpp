@@ -223,7 +223,7 @@ void GlobalValueNumbering::CommenExpressionEliminate(SSABasicBlock* bb) {
         // 2 in different bbs
         // NOTE: 好像会导致更多的溢出 禁用 等决赛可以取消禁用提交一次
         else {
-          // return false;
+          return false;
           // 2.1 check source bb
           auto src_inst_list = source_bb->GetInstList();
           if (!check_inst_range(++std::find(src_inst_list.begin(), src_inst_list.end(), source), src_inst_list.end(),
