@@ -97,6 +97,10 @@ class SSABasicBlock {
   std::list<SSABasicBlock*> pred_;
   std::list<SSABasicBlock*> succ_;
 
+  SSABasicBlock* idom_ = nullptr;
+  std::vector<SSABasicBlock*> doms_;
+  std::unordered_set<SSABasicBlock*> df_;
+
   BasicBlockValue* value_ = nullptr;
 
  public:
@@ -108,6 +112,7 @@ class SSABasicBlock {
   ~SSABasicBlock();
 
   const std::list<SSAInstruction*>& GetInstList() const { return inst_list_; }
+  std::list<SSAInstruction*>& GetInstList() { return inst_list_; }
 
   std::string& GetLabel() { return label_; }
   void SetLabel(const std::string& label) { label_ = label; }
@@ -129,6 +134,15 @@ class SSABasicBlock {
   void RemoveSuccBB(SSABasicBlock* succ) {
     succ_.remove(succ);  // only remove relationship
   }
+
+  void SetIDom(SSABasicBlock* idom) { idom_ = idom; }
+  SSABasicBlock* GetIDom() const { return idom_; }
+
+  void AddDomBB(SSABasicBlock* dom) { doms_.push_back(dom); }
+  std::vector<SSABasicBlock*>& GetDoms() { return doms_; }
+
+  void AddDF(SSABasicBlock* df) { df_.insert(df); }
+  std::unordered_set<SSABasicBlock*>& GetDF() { return df_; }
 
   void EmitCode(std::ostream& out = std::cout);
 };

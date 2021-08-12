@@ -226,6 +226,17 @@ void ConvertSSA::GenerateSSABasicBlocks(IRFunction* func, SSAFunction* ssafunc,
     }
   }
 
+  // maintain dom info
+  for (auto bb : func->bb_list_) {
+    bb_map[bb]->SetIDom(bb_map[bb->idom_]);
+    for (auto dom : bb->doms_) {
+      bb_map[bb]->AddDomBB(bb_map[dom]);
+    }
+    for (auto df : bb->df_) {
+      bb_map[bb]->AddDF(bb_map[df]);
+    }
+  }
+
   // 处理所有label语句 给ssabasicblock绑定bbvalue 把bbvalue添加到workmap中
   for (auto bb : func->bb_list_) {
     auto ssabb = bb_map[bb];
