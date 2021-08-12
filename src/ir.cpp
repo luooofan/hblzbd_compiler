@@ -1,39 +1,17 @@
 #include "../include/ir.h"
 
-#include <cassert>
-#include <cstdio>
 #include <iomanip>
 #include <iostream>
 
 #include "../include/ast.h"
 #include "parser.hpp"  // EQOP RELOP
 #define TYPE_STRING(type) ((type) == INT ? "int" : ((type) == VOID ? "void" : "undefined"))
-// #define PRINT_IR(op_name)                                                                          \
-//   printf("(%10s,%10s,%10s,%10s)", (op_name), this->opn1_.name_.c_str(), this->opn2_.name_.c_str(), \
-//          this->res_.name_.c_str());                                                                \
-//   if (opn1_.type_ == Opn::Type::Array) printf(" %s", opn1_.offset_->name_.c_str());                \
-//   if (opn2_.type_ == Opn::Type::Array) printf(" %s", opn2_.offset_->name_.c_str());                \
-//   if (res_.type_ == Opn::Type::Array) printf(" %s", res_.offset_->name_.c_str());                  \
-//   printf("\n");
-#define PRINT_IR(op_name)                                                                                    \
-  outfile << "(" << std::setw(10) << op_name << std::setw(10) << opn1_.name_ << std::setw(10) << opn2_.name_ \
-          << std::setw(10) << res_.name_ << ")";                                                             \
-  if (opn1_.type_ == Opn::Type::Array) outfile << " " << opn1_.offset_->name_;                               \
-  if (opn2_.type_ == Opn::Type::Array) outfile << " " << opn2_.offset_->name_;                               \
-  if (res_.type_ == Opn::Type::Array) outfile << " " << res_.offset_->name_;                                 \
-  outfile << std::endl;
+#define PRINT_IR(op_name)                                                                            \
+  outfile << "(" << std::setw(15) << op_name << std::setw(15) << std::string(opn1_) << std::setw(15) \
+          << std::string(opn2_) << std::setw(15) << std::string(res_) << ")" << std::endl;
 
 #define ASSERT_ENABLE
-// assert(res);
-#ifdef ASSERT_ENABLE
-#define MyAssert(res)                                                    \
-  if (!(res)) {                                                          \
-    std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl; \
-    exit(255);                                                           \
-  }
-#else
-#define MyAssert(res) ;
-#endif
+#include "../include/myassert.h"
 
 namespace ir {
 
@@ -53,9 +31,7 @@ void PrintFuncTable(std::ostream &outfile) {
   outfile << "FuncTable:" << std::endl;
   outfile << std::setw(10) << "name" << std::setw(10) << "ret_type" << std::setw(10) << "size" << std::setw(10)
           << "scope_id" << std::endl;
-  // printf("%10s%10s%10s%10s\n", "name", "ret_type", "size", "scope_id");
   for (auto &symbol : gFuncTable) {
-    // printf("%10s", symbol.first.c_str());
     outfile << std::setw(10) << symbol.first;
     symbol.second.Print(outfile);
   }
@@ -64,48 +40,32 @@ void PrintFuncTable(std::ostream &outfile) {
 void SymbolTableItem::Print(std::ostream &outfile) {
   outfile << std::setw(10) << (this->is_array_ ? "√" : "×") << std::setw(10) << (this->is_const_ ? "√" : "×")
           << std::setw(10) << this->offset_ << std::setw(10) << (this->is_arg_ ? "√" : "×") << std::setw(10)
-          << this->stack_offset_ << std::endl;
-  // printf("%10s%10s%10d\n", (this->is_array_ ? "√" : "×"), (this->is_const_ ? "√" : "×"), this->offset_);
+          << this->stack_offset_;
   if (this->is_array_) {
-    // printf("%20s: ", "shape");
-    outfile << std::setw(20) << "shape"
-            << ": ";
+    outfile << std::setw(10) << "shape: ";
     for (const auto &shape : this->shape_) {
-      // printf("[%d]", shape);
       outfile << "[" << shape << "]";
     }
-    // printf("\n");
-    outfile << std::endl;
   }
   if (!this->initval_.empty()) {
-    // printf("%20s: ", "initval");
-    // outfile << std::setw(20) << "initval"
-    //         << ": ";
-    // for (const auto &initval : this->initval_) {
-    //   // printf("%3d ", initval);
-    //   outfile << std::setw(3) << initval;
-    // }
-    // printf("\n");
-    outfile << std::endl;
   }
+  outfile << std::endl;
 }
 
 void FuncTableItem::Print(std::ostream &outfile) {
   outfile << std::setw(10) << TYPE_STRING(this->ret_type_) << std::setw(10) << this->size_ << std::setw(10)
           << this->scope_id_ << std::endl;
-  // printf("%10s%10d%10d\n", TYPE_STRING(this->ret_type_), this->size_, this->scope_id_);
 }
 
 void Scope::Print(std::ostream &outfile) {
   outfile << "Scope:" << std::endl
-          << "  scope_id: " << this->scope_id_ << std::endl
-          << "  parent_scope_id: " << this->parent_scope_id_ << std::endl
+          << "  scope_id: " << this->scope_id_ << "  parent_scope_id: " << this->parent_scope_id_
           << "  dyn_offset: " << this->dynamic_offset_ << std::endl;
-  // printf("%10s%10s%10s%10s\n", "name", "is_array", "is_const", "offset");
-  outfile << std::setw(10) << "name" << std::setw(10) << "is_array" << std::setw(10) << "is_const" << std::setw(10)
-          << "offset" << std::setw(10) << "is_arg" << std::setw(10) << "stack_offset" << std::endl;
+  if (!this->symbol_table_.empty()) {
+    outfile << std::setw(10) << "name" << std::setw(10) << "is_array" << std::setw(10) << "is_const" << std::setw(10)
+            << "offset" << std::setw(10) << "is_arg" << std::setw(10) << "stack_offset" << std::endl;
+  }
   for (auto &symbol : this->symbol_table_) {
-    // printf("%10s", symbol.first.c_str());
     outfile << std::setw(10) << symbol.first;
     symbol.second.Print(outfile);
   }
@@ -190,6 +150,31 @@ IR::OpKind GetOpKind(int op, bool reverse) {
   return IR::OpKind::VOID;
 }
 
+std::string Opn::GetCompName() {  // 对于全局变量直接返回原name_ 对于局部变量返回复合name
+  if (type_ == Type::Imm || type_ == Type::Null) MyAssert(0);
+  if (type_ == Type::Label || type_ == Type::Func || scope_id_ == 0) return name_;
+  auto res = scope_id_ == -1 ? name_ : name_ + "." + std::to_string(scope_id_);
+  return ssa_id_ == -1 ? res : res + "." + std::to_string(ssa_id_);
+}
+Opn::operator std::string() {
+  switch (type_) {
+    case Type::Var: {
+      if (scope_id_ == 0) return name_;
+      auto ret = scope_id_ == -1 ? name_ : name_ + "." + std::to_string(scope_id_);
+      return ssa_id_ == -1 ? ret : ret + "." + std::to_string(ssa_id_);
+    }
+    case Type::Array: {
+      auto ret = scope_id_ == -1 ? name_ : name_ + "." + std::to_string(scope_id_);
+      ret += (ssa_id_ == -1 ? "" : "." + std::to_string(ssa_id_));
+      if (scope_id_ == 0) ret = name_;
+      return nullptr == offset_ ? ret : ret + "[" + std::string(*offset_) + "]";
+    }
+    default: {
+      return name_;
+    }
+  }
+}
+
 void IR::PrintIR(std::ostream &outfile) {
   switch (op_) {
     case IR::OpKind::ADD:
@@ -255,9 +240,19 @@ void IR::PrintIR(std::ostream &outfile) {
     case IR::OpKind::ASSIGN_OFFSET:
       PRINT_IR("=[]");
       break;
+    case IR::OpKind::PHI:
+      outfile << "(" << std::setw(15) << "phi";
+      for (auto &arg : phi_args_) outfile << std::setw(15) << std::string(arg);
+      outfile << std::setw(15) << std::string(res_) << ")" << std::endl;
+      break;
+    case IR::OpKind::ALLOCA:
+      PRINT_IR("alloca");
+      break;
+    case IR::OpKind::DECLARE:
+      PRINT_IR("declare");
+      break;
     default:
-      // printf("unimplemented\n");
-      outfile << "unimplemented" << std::endl;
+      MyAssert(0);
       break;
   }
 }
@@ -272,13 +267,6 @@ void RuntimeError(const std::string &&error_msg) {
   exit(255);
 }
 
-void Opn::printVar(){
-  std::cout << "type: " << (type_ == Opn::Type::Var ? 0 : 1) << "   var name：" << name_ << "   scope id: " << scope_id_ << std::endl;
-}
-
 }  // namespace ir
 
-#undef MyAssert
-#ifdef ASSERT_ENABLE
 #undef ASSERT_ENABLE
-#endif

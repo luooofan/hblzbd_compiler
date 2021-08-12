@@ -7,10 +7,12 @@ import time
 import argparse
 
 if __name__ == '__main__':
-  parser = argparse.ArgumentParser(description='Automaticly test')
-  parser.add_argument("test_path", type=str, help="the path of the test cases. can be glob style.")
+  parser = argparse.ArgumentParser(description='Automaticly test. Output in ./build.', formatter_class=argparse.RawDescriptionHelpFormatter)
+  parser.add_argument("test_path", type=str, help="the path of the test cases with glob style.")
+  parser.add_argument("-l", "--log", help="generate log file for every test case.", action="store_true")
+  parser.add_argument("-a", "--all", help="output the results for all test cases.", action="store_true")
   parser.add_argument("-r", "--run", help="link the asm files and run the executable files.", action="store_true")
-  parser.add_argument("-v", "--verbose", help="print compile time and/or(depend on the option [-r]) exec time for every test case.", action="store_true")
+  parser.add_argument("-v", "--verbose", help="print compile time (and exec time when the option [-r] is specified) for only incorrect test cases (or every test case when the option [-a] is specified).", action="store_true")
   parser.add_argument("-L", "--linked_library_path", type=str, help="the path of the linked library.", default="lib")
   args = parser.parse_args()
 
@@ -53,7 +55,7 @@ if __name__ == '__main__':
       continue
     time_end = time.time()
     compile_time = (time_end - time_start) # s
-    if args.verbose:
+    if args.all and args.verbose:
       print("{:10s}:{:.6f}s".format("compile tm",compile_time))
 
     if not args.run:
@@ -84,7 +86,7 @@ if __name__ == '__main__':
       run_time = (time_end - time_start) # s
       exec_time = (re.search("[0-9]+H.*us",exec_err))
       
-      if args.verbose:
+      if args.all and args.verbose:
         print("{:10s}:{:.6f}s".format("run time",run_time))
         if exec_time != None:
           exec_time=exec_time.group()
@@ -114,8 +116,9 @@ if __name__ == '__main__':
             print("{:10s}:{}".format("std out", stdout_list))
             print("{:10s}:{}".format("exec out", exec_out_list))
             # print("{:10s}:{}".format("exec err", exec_err))
-      print("{:10s}:{}".format("status",status))
-    print()
+      if (args.all and args.verbose) or status!="OK!":
+        print("{:10s}:{}".format("status",status))
+        print()
     
   print("{:10s}:{}".format("bug num",bug_num))
   print("finish.")
