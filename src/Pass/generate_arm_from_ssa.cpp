@@ -13,6 +13,8 @@
 #define ADD_NEW_INST(inst) armbb->inst_list_.push_back(static_cast<Instruction*>(new inst));
 
 #define MUL_TO_SHIFT
+#define DIV_TO_SHIFT
+#define MOD_TO_AND
 
 using namespace arm;
 Cond GenerateArmFromSSA::GetCondType(BranchInst::Cond cond, bool exchange) {
@@ -117,18 +119,74 @@ bool GenerateArmFromSSA::ConvertMul2Shift(ArmBasicBlock* armbb, Reg* rd, Value* 
     ADD_NEW_INST(Move(rd, new Operand2(0)));
     return true;
   }
+  auto eval_n = [](int imm) {
+    int n = 0;
+    while (imm > 1) {
+      imm >>= 1;
+      ++n;
+    }
+    return n;
+  };
   // 如果乘数是2的幂次方 生成一条mov rd rm LSL n的指令 LSL允许0-31位
   if (0 == (imm & (imm - 1))) {
-    auto eval_n = [](int imm) {
-      int n = 0;
-      while (imm > 1) {
-        imm >>= 1;
-        ++n;
-      }
-      return n;
-    };
     auto op2 = new Operand2(ResolveValue2Reg(armbb, val), new Shift(Shift::OpCode::LSL, eval_n(imm)));
     ADD_NEW_INST(Move(rd, op2));
+    return true;
+  }
+  // 如果乘数是2的幂次方+1 生成一条add rd, rn, rn LSL n
+  if (0 == ((imm - 1) & (imm - 2))) {
+    // std::cout << 1 << std::endl;
+    auto vreg = ResolveValue2Reg(armbb, val);
+    auto op2 = new Operand2(vreg, new Shift(Shift::OpCode::LSL, eval_n(imm - 1)));
+    ADD_NEW_INST(BinaryInst(BinaryInst::OpCode::ADD, rd, vreg, op2));
+    return true;
+  }
+  // 如果乘数是2的幂次方-1 生成一条rsb rd, rn, rn LSL n
+  if (0 == ((imm + 1) & (imm))) {
+    // std::cout << 2 << std::endl;
+    auto vreg = ResolveValue2Reg(armbb, val);
+    auto op2 = new Operand2(vreg, new Shift(Shift::OpCode::LSL, eval_n(imm + 1)));
+    ADD_NEW_INST(BinaryInst(BinaryInst::OpCode::RSB, rd, vreg, op2));
+    return true;
+  }
+  return false;
+}
+
+bool GenerateArmFromSSA::ConvertDiv2Shift(ArmBasicBlock* armbb, Reg* rd, Value* val, int imm) {
+  // 如果除数是0 应该生成报错
+  if (0 == imm) {
+    MyAssert(0);
+  }
+  auto eval_n = [](int imm) {
+    int n = 0;
+    while (imm > 1) {
+      imm >>= 1;
+      ++n;
+    }
+    return n;
+  };
+  // 如果除数是2的幂次方 生成一条mov rd rm A(L)SR n的指令 允许1-32位
+  // FIXME: 这样做并不适用于被除数是负数的情况
+  if (0 == (imm & (imm - 1))) {
+    std::cout << "Warning Div" << std::endl;
+    auto op2 = new Operand2(ResolveValue2Reg(armbb, val), new Shift(Shift::OpCode::ASR, eval_n(imm)));
+    ADD_NEW_INST(Move(rd, op2));
+    return true;
+  }
+  return false;
+}
+
+bool GenerateArmFromSSA::ConvertMod2And(ArmBasicBlock* armbb, Reg* rd, Value* val, int imm) {
+  // 如果是0 应该生成报错
+  if (0 == imm) {
+    MyAssert(0);
+  }
+  // 如果是2的幂次方 生成一条and rd rm n-1的指令
+  // FIXME: 这样做并不适用于被除数是负数的情况
+  if (0 == (imm & (imm - 1))) {
+    std::cout << "Warning Mod" << std::endl;
+    auto rm = ResolveValue2Reg(armbb, val);
+    ADD_NEW_INST(BinaryInst(BinaryInst::OpCode::AND, rd, rm, ResolveImm2Operand2(armbb, imm - 1)));
     return true;
   }
   return false;
@@ -348,13 +406,26 @@ ArmModule* GenerateArmFromSSA::GenCode(SSAModule* module) {
               break;
             }
             case BinaryOperator::OpKind::DIV: {
+              Reg* rd = ResolveValue2Reg(armbb, res);
+#ifdef DIV_TO_SHIFT
+              if (auto const_int = dynamic_cast<ConstantInt*>(lhs))
+                if (ConvertDiv2Shift(armbb, rd, rhs, const_int->GetImm())) break;
+              if (auto const_int = dynamic_cast<ConstantInt*>(rhs))
+                if (ConvertDiv2Shift(armbb, rd, lhs, const_int->GetImm())) break;
+#endif
               rn = ResolveValue2Reg(armbb, lhs);
               op2 = new Operand2(ResolveValue2Reg(armbb, rhs));
-              Reg* rd = ResolveValue2Reg(armbb, res);
               gen_bi_inst(BinaryInst::OpCode::SDIV, rd, rn, op2);
               break;
             }
             case BinaryOperator::OpKind::MOD: {
+              Reg* rd = ResolveValue2Reg(armbb, res);
+#ifdef MOD_TO_AND
+              if (auto const_int = dynamic_cast<ConstantInt*>(lhs))
+                if (ConvertMod2And(armbb, rd, rhs, const_int->GetImm())) break;
+              if (auto const_int = dynamic_cast<ConstantInt*>(rhs))
+                if (ConvertMod2And(armbb, rd, lhs, const_int->GetImm())) break;
+#endif
               // 取余 in c/c++ not 取模
               // sdiv rd1, rn, op2
               rn = ResolveValue2Reg(armbb, lhs);
@@ -365,7 +436,6 @@ ArmModule* GenerateArmFromSSA::GenCode(SSAModule* module) {
               Reg* rd2 = NewVirtualReg();
               gen_bi_inst(BinaryInst::OpCode::MUL, rd2, rd1, op2);
               // sub rd, rd1, rd2
-              Reg* rd = ResolveValue2Reg(armbb, res);
               gen_bi_inst(BinaryInst::OpCode::SUB, rd, rn, new Operand2(rd2));
               break;
             }

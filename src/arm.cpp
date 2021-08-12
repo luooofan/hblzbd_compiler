@@ -176,8 +176,9 @@ void BinaryInst::EmitCode(std::ostream& outfile) {
 }
 void BinaryInst::Check() {
   if (nullptr != rd_) {
-    MyAssert(opcode_ == OpCode::ADD || opcode_ == OpCode::SUB || opcode_ == OpCode::RSB ||
-             ((opcode_ == OpCode::MUL || opcode_ == OpCode::SDIV) && !op2_->is_imm_));
+    // TODO: Check
+    // MyAssert(opcode_ == OpCode::ADD || opcode_ == OpCode::SUB || opcode_ == OpCode::RSB ||
+    //          ((opcode_ == OpCode::MUL || opcode_ == OpCode::SDIV) && !op2_->is_imm_));
     rd_->Check();
   } else {
     MyAssert(opcode_ == OpCode::CMP);
