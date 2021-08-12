@@ -22,6 +22,7 @@ class DeadCodeEliminate : public Transform {
   bool IsSideEffect(SSAInstruction* inst);
   void DeleteDeadFunc(SSAModule* m);
   void DeleteDeadInst(SSAFunction* func);
+  void DeleteDeadStore(SSAFunction* func);
   // void FindNoSideEffectFunc(SSAModule* m);
 };
 

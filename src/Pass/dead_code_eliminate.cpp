@@ -9,6 +9,7 @@
 #include "../../include/myassert.h"
 
 // #define DEBUG_DEAD_CODE_ELIMINATE_PROCESS
+// #define DEBUG_DEAD_STORE_ELIMINATE_PROCESS
 
 void DeadCodeEliminate::Run() {
   auto m = dynamic_cast<SSAModule*>(*(this->m_));
@@ -18,6 +19,7 @@ void DeadCodeEliminate::Run() {
   for (auto func : m->GetFuncList()) {
     DeleteDeadInst(func);
     func->MaintainCallFunc();  // 有可能删除call语句
+    DeleteDeadStore(func);
   }
   DeleteDeadFunc(m);
 }
@@ -164,4 +166,77 @@ void DeadCodeEliminate::FindNoSideEffectFunc(SSAModule* m, std::unordered_set<SS
   }
   std::cout << std::endl;
 #endif
+}
+
+void DeadCodeEliminate::DeleteDeadStore(SSAFunction* func) {
+#ifdef DEBUG_DEAD_STORE_ELIMINATE_PROCESS
+  std::cout << "Dead Store Eliminate for Function: " << func->GetFuncName() << std::endl;
+#endif
+
+  for (auto bb : func->GetBasicBlocks()) {
+#ifdef DEBUG_DEAD_STORE_ELIMINATE_PROCESS
+    std::cout << "  BB: " << bb->GetLabel() << std::endl;
+#endif
+
+    for (auto it = bb->GetInstList().begin(); it != bb->GetInstList().end(); ++it) {
+      auto store_inst = dynamic_cast<StoreInst*>(*it);
+      if (nullptr != store_inst) {
+        auto it2 = ++it;
+        --it;
+        for (; it2 != bb->GetInstList().end(); ++it2) {
+          // 如果是一条load指令 并且操作同一块内存区域 除非两个都是立即数且不相同 否则直接break
+          if (auto src_inst = dynamic_cast<LoadInst*>(*it2)) {
+            if (store_inst->GetNumOperands() - 1 == src_inst->GetNumOperands() &&
+                src_inst->GetOperand(0) == store_inst->GetOperand(1)) {
+              if (store_inst->GetNumOperands() == 3) {
+                auto constint = dynamic_cast<ConstantInt*>(store_inst->GetOperand(2));
+                auto constint2 = dynamic_cast<ConstantInt*>(src_inst->GetOperand(1));
+                if (nullptr != constint && nullptr != constint2 && constint->GetImm() != constint2->GetImm()) {
+                  continue;
+                }
+              }
+              break;
+            }
+          }
+          // 如果是一条call指令 并且调用的是有副作用的函数 直接break
+          else if (auto src_inst = dynamic_cast<CallInst*>(*it2)) {
+            if (!no_side_effect_funcs.count(dynamic_cast<FunctionValue*>(src_inst->GetOperand(0))->GetFunction()))
+              break;
+          }
+          // 如果是一条操作同一内存位置的store指令 则前面这条store可删除
+          else if (auto src_inst = dynamic_cast<StoreInst*>(*it2)) {
+            if (store_inst->GetNumOperands() == src_inst->GetNumOperands() &&
+                src_inst->GetOperand(1) == store_inst->GetOperand(1)) {
+              if (store_inst->GetNumOperands() == 3) {
+                auto constint = dynamic_cast<ConstantInt*>(store_inst->GetOperand(2));
+                auto constint2 = dynamic_cast<ConstantInt*>(src_inst->GetOperand(2));
+                if (store_inst->GetOperand(2) == src_inst->GetOperand(2) ||
+                    (nullptr != constint && nullptr != constint2 && constint->GetImm() == constint2->GetImm())) {
+#ifdef DEBUG_DEAD_STORE_ELIMINATE_PROCESS
+                  std::cout << "  find dead store: ", store_inst->Print(std::cout);
+                  std::cout << "               ==> ", src_inst->Print(std::cout);
+#endif
+
+                  it = bb->GetInstList().erase(it);
+                  --it;
+                  delete store_inst;
+                  break;
+                }
+              } else {
+#ifdef DEBUG_DEAD_STORE_ELIMINATE_PROCESS
+                std::cout << "  find dead store: ", store_inst->Print(std::cout);
+                std::cout << "               ==> ", src_inst->Print(std::cout);
+#endif
+
+                it = bb->GetInstList().erase(it);
+                --it;
+                delete store_inst;
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
 }
