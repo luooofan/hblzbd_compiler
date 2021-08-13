@@ -4,6 +4,9 @@
 #include <algorithm>
 #include <functional>
 
+#include "../../include/arm.h"
+#include "../../include/arm_struct.h"
+
 #define ASSERT_ENABLE
 #include "../../include/myassert.h"
 
@@ -62,18 +65,18 @@ Reg* GenerateArmFromSSA::ResolveImm2Reg(ArmBasicBlock* armbb, int imm, bool reco
   Instruction* inst = nullptr;
   if (Operand2::CheckImm8m(imm)) {
     // NOTE: 寄存器分配后立即数值可能会变
-    inst = NEW_INST(Move(vreg, new Operand2(imm)));
+    inst = NEW_INST(Move(vreg, new Operand2(imm), armbb));
   } else {
     if (imm < 0 && Operand2::CheckImm8m(-imm - 1)) {  // mvn
-      inst = NEW_INST(Move(vreg, new Operand2(-imm - 1), true));
+      inst = NEW_INST(Move(vreg, new Operand2(-imm - 1), armbb, true));
     } else {  // use ldr pseudo-inst instead of mov.
-      inst = NEW_INST(LdrPseudo(vreg, imm));
+      inst = NEW_INST(LdrPseudo(vreg, imm, armbb));
     }
   }
   MyAssert(nullptr != inst);
   armbb->inst_list_.push_back(inst);
   if (record) {
-    this->sp_fixup.push_back(inst);
+    this->sp_fixup.insert(inst);
   }
   return vreg;
 }
@@ -90,25 +93,25 @@ void GenerateArmFromSSA::GenImmLdrStrInst(ArmBasicBlock* armbb, LdrStr::OpKind o
   Instruction* inst = nullptr;
   if (record) {  // NOTE: sp_arg_fixup待补充的最后的栈空间大小+被调用者保护的寄存器的总大小
     auto vreg = NewVirtualReg();
-    inst = NEW_INST(LdrPseudo(Cond::AL, vreg, imm));
+    inst = NEW_INST(LdrPseudo(Cond::AL, vreg, imm, armbb));
     armbb->inst_list_.push_back(inst);
-    ADD_NEW_INST(LdrStr(opkind, rd, rn, new Operand2(vreg)));
-    this->sp_arg_fixup.push_back(inst);
+    ADD_NEW_INST(LdrStr(opkind, rd, rn, new Operand2(vreg), armbb));
+    this->sp_arg_fixup.insert(inst);
   } else {
     if (LdrStr::CheckImm12(imm)) {
-      inst = NEW_INST(LdrStr(opkind, rd, rn, imm));
+      inst = NEW_INST(LdrStr(opkind, rd, rn, imm, armbb));
       armbb->inst_list_.push_back(inst);
     } else {
       auto vreg = NewVirtualReg();
       if (Operand2::CheckImm8m(imm)) {  // mov
-        inst = NEW_INST(Move(vreg, new Operand2(imm)));
+        inst = NEW_INST(Move(vreg, new Operand2(imm), armbb));
       } else if (imm < 0 && Operand2::CheckImm8m(-imm - 1)) {  // mvn
-        inst = NEW_INST(Move(vreg, new Operand2(-imm - 1), true));
+        inst = NEW_INST(Move(vreg, new Operand2(-imm - 1), armbb, true));
       } else {  // ldr-pseudo
-        inst = NEW_INST(LdrPseudo(vreg, imm));
+        inst = NEW_INST(LdrPseudo(vreg, imm, armbb));
       }
       armbb->inst_list_.push_back(inst);
-      ADD_NEW_INST(LdrStr(opkind, rd, rn, new Operand2(vreg)));
+      ADD_NEW_INST(LdrStr(opkind, rd, rn, new Operand2(vreg), armbb));
     }
   }
 }
@@ -116,7 +119,7 @@ void GenerateArmFromSSA::GenImmLdrStrInst(ArmBasicBlock* armbb, LdrStr::OpKind o
 bool GenerateArmFromSSA::ConvertMul2Shift(ArmBasicBlock* armbb, Reg* rd, Value* val, int imm) {
   // 如果乘数是0 生成一条mov rd 0的指令
   if (0 == imm) {
-    ADD_NEW_INST(Move(rd, new Operand2(0)));
+    ADD_NEW_INST(Move(rd, new Operand2(0), armbb));
     return true;
   }
   auto eval_n = [](int imm) {
@@ -130,7 +133,7 @@ bool GenerateArmFromSSA::ConvertMul2Shift(ArmBasicBlock* armbb, Reg* rd, Value* 
   // 如果乘数是2的幂次方 生成一条mov rd rm LSL n的指令 LSL允许0-31位
   if (0 == (imm & (imm - 1))) {
     auto op2 = new Operand2(ResolveValue2Reg(armbb, val), new Shift(Shift::OpCode::LSL, eval_n(imm)));
-    ADD_NEW_INST(Move(rd, op2));
+    ADD_NEW_INST(Move(rd, op2, armbb));
     return true;
   }
   // 如果乘数是2的幂次方+1 生成一条add rd, rn, rn LSL n
@@ -138,7 +141,7 @@ bool GenerateArmFromSSA::ConvertMul2Shift(ArmBasicBlock* armbb, Reg* rd, Value* 
     // std::cout << 1 << std::endl;
     auto vreg = ResolveValue2Reg(armbb, val);
     auto op2 = new Operand2(vreg, new Shift(Shift::OpCode::LSL, eval_n(imm - 1)));
-    ADD_NEW_INST(BinaryInst(BinaryInst::OpCode::ADD, rd, vreg, op2));
+    ADD_NEW_INST(BinaryInst(BinaryInst::OpCode::ADD, rd, vreg, op2, armbb));
     return true;
   }
   // 如果乘数是2的幂次方-1 生成一条rsb rd, rn, rn LSL n
@@ -146,7 +149,7 @@ bool GenerateArmFromSSA::ConvertMul2Shift(ArmBasicBlock* armbb, Reg* rd, Value* 
     // std::cout << 2 << std::endl;
     auto vreg = ResolveValue2Reg(armbb, val);
     auto op2 = new Operand2(vreg, new Shift(Shift::OpCode::LSL, eval_n(imm + 1)));
-    ADD_NEW_INST(BinaryInst(BinaryInst::OpCode::RSB, rd, vreg, op2));
+    ADD_NEW_INST(BinaryInst(BinaryInst::OpCode::RSB, rd, vreg, op2, armbb));
     return true;
   }
   return false;
@@ -170,7 +173,7 @@ bool GenerateArmFromSSA::ConvertDiv2Shift(ArmBasicBlock* armbb, Reg* rd, Value* 
   if (0 == (imm & (imm - 1))) {
     std::cout << "Warning Div" << std::endl;
     auto op2 = new Operand2(ResolveValue2Reg(armbb, val), new Shift(Shift::OpCode::ASR, eval_n(imm)));
-    ADD_NEW_INST(Move(rd, op2));
+    ADD_NEW_INST(Move(rd, op2, armbb));
     return true;
   }
   // 考虑负数情况
@@ -178,14 +181,14 @@ bool GenerateArmFromSSA::ConvertDiv2Shift(ArmBasicBlock* armbb, Reg* rd, Value* 
     // 1. asr vreg, rn, #31;  i.e. mov vreg, rn, ASR #31;
     auto vreg = NewVirtualReg();
     auto rn = ResolveValue2Reg(armbb, val);
-    ADD_NEW_INST(Move(vreg, new Operand2(rn, new Shift(Shift::OpCode::ASR, 31))));
+    ADD_NEW_INST(Move(vreg, new Operand2(rn, new Shift(Shift::OpCode::ASR, 31)), armbb));
     // 2. add vreg2, rn, vreg, lsr #(32-n);
     auto vreg2 = NewVirtualReg();
     auto n = eval_n(imm);
     auto op2 = new Operand2(vreg, new Shift(Shift::OpCode::LSR, 32 - n));
-    ADD_NEW_INST(BinaryInst(BinaryInst::OpCode::ADD, vreg2, rn, op2));
+    ADD_NEW_INST(BinaryInst(BinaryInst::OpCode::ADD, vreg2, rn, op2, armbb));
     // 3. asr rd, vreg2, #n;  i.e. mov rd, vreg2, ASR #n;
-    ADD_NEW_INST(Move(rd, new Operand2(vreg2, new Shift(Shift::OpCode::ASR, n))));
+    ADD_NEW_INST(Move(rd, new Operand2(vreg2, new Shift(Shift::OpCode::ASR, n)), armbb));
   }
   return false;
 }
@@ -208,23 +211,23 @@ bool GenerateArmFromSSA::ConvertMod2And(ArmBasicBlock* armbb, Reg* rd, Value* va
   if (0 == (imm & (imm - 1))) {
     std::cout << "Warning Mod" << std::endl;
     auto rm = ResolveValue2Reg(armbb, val);
-    ADD_NEW_INST(BinaryInst(BinaryInst::OpCode::AND, rd, rm, ResolveImm2Operand2(armbb, imm - 1)));
+    ADD_NEW_INST(BinaryInst(BinaryInst::OpCode::AND, rd, rm, ResolveImm2Operand2(armbb, imm - 1), armbb));
     return true;
   }
   if (0 == (imm & (imm - 1))) {
     // 1. asr vreg, rn, #31;  i.e. mov vreg, rn, ASR #31;
     auto vreg = NewVirtualReg();
     auto rn = ResolveValue2Reg(armbb, val);
-    ADD_NEW_INST(Move(vreg, new Operand2(rn, new Shift(Shift::OpCode::ASR, 31))));
+    ADD_NEW_INST(Move(vreg, new Operand2(rn, new Shift(Shift::OpCode::ASR, 31)), armbb));
     // 2. add vreg2, rn, vreg, lsr #(32-n);
     auto vreg2 = NewVirtualReg();
     auto n = eval_n(imm);
     auto op2 = new Operand2(vreg, new Shift(Shift::OpCode::LSR, 32 - n));
-    ADD_NEW_INST(BinaryInst(BinaryInst::OpCode::ADD, vreg2, rn, op2));
+    ADD_NEW_INST(BinaryInst(BinaryInst::OpCode::ADD, vreg2, rn, op2, armbb));
     // 3. bic vreg2, vreg2, #(2^n-1);  i.e. bfc vreg2, #0, #n;
-    ADD_NEW_INST(BinaryInst(BinaryInst::OpCode::BIC, vreg2, vreg2, ResolveImm2Operand2(armbb, imm - 1)));
+    ADD_NEW_INST(BinaryInst(BinaryInst::OpCode::BIC, vreg2, vreg2, ResolveImm2Operand2(armbb, imm - 1), armbb));
     // 4. sub rd, rn, vreg2
-    ADD_NEW_INST(BinaryInst(BinaryInst::OpCode::SUB, rd, rn, new Operand2(vreg2)));
+    ADD_NEW_INST(BinaryInst(BinaryInst::OpCode::SUB, rd, rn, new Operand2(vreg2), armbb));
   }
   return false;
 }
@@ -251,7 +254,7 @@ Reg* GenerateArmFromSSA::ResolveValue2Reg(ArmBasicBlock* armbb, Value* val) {
       Reg* vreg = NewVirtualReg();
       auto arg_no = src_val->GetArgNo();
       if (arg_no < 4) {
-        ADD_NEW_INST(Move(vreg, new Operand2(new Reg(arg_no))));
+        ADD_NEW_INST(Move(vreg, new Operand2(new Reg(arg_no)), armbb));
       } else {  // NOTE: 寄存器分配后修改的时候应该是+=最终的stack_size+push的大小
         GenImmLdrStrInst(armbb, LdrStr::OpKind::LDR, vreg, sp_vreg, /*4 lr +*/ (arg_no - 4) * 4, true);
       }
@@ -283,14 +286,14 @@ Operand2* GenerateArmFromSSA::ResolveValue2Operand2(ArmBasicBlock* armbb, Value*
 void GenerateArmFromSSA::AddPrologue(ArmFunction* func, FunctionValue* func_val) {
   // push {lr}
   auto armbb = func->bb_list_.front();
-  auto push_inst = new PushPop(PushPop::OpKind::PUSH);
+  auto push_inst = new PushPop(PushPop::OpKind::PUSH, armbb);
   push_inst->reg_list_.push_back(new Reg(ArmReg::lr));
   armbb->inst_list_.push_back(static_cast<Instruction*>(push_inst));
 
   // sub sp,sp,#0    放进sp_fixup中 等待寄存器分配完成后修改该值
   auto op2 = ResolveImm2Operand2(armbb, 0, true);
   MyAssert(!op2->is_imm_);
-  ADD_NEW_INST(BinaryInst(BinaryInst::OpCode::SUB, new Reg(ArmReg::sp), new Reg(ArmReg::sp), op2));
+  ADD_NEW_INST(BinaryInst(BinaryInst::OpCode::SUB, new Reg(ArmReg::sp), new Reg(ArmReg::sp), op2, armbb));
 
   // mov sp_vreg(r16),sp FIXME
   // ADD_NEW_INST(Move(sp_vreg, new Operand2(new Reg(ArmReg::sp))));
@@ -302,7 +305,7 @@ void GenerateArmFromSSA::AddPrologue(ArmFunction* func, FunctionValue* func_val)
   for (auto glob_var : func_val->GetFunction()->GetUsedGlobVarList()) {
     Reg* rglo = NewVirtualReg();
     var_map[glob_var] = rglo;
-    ADD_NEW_INST(LdrPseudo(rglo, glob_var->GetName()));
+    ADD_NEW_INST(LdrPseudo(rglo, glob_var->GetName(), armbb));
   }
 }
 
@@ -310,12 +313,12 @@ void GenerateArmFromSSA::AddEpilogue(ArmBasicBlock* armbb) {
   // 要为每一个ret语句添加epilogue
   // add sp, sp, #stack_size 之后应该修改为栈大小 记录在sp_fixup里
   auto op2 = ResolveImm2Operand2(armbb, 0, true);
-  auto add_inst = NEW_INST(BinaryInst(BinaryInst::OpCode::ADD, new Reg(ArmReg::sp), new Reg(ArmReg::sp), op2));
+  auto add_inst = NEW_INST(BinaryInst(BinaryInst::OpCode::ADD, new Reg(ArmReg::sp), new Reg(ArmReg::sp), op2, armbb));
   armbb->inst_list_.push_back(add_inst);
   MyAssert(!op2->is_imm_);
 
   // pop {pc} NOTE: same as bx lr
-  auto pop_inst = new PushPop(PushPop::OpKind::POP);
+  auto pop_inst = new PushPop(PushPop::OpKind::POP, armbb);
   pop_inst->reg_list_.push_back(new Reg(ArmReg::pc));
   armbb->inst_list_.push_back(static_cast<Instruction*>(pop_inst));
 };
@@ -334,7 +337,13 @@ void GenerateArmFromSSA::GenerateArmBasicBlocks(ArmFunction* armfunc, SSAFunctio
                                                 std::unordered_map<SSABasicBlock*, ArmBasicBlock*>& bb_map) {
   // create armbb according to irbb
   for (auto bb : func->GetBBList()) {
-    ArmBasicBlock* armbb = new ArmBasicBlock(&(bb->GetLabel()));  // FIXME
+    // ArmBasicBlock* armbb = new ArmBasicBlock(&(bb->GetLabel()));  // FIXME
+    ArmBasicBlock* armbb = new ArmBasicBlock();
+    bool set_label = false;
+    for (auto use : bb->GetValue()->GetUses()) {
+      if (nullptr == dynamic_cast<PhiInst*>(use->GetUser())) set_label = true;
+    }
+    if (set_label) armbb->label_ = bb->GetLabel();
     bb_map.insert({bb, armbb});
     armfunc->bb_list_.push_back(armbb);
     armbb->func_ = armfunc;
@@ -395,7 +404,7 @@ ArmModule* GenerateArmFromSSA::GenCode(SSAModule* module) {
       };
 
       auto gen_bi_inst = [&armbb](BinaryInst::OpCode opcode, Reg* rd, Reg* rn, Operand2* op2) {
-        ADD_NEW_INST(BinaryInst(opcode, rd, rn, op2));
+        ADD_NEW_INST(BinaryInst(opcode, rd, rn, op2, armbb));
       };
 
       // for every ssa inst
@@ -499,9 +508,9 @@ ArmModule* GenerateArmFromSSA::GenCode(SSAModule* module) {
               // movne rd 0
               auto rn = ResolveValue2Reg(armbb, lhs);
               Reg* rd = ResolveValue2Reg(armbb, res);
-              ADD_NEW_INST(BinaryInst(BinaryInst::OpCode::CMP, rn, ResolveImm2Operand2(armbb, 0)));
-              ADD_NEW_INST(Move(false, Cond::EQ, rd, ResolveImm2Operand2(armbb, 1)));
-              ADD_NEW_INST(Move(false, Cond::NE, rd, ResolveImm2Operand2(armbb, 0)));
+              ADD_NEW_INST(BinaryInst(BinaryInst::OpCode::CMP, rn, ResolveImm2Operand2(armbb, 0), armbb));
+              ADD_NEW_INST(Move(false, Cond::EQ, rd, ResolveImm2Operand2(armbb, 1), armbb));
+              ADD_NEW_INST(Move(false, Cond::NE, rd, ResolveImm2Operand2(armbb, 0), armbb));
               break;
             }
             default: {
@@ -512,14 +521,14 @@ ArmModule* GenerateArmFromSSA::GenCode(SSAModule* module) {
         } else if (auto src_inst = dynamic_cast<BranchInst*>(inst)) {
           // 最后一个操作数是labeltype 一定是BasicBlockValue
           if (src_inst->cond_ == BranchInst::Cond::AL) {  // 无条件跳转
-            ADD_NEW_INST(Branch(false, false, src_inst->GetOperand(0)->GetName()));
+            ADD_NEW_INST(Branch(false, false, src_inst->GetOperand(0)->GetName(), armbb));
           } else {  // 有条件跳转
             Reg* rn = nullptr;
             Operand2* op2 = nullptr;
             bool is_opn1_imm = gen_rn_op2(src_inst->GetOperand(0), src_inst->GetOperand(1), rn, op2);
-            ADD_NEW_INST(BinaryInst(BinaryInst::OpCode::CMP, rn, op2));
-            ADD_NEW_INST(
-                Branch(false, false, GetCondType(src_inst->cond_, is_opn1_imm), src_inst->GetOperand(2)->GetName()));
+            ADD_NEW_INST(BinaryInst(BinaryInst::OpCode::CMP, rn, op2, armbb));
+            ADD_NEW_INST(Branch(false, false, GetCondType(src_inst->cond_, is_opn1_imm),
+                                src_inst->GetOperand(2)->GetName(), armbb));
           }
         } else if (auto src_inst = dynamic_cast<CallInst*>(inst)) {
           // NOTE: 这里对调用语句的处理并不规范 但方便目标代码的生成和寄存器溢出情况的处理
@@ -537,7 +546,7 @@ ArmModule* GenerateArmFromSSA::GenCode(SSAModule* module) {
               MyAssert(nullptr != op2);
               // std::cout << std::string(*op2) << std::endl;
               // armbb->EmitCode(std::cout);
-              ADD_NEW_INST(Move(new Reg(i), op2));
+              ADD_NEW_INST(Move(new Reg(i), op2, armbb));
             } else {
               // str rd, sp, #(order-4)*4 靠后的参数放在较高的地方 第5个(order=4)放在sp指向的内存
               auto rd = ResolveValue2Reg(armbb, val);
@@ -551,22 +560,22 @@ ArmModule* GenerateArmFromSSA::GenCode(SSAModule* module) {
           // sub sp, sp, #(param_num-4)*4 NOTE: 一定要放在bl前一句
           if (param_num > 4) {
             auto op2 = ResolveImm2Operand2(armbb, (param_num - 4) * 4);
-            ADD_NEW_INST(BinaryInst(BinaryInst::OpCode::SUB, new Reg(ArmReg::sp), new Reg(ArmReg::sp), op2));
+            ADD_NEW_INST(BinaryInst(BinaryInst::OpCode::SUB, new Reg(ArmReg::sp), new Reg(ArmReg::sp), op2, armbb));
           }
           // BL label
-          ADD_NEW_INST(Branch(true, false, Cond::AL, src_inst->GetOperand(0)->GetName()));
+          ADD_NEW_INST(Branch(true, false, Cond::AL, src_inst->GetOperand(0)->GetName(), armbb));
 
           // add sp, sp, #(param_num-4)*4  NOTE: 一定要放在bl后一句
           if (param_num > 4) {
             auto op2 = ResolveImm2Operand2(armbb, (param_num - 4) * 4);
-            ADD_NEW_INST(BinaryInst(BinaryInst::OpCode::ADD, new Reg(ArmReg::sp), new Reg(ArmReg::sp), op2));
+            ADD_NEW_INST(BinaryInst(BinaryInst::OpCode::ADD, new Reg(ArmReg::sp), new Reg(ArmReg::sp), op2, armbb));
           }
 
           // mov rd r0
           if (!src_inst->GetType()->IsVoid()) {
             // NOTE: 这里必须生成一条mov语句 会存在两个call ir接连出现的情况
             auto vreg = ResolveValue2Reg(armbb, src_inst);
-            ADD_NEW_INST(Move(false, Cond::AL, vreg, new Operand2(new Reg(ArmReg::r0))));
+            ADD_NEW_INST(Move(false, Cond::AL, vreg, new Operand2(new Reg(ArmReg::r0)), armbb));
           }
 
         } else if (auto src_inst = dynamic_cast<ReturnInst*>(inst)) {
@@ -577,7 +586,7 @@ ArmModule* GenerateArmFromSSA::GenCode(SSAModule* module) {
           } else {
             op2 = ResolveImm2Operand2(armbb, 0);
           }
-          ADD_NEW_INST(Move(new Reg(ArmReg::r0), op2));
+          ADD_NEW_INST(Move(new Reg(ArmReg::r0), op2, armbb));
           AddEpilogue(armbb);
           break;
         } else if (auto src_inst = dynamic_cast<AllocaInst*>(inst)) {
@@ -586,7 +595,8 @@ ArmModule* GenerateArmFromSSA::GenCode(SSAModule* module) {
           auto rbase = ResolveValue2Reg(armbb, src_inst->GetOperand(1));
           MyAssert(nullptr != rbase);
           // 此时只是在var map中记录了该数组基址对应的vreg 还需要生成一条add指令
-          ADD_NEW_INST(BinaryInst(BinaryInst::OpCode::ADD, rbase, sp_vreg, ResolveImm2Operand2(armbb, stack_size)));
+          ADD_NEW_INST(
+              BinaryInst(BinaryInst::OpCode::ADD, rbase, sp_vreg, ResolveImm2Operand2(armbb, stack_size), armbb));
 
           // maintain stack size
           auto constint_value = dynamic_cast<ConstantInt*>(src_inst->GetOperand(0));
@@ -605,7 +615,7 @@ ArmModule* GenerateArmFromSSA::GenCode(SSAModule* module) {
               GenImmLdrStrInst(armbb, LdrStr::OpKind::LDR, rd, rn, constint_val->GetImm());
             } else {
               Operand2* offset = ResolveValue2Operand2(armbb, offset_val);
-              ADD_NEW_INST(LdrStr(LdrStr::OpKind::LDR, rd, rn, offset));
+              ADD_NEW_INST(LdrStr(LdrStr::OpKind::LDR, rd, rn, offset, armbb));
             }
           } else {
             GenImmLdrStrInst(armbb, LdrStr::OpKind::LDR, rd, rn, 0);
@@ -623,7 +633,7 @@ ArmModule* GenerateArmFromSSA::GenCode(SSAModule* module) {
               GenImmLdrStrInst(armbb, LdrStr::OpKind::STR, rd, rn, constint_val->GetImm());
             } else {
               Operand2* offset = ResolveValue2Operand2(armbb, offset_val);
-              ADD_NEW_INST(LdrStr(LdrStr::OpKind::STR, rd, rn, offset));
+              ADD_NEW_INST(LdrStr(LdrStr::OpKind::STR, rd, rn, offset, armbb));
             }
           } else {
             GenImmLdrStrInst(armbb, LdrStr::OpKind::STR, rd, rn, 0);
@@ -632,7 +642,7 @@ ArmModule* GenerateArmFromSSA::GenCode(SSAModule* module) {
         } else if (auto src_inst = dynamic_cast<MovInst*>(inst)) {
           auto op2 = ResolveValue2Operand2(armbb, src_inst->GetOperand(0));
           auto rd = ResolveValue2Reg(armbb, src_inst);
-          ADD_NEW_INST(Move(rd, op2));
+          ADD_NEW_INST(Move(rd, op2, armbb));
         } else if (auto src_inst = dynamic_cast<PhiInst*>(inst)) {
           // TODO
         } else {
@@ -661,7 +671,7 @@ ArmModule* GenerateArmFromSSA::GenCode(SSAModule* module) {
 #endif
           auto vreg = NewVirtualReg();
           armbb->inst_list_.insert(armbb->inst_list_.begin(),
-                                   new Move(ResolveValue2Reg(armbb, src_inst), new Operand2(vreg)));
+                                   new Move(ResolveValue2Reg(armbb, src_inst), new Operand2(vreg), armbb));
 
           for (int i = 0; i < bb->GetPredBB().size(); ++i) {
             // std::cout << i << std::endl;
@@ -672,7 +682,7 @@ ArmModule* GenerateArmFromSSA::GenCode(SSAModule* module) {
             MyAssert(nullptr != ssa_pred_bb && nullptr != arm_pred_bb);
             // arm_pred_bb如果为空 直接加在最后面
             if (arm_pred_bb->inst_list_.empty()) {
-              auto new_inst = new Move(vreg, ResolveValue2Operand2(arm_pred_bb, val));
+              auto new_inst = new Move(vreg, ResolveValue2Operand2(arm_pred_bb, val), arm_pred_bb);
               arm_pred_bb->inst_list_.push_back(new_inst);
               continue;
             }
@@ -687,7 +697,7 @@ ArmModule* GenerateArmFromSSA::GenCode(SSAModule* module) {
               if (last_branch_inst->cond_ != Cond::AL) {
                 auto pred_last_inst2 = arm_pred_bb->inst_list_.back();
                 arm_pred_bb->inst_list_.pop_back();
-                auto new_inst = new Move(vreg, ResolveValue2Operand2(arm_pred_bb, val));
+                auto new_inst = new Move(vreg, ResolveValue2Operand2(arm_pred_bb, val), arm_pred_bb);
                 // arm_pred_bb->inst_list_.insert(arm_pred_bb->inst_list_.end() - 2, new_inst);
                 arm_pred_bb->inst_list_.push_back(new_inst);
                 arm_pred_bb->inst_list_.push_back(pred_last_inst2);
@@ -695,7 +705,7 @@ ArmModule* GenerateArmFromSSA::GenCode(SSAModule* module) {
               }
               // 无条件跳转语句 在跳转语句前插入
               else {
-                auto new_inst = new Move(vreg, ResolveValue2Operand2(arm_pred_bb, val));
+                auto new_inst = new Move(vreg, ResolveValue2Operand2(arm_pred_bb, val), arm_pred_bb);
                 // arm_pred_bb->inst_list_.insert(arm_pred_bb->inst_list_.end() - 1, new_inst);
                 arm_pred_bb->inst_list_.push_back(new_inst);
               }
@@ -703,7 +713,7 @@ ArmModule* GenerateArmFromSSA::GenCode(SSAModule* module) {
             }
             // 其他语句 直接加在最后面
             else {
-              auto new_inst = new Move(vreg, ResolveValue2Operand2(arm_pred_bb, val));
+              auto new_inst = new Move(vreg, ResolveValue2Operand2(arm_pred_bb, val), arm_pred_bb);
               arm_pred_bb->inst_list_.push_back(new_inst);
             }
             // std::cout << i << std::endl;

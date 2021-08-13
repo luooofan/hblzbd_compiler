@@ -149,11 +149,11 @@ void ArmBasicBlock::EmitCode(std::ostream& out) {
   // for (auto liveout : this->liveout_) {
   //   out << "r" << liveout << " ";
   // }
-  out << std::endl;
+  // out << std::endl;
   for (auto inst : this->inst_list_) {
     inst->EmitCode(out);
   }
-  out << "  @ BasicBlock End." << std::endl;
+  // out << "  @ BasicBlock End." << std::endl;
 }
 void ArmBasicBlock::Check() {
   for (auto inst : inst_list_) inst->Check();

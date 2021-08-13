@@ -1,14 +1,18 @@
-#pragma once
+#ifndef __GENERATE_ARM_FROM_SSA_H__
+#define __GENERATE_ARM_FROM_SSA_H__
+
 #include <functional>
 #include <unordered_set>
 
 #include "../arm.h"
-#include "../arm_struct.h"
 #include "../ssa.h"
 #include "../ssa_struct.h"
 #include "pass_manager.h"
 class SSAModule;
 class Value;
+class ArmBasicBlock;
+class ArmFunction;
+class ArmModule;
 using namespace arm;
 // NO OPT VERSION
 class GenerateArmFromSSA : public Transform {
@@ -26,8 +30,8 @@ class GenerateArmFromSSA : public Transform {
   // 保存有初始sp的vreg 一定是也必须是r16 maybe not used. FIXME
   Reg* sp_vreg = nullptr;
   int stack_size = 0;
-  std::vector<Instruction*> sp_arg_fixup;
-  std::vector<Instruction*> sp_fixup;
+  std::unordered_set<Instruction*> sp_arg_fixup;
+  std::unordered_set<Instruction*> sp_fixup;
 
  protected:
   // used for generate arm code.
@@ -47,3 +51,5 @@ class GenerateArmFromSSA : public Transform {
   void GenerateArmBasicBlocks(ArmFunction* armfunc, SSAFunction* func,
                               std::unordered_map<SSABasicBlock*, ArmBasicBlock*>& bb_map);
 };
+
+#endif

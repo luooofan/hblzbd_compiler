@@ -52,7 +52,7 @@ void SPOffsetFixup::Fixup4Func(ArmFunction *func) {
           }
           // 此时iter指向原pop指令的下一条指令
           if (!is_lr_used) {  // 不在push中 插入一条 bx lr
-            iter = bb->inst_list_.insert(iter, static_cast<Instruction *>(new Branch(false, true, Cond::AL, "lr")));
+            iter = bb->inst_list_.insert(iter, static_cast<Instruction *>(new Branch(false, true, Cond::AL, "lr", bb)));
           }
           continue;
         }
@@ -70,7 +70,7 @@ void SPOffsetFixup::Fixup4Func(ArmFunction *func) {
   std::cout << "Fixup sp_arg Start:" << std::endl;
 #endif
 
-  auto merge_ldrpseudo_with_ldr = [&func](std::vector<Instruction *>::iterator it) {
+  auto merge_ldrpseudo_with_ldr = [&func](std::unordered_set<Instruction *>::iterator it) {
     // 把ldrpseudo和后面的ldr合起来
     for (auto bb : func->bb_list_) {
       for (auto inst_it = bb->inst_list_.begin(); inst_it != bb->inst_list_.end(); ++inst_it) {
@@ -87,7 +87,7 @@ void SPOffsetFixup::Fixup4Func(ArmFunction *func) {
                    ldr_inst->offset_->reg_->reg_id_ == src_inst->rd_->reg_id_);
           // TODO delete src op2
           ldr_inst->offset_ = new Operand2(imm);
-          *it = ldr_inst;  // 之后sp_arg_fixup中会出现ldr指令
+          // *it = ldr_inst;  // 之后sp_arg_fixup中会出现ldr指令
           return;
         }
       }
@@ -105,12 +105,14 @@ void SPOffsetFixup::Fixup4Func(ArmFunction *func) {
     }
   }
 
+  func->sp_arg_fixup_.clear();
+
 #ifdef DEBUG_FIXUP_PROCESS
   std::cout << "Fixup sp_arg End." << std::endl;
   std::cout << "Fixup sp Start:" << std::endl;
 #endif
 
-  auto convert_imm_inst = [&func](std::vector<Instruction *>::iterator it) {
+  auto convert_imm_inst = [&func](std::unordered_set<Instruction *>::iterator it) {
     // 把mov/mvn转换成ldrpseudo
     for (auto bb : func->bb_list_) {
       for (auto inst_it = bb->inst_list_.begin(); inst_it != bb->inst_list_.end(); ++inst_it) {
@@ -124,10 +126,10 @@ void SPOffsetFixup::Fixup4Func(ArmFunction *func) {
           } else {
             imm = src_inst->op2_->imm_num_;
           }
-          auto pseudo_ldr_inst = static_cast<Instruction *>(new LdrPseudo(Cond::AL, src_inst->rd_, imm));
+          auto pseudo_ldr_inst = static_cast<Instruction *>(new LdrPseudo(Cond::AL, src_inst->rd_, imm, bb));
           inst_it = bb->inst_list_.insert(inst_it, pseudo_ldr_inst);
           // TODO: delete
-          *it = pseudo_ldr_inst;
+          // *it = pseudo_ldr_inst;
           return;
         }
       }
@@ -135,7 +137,7 @@ void SPOffsetFixup::Fixup4Func(ArmFunction *func) {
     MyAssert(0);
   };
 
-  auto merge_with_addsub = [&func](std::vector<Instruction *>::iterator it) {
+  auto merge_with_addsub = [&func](std::unordered_set<Instruction *>::iterator it) {
     // 把mov/ldrpseudo和后面的addsub sp sp 合起来
     for (auto bb : func->bb_list_) {
       for (auto inst_it = bb->inst_list_.begin(); inst_it != bb->inst_list_.end(); ++inst_it) {
@@ -158,7 +160,7 @@ void SPOffsetFixup::Fixup4Func(ArmFunction *func) {
                    addsub_inst->rn_->reg_id_ == (int)ArmReg::sp);
           // TODO delete src op2
           addsub_inst->op2_ = new Operand2(imm);
-          *it = addsub_inst;  // 之后sp_fixup中会出现addsub指令
+          // *it = addsub_inst;  // 之后sp_fixup中会出现addsub指令
           return;
         }
       }
@@ -193,6 +195,9 @@ void SPOffsetFixup::Fixup4Func(ArmFunction *func) {
       MyAssert(0);
     }
   }
+
+  func->sp_fixup_.clear();
+
 #ifdef DEBUG_FIXUP_PROCESS
   std::cout << "Fixup sp End." << std::endl;
 #endif

@@ -3,6 +3,7 @@
 #include <iostream>
 #include <unordered_set>
 #include <vector>
+class ArmBasicBlock;
 
 namespace arm {
 // ref: https://en.wikipedia.org/wiki/Calling_convention#ARM_(A32)
@@ -86,21 +87,23 @@ class Shift {
 // - Register with optional shift. Reg {, <opsh>} or Reg, LSL/LSR/ASR/ROR Rs
 class Operand2 {
  public:
-  bool is_imm_;
-  int imm_num_;
-  Reg* reg_;
-  Shift* shift_;
-  Operand2(int imm_num) : is_imm_(true), imm_num_(imm_num), reg_(nullptr), shift_(nullptr) {}
-  Operand2(Reg* reg) : is_imm_(false), reg_(reg), shift_(nullptr) {}
+  bool is_imm_ = true;
+  int imm_num_ = 0;
+  Reg* reg_ = nullptr;
+  Shift* shift_ = nullptr;
+  Operand2(int imm_num) : imm_num_(imm_num) {}
+  Operand2(Reg* reg) : is_imm_(false), reg_(reg) {}
   Operand2(Reg* reg, Shift* shift) : is_imm_(false), reg_(reg), shift_(shift) {}
   explicit operator std::string();
   static bool CheckImm8m(int imm);
   void Check();
+  bool HasShift() { return /*!is_imm_ &&*/ nullptr != shift_; }
+  bool HasUsedAsOp2(Reg* reg) { return reg_ == reg; }
+  bool HasUsedAsOp2WithoutShift(Reg* reg) { return !HasShift() && HasUsedAsOp2(reg); }
   void AddUsedInst(Instruction* inst) {
     if (!is_imm_) reg_->AddUsedInst(inst);
     if (nullptr != shift_) shift_->AddUsedInst(inst);
   }
-  bool HasShift() { return !is_imm_ && nullptr != shift_; }
 };
 
 enum class Cond {
@@ -117,14 +120,20 @@ std::string CondToString(Cond cond);
 
 class Instruction {
  public:
+  ArmBasicBlock* parent_;
   Cond cond_;
   bool IsAL() { return cond_ == Cond::AL; }
-  Instruction(Cond cond) : cond_(cond) {}
-  Instruction() : cond_(Cond::AL) {}
+  Instruction(Cond cond, ArmBasicBlock* parent) : cond_(cond), parent_(parent) {}
+  Instruction(ArmBasicBlock* parent) : cond_(Cond::AL), parent_(parent) {}
   virtual ~Instruction() = default;
   virtual void EmitCode(std::ostream& outfile = std::clog) = 0;
   virtual void Check() = 0;
   virtual void AddUsedInst(){};
+
+  // 这几个函数其实只实际作用于Binaryinst Move和LdrStr语句 为了方便才提升到Instruction中
+  virtual bool HasUsedAsOp2(Reg* reg) { return false; }
+  virtual bool HasUsedAsOp2WithoutShift(Reg* reg) { return false; }
+  virtual void ReplaceOp2With(Operand2* op2) {}
 };
 
 // BinaryInstruction: <OpCode>{S}{Cond} {Rd,} Rn, <Operand2>
@@ -161,30 +170,34 @@ class BinaryInst : public Instruction {
   Reg* rn_;
   Operand2* op2_;
 
-  BinaryInst(OpCode opcode, bool has_s, Cond cond, Reg* rd, Reg* rn, Operand2* op2)
-      : Instruction(cond), opcode_(opcode), has_s_(has_s), rd_(rd), rn_(rn), op2_(op2) {
+  BinaryInst(OpCode opcode, bool has_s, Cond cond, Reg* rd, Reg* rn, Operand2* op2, ArmBasicBlock* parent)
+      : Instruction(cond, parent), opcode_(opcode), has_s_(has_s), rd_(rd), rn_(rn), op2_(op2) {
     AddUsedInst();
   }
-  BinaryInst(OpCode opcode, Reg* rd, Reg* rn, Operand2* op2) : opcode_(opcode), rd_(rd), rn_(rn), op2_(op2) {
+  BinaryInst(OpCode opcode, Reg* rd, Reg* rn, Operand2* op2, ArmBasicBlock* parent)
+      : Instruction(parent), opcode_(opcode), rd_(rd), rn_(rn), op2_(op2) {
     AddUsedInst();
   }
 
   // for TST TEQ CMP CMN: no rd. omit S.
-  BinaryInst(OpCode opcode, Cond cond, Reg* rn, Operand2* op2)
-      : Instruction(cond), opcode_(opcode), rn_(rn), op2_(op2) {
+  BinaryInst(OpCode opcode, Cond cond, Reg* rn, Operand2* op2, ArmBasicBlock* parent)
+      : Instruction(cond, parent), opcode_(opcode), rn_(rn), op2_(op2) {
     AddUsedInst();
   }
-  BinaryInst(OpCode opcode, Reg* rn, Operand2* op2) : opcode_(opcode), rn_(rn), op2_(op2) { AddUsedInst(); }
+  BinaryInst(OpCode opcode, Reg* rn, Operand2* op2, ArmBasicBlock* parent)
+      : Instruction(parent), opcode_(opcode), rn_(rn), op2_(op2) {
+    AddUsedInst();
+  }
 
   virtual ~BinaryInst();
 
   bool HasS() { return has_s_; }
   virtual void EmitCode(std::ostream& outfile = std::clog) override;
   virtual void Check() override;
-  virtual void AddUsedInst() override {
-    if (nullptr != rn_) rn_->AddUsedInst(this);
-    if (nullptr != op2_) op2_->AddUsedInst(this);
-  }
+  virtual void AddUsedInst() override { rn_->AddUsedInst(this), op2_->AddUsedInst(this); }
+  virtual bool HasUsedAsOp2(Reg* reg) override { return op2_->HasUsedAsOp2(reg); }
+  virtual bool HasUsedAsOp2WithoutShift(Reg* reg) override { return op2_->HasUsedAsOp2WithoutShift(reg); }
+  virtual void ReplaceOp2With(Operand2* op2) override { op2_ = op2; }
 };
 
 // Move: MOV{S}{Cond} Rd, <Operand2>
@@ -195,19 +208,23 @@ class Move : public Instruction {
   Reg* rd_;
   Operand2* op2_;
 
-  Move(bool has_s, Cond cond, Reg* rd, Operand2* op2, bool is_mvn = false)
-      : Instruction(cond), has_s_(has_s), rd_(rd), op2_(op2), is_mvn_(is_mvn) {
+  Move(bool has_s, Cond cond, Reg* rd, Operand2* op2, ArmBasicBlock* parent, bool is_mvn = false)
+      : Instruction(cond, parent), has_s_(has_s), rd_(rd), op2_(op2), is_mvn_(is_mvn) {
     AddUsedInst();
   }
-  Move(Reg* rd, Operand2* op2, bool is_mvn = false) : rd_(rd), op2_(op2), is_mvn_(is_mvn) { AddUsedInst(); }
+  Move(Reg* rd, Operand2* op2, ArmBasicBlock* parent, bool is_mvn = false)
+      : Instruction(parent), rd_(rd), op2_(op2), is_mvn_(is_mvn) {
+    AddUsedInst();
+  }
   virtual ~Move();
 
   bool HasS() { return has_s_; }
   virtual void EmitCode(std::ostream& outfile = std::clog) override;
   virtual void Check() override;
-  virtual void AddUsedInst() override {
-    if (nullptr != op2_) op2_->AddUsedInst(this);
-  }
+  virtual void AddUsedInst() override { op2_->AddUsedInst(this); }
+  virtual bool HasUsedAsOp2(Reg* reg) override { return op2_->HasUsedAsOp2(reg); }
+  virtual bool HasUsedAsOp2WithoutShift(Reg* reg) override { return op2_->HasUsedAsOp2WithoutShift(reg); }
+  virtual void ReplaceOp2With(Operand2* op2) override { op2_ = op2; }
 };
 
 // Branch: B{L}{Cond} <label> label can be "lr" or a func name or a normal label beginning with a dot.
@@ -218,9 +235,10 @@ class Branch : public Instruction {
   bool has_x_;
   bool IsCall();
   bool IsRet();
-  Branch(bool has_l, bool has_x, Cond cond, std::string label)
-      : Instruction(cond), has_l_(has_l), has_x_(has_x), label_(label) {}
-  Branch(bool has_l, bool has_x, std::string label) : has_l_(has_l), has_x_(has_x), label_(label) {}
+  Branch(bool has_l, bool has_x, Cond cond, std::string label, ArmBasicBlock* parent)
+      : Instruction(cond, parent), has_l_(has_l), has_x_(has_x), label_(label) {}
+  Branch(bool has_l, bool has_x, std::string label, ArmBasicBlock* parent)
+      : Instruction(parent), has_l_(has_l), has_x_(has_x), label_(label) {}
   virtual ~Branch();
   virtual void EmitCode(std::ostream& outfile = std::clog) override;
   virtual void Check() override;
@@ -239,19 +257,26 @@ class LdrStr : public Instruction {
   int offset_imm_ = -1;
   Operand2* offset_ = nullptr;  // a reg, or a scaled reg(imm_shift)
 
-  LdrStr(OpKind opkind, Type type, Cond cond, Reg* rd, Reg* rn, Operand2* offset)
-      : Instruction(cond), opkind_(opkind), type_(type), rd_(rd), rn_(rn), offset_(offset) {
+  LdrStr(OpKind opkind, Type type, Cond cond, Reg* rd, Reg* rn, Operand2* offset, ArmBasicBlock* parent)
+      : Instruction(cond, parent), opkind_(opkind), type_(type), rd_(rd), rn_(rn), offset_(offset) {
     AddUsedInst();
   }
-  LdrStr(OpKind opkind, Reg* rd, Reg* rn, Operand2* offset) : opkind_(opkind), rd_(rd), rn_(rn), offset_(offset) {
+  LdrStr(OpKind opkind, Reg* rd, Reg* rn, Operand2* offset, ArmBasicBlock* parent)
+      : Instruction(parent), opkind_(opkind), rd_(rd), rn_(rn), offset_(offset) {
     AddUsedInst();
   }
-  LdrStr(OpKind opkind, Type type, Cond cond, Reg* rd, Reg* rn, int offset)
-      : Instruction(cond), opkind_(opkind), type_(type), rd_(rd), rn_(rn), is_offset_imm_(true), offset_imm_(offset) {
+  LdrStr(OpKind opkind, Type type, Cond cond, Reg* rd, Reg* rn, int offset, ArmBasicBlock* parent)
+      : Instruction(cond, parent),
+        opkind_(opkind),
+        type_(type),
+        rd_(rd),
+        rn_(rn),
+        is_offset_imm_(true),
+        offset_imm_(offset) {
     AddUsedInst();
   }
-  LdrStr(OpKind opkind, Reg* rd, Reg* rn, int offset)
-      : opkind_(opkind), rd_(rd), rn_(rn), is_offset_imm_(true), offset_imm_(offset) {
+  LdrStr(OpKind opkind, Reg* rd, Reg* rn, int offset, ArmBasicBlock* parent)
+      : Instruction(parent), opkind_(opkind), rd_(rd), rn_(rn), is_offset_imm_(true), offset_imm_(offset) {
     AddUsedInst();
   }
   virtual ~LdrStr();
@@ -260,8 +285,24 @@ class LdrStr : public Instruction {
   static bool CheckImm12(int imm) { return (imm < 4096) && (imm > -4096); }
   virtual void Check() override;
   virtual void AddUsedInst() override {
-    if (nullptr != rn_) rn_->AddUsedInst(this);
-    if (!is_offset_imm_ && nullptr != offset_) offset_->AddUsedInst(this);
+    if (opkind_ == OpKind::STR) rd_->AddUsedInst(this);
+    rn_->AddUsedInst(this);
+    if (nullptr != offset_) offset_->AddUsedInst(this);
+  }
+  virtual bool HasUsedAsOp2(Reg* reg) override {
+    if (nullptr != offset_)
+      return offset_->HasUsedAsOp2(reg);
+    else
+      return false;
+  }
+  virtual bool HasUsedAsOp2WithoutShift(Reg* reg) override {
+    if (nullptr != offset_)
+      return offset_->HasUsedAsOp2WithoutShift(reg);
+    else
+      return false;
+  }
+  virtual void ReplaceOp2With(Operand2* op2) override {
+    if (nullptr != offset_) offset_ = op2;
   }
 };
 
@@ -272,11 +313,13 @@ class LdrPseudo : public Instruction {
   Reg* rd_;
   std::string literal_;
   int imm_;
-  LdrPseudo(Cond cond, Reg* rd, const std::string& literal)
-      : Instruction(cond), rd_(rd), is_imm_(false), literal_(literal) {}
-  LdrPseudo(Reg* rd, const std::string& literal) : rd_(rd), is_imm_(false), literal_(literal) {}
-  LdrPseudo(Cond cond, Reg* rd, int imm) : Instruction(cond), rd_(rd), is_imm_(true), imm_(imm) {}
-  LdrPseudo(Reg* rd, int imm) : rd_(rd), is_imm_(true), imm_(imm) {}
+  LdrPseudo(Cond cond, Reg* rd, const std::string& literal, ArmBasicBlock* parent)
+      : Instruction(cond, parent), rd_(rd), is_imm_(false), literal_(literal) {}
+  LdrPseudo(Reg* rd, const std::string& literal, ArmBasicBlock* parent)
+      : Instruction(parent), rd_(rd), is_imm_(false), literal_(literal) {}
+  LdrPseudo(Cond cond, Reg* rd, int imm, ArmBasicBlock* parent)
+      : Instruction(cond, parent), rd_(rd), is_imm_(true), imm_(imm) {}
+  LdrPseudo(Reg* rd, int imm, ArmBasicBlock* parent) : Instruction(parent), rd_(rd), is_imm_(true), imm_(imm) {}
 
   virtual ~LdrPseudo();
 
@@ -294,8 +337,8 @@ class PushPop : public Instruction {
   enum class OpKind { PUSH, POP };
   OpKind opkind_;
   std::vector<Reg*> reg_list_;
-  PushPop(OpKind opkind, Cond cond) : Instruction(cond), opkind_(opkind) {}
-  PushPop(OpKind opkind) : opkind_(opkind) {}
+  PushPop(OpKind opkind, Cond cond, ArmBasicBlock* parent) : Instruction(cond, parent), opkind_(opkind) {}
+  PushPop(OpKind opkind, ArmBasicBlock* parent) : Instruction(parent), opkind_(opkind) {}
   virtual ~PushPop();
   virtual void EmitCode(std::ostream& outfile = std::clog) override;
   virtual void Check() override;

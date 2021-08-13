@@ -448,7 +448,13 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
           if (ok_colors.empty()) {  // 实际溢出 不给它分配 继续进行其他结点的分配以找到全部的实际溢出结点
             spilled_nodes.insert(vreg);
           } else {  // 可分配
-            auto color = *std::min_element(ok_colors.begin(), ok_colors.end());
+            auto color = *std::min_element(ok_colors.begin(), ok_colors.end(), [](auto a, auto b) {
+              if (a > 3 && b > 3) {
+                if (a == 12) return true;
+                if (b == 12) return false;
+              }
+              return a < b;
+            });
             if ((color >= 4 && color <= 11) || color == 14) {
               used_callee_saved_regs.insert(color);
             }
@@ -465,14 +471,6 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
         for (auto n : coalesced_nodes) {
           colored[n] = colored[get_alias(n)];
         }
-
-        // DEBUG PRINT
-        // for (auto &[before, after] : colored) {
-        //   auto colored =
-        //       std::to_string(before) + " => " + std::to_string(after);
-        //   //   dbg(colored);
-        //   outfile << colored << std::endl;
-        // }
 
         // modify_armcode
         // replace usage of virtual registers
@@ -611,8 +609,8 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
               // 插入str语句后iter指向str语句 插入ldr语句后iter指向原语句
               Instruction *inst;
               if (LdrStr::CheckImm12(offset)) {
-                inst = static_cast<Instruction *>(
-                    new LdrStr(opkind, LdrStr::Type::Norm, Cond::AL, new Reg(new_vreg), new Reg(ArmReg::sp), offset));
+                inst = static_cast<Instruction *>(new LdrStr(opkind, LdrStr::Type::Norm, Cond::AL, new Reg(new_vreg),
+                                                             new Reg(ArmReg::sp), offset, bb));
                 if (opkind == LdrStr::OpKind::LDR) {
                   return bb->inst_list_.insert(iter, inst) + 1;
                 } else {
@@ -621,16 +619,17 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
               } else {
                 auto vreg = new Reg(func->virtual_reg_max++);
                 if (Operand2::CheckImm8m(offset)) {
-                  inst = static_cast<Instruction *>(new Move(false, Cond::AL, vreg, new Operand2(offset)));
+                  inst = static_cast<Instruction *>(new Move(false, Cond::AL, vreg, new Operand2(offset), bb));
                   // } else if (offset < 0 && Operand2::CheckImm8m(-offset - 1)) {  // mvn
                   //   MyAssert(0);
                   //   inst = static_cast<Instruction *>(new Move(false, Cond::AL, vreg, new Operand2(-offset - 1),
                   //   true));
                 } else {
-                  inst = static_cast<Instruction *>(new LdrPseudo(Cond::AL, vreg, offset));
+                  inst = static_cast<Instruction *>(new LdrPseudo(Cond::AL, vreg, offset, bb));
                 }
-                auto inst2 = static_cast<Instruction *>(new LdrStr(
-                    opkind, LdrStr::Type::Norm, Cond::AL, new Reg(new_vreg), new Reg(ArmReg::sp), new Operand2(vreg)));
+                auto inst2 =
+                    static_cast<Instruction *>(new LdrStr(opkind, LdrStr::Type::Norm, Cond::AL, new Reg(new_vreg),
+                                                          new Reg(ArmReg::sp), new Operand2(vreg), bb));
                 if (opkind == LdrStr::OpKind::LDR) {
                   iter = bb->inst_list_.insert(iter, inst) + 1;
                   return bb->inst_list_.insert(iter, inst2) + 1;

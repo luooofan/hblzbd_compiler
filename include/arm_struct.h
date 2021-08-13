@@ -34,8 +34,8 @@ class ArmFunction {
   // basicblocks: ordered
   std::vector<ArmBasicBlock*> bb_list_;
   std::vector<ArmFunction*> call_func_list_;
-  std::vector<Instruction*> sp_arg_fixup_;  // a ldr-pseudo inst
-  std::vector<Instruction*> sp_fixup_;
+  std::unordered_set<Instruction*> sp_arg_fixup_;  // a ldr-pseudo inst
+  std::unordered_set<Instruction*> sp_fixup_;
   std::set<int> used_callee_saved_regs;
 
   ArmFunction(const std::string& name, int arg_num, int stack_size)
@@ -67,7 +67,7 @@ class ArmBasicBlock {
   std::unordered_set<int> livein_;
   std::unordered_set<int> liveout_;
 
-  ArmBasicBlock() : label_(nullptr) {}
+  ArmBasicBlock() {}
   ArmBasicBlock(std::string* label) : label_(*label) {}
   ArmBasicBlock(const std::string& label) : label_(label) {}
   virtual ~ArmBasicBlock() {}
