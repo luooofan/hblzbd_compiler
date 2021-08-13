@@ -673,7 +673,7 @@ ArmModule* GenerateArmFromSSA::GenCode(SSAModule* module) {
           armbb->inst_list_.insert(armbb->inst_list_.begin(),
                                    new Move(ResolveValue2Reg(armbb, src_inst), new Operand2(vreg), armbb));
 
-          for (int i = 0; i < bb->GetPredBB().size(); ++i) {
+          for (int i = 0; i * 2 < src_inst->GetNumOperands(); ++i) {
             // std::cout << i << std::endl;
             // 第i个前驱对应的value是第2i个操作数 对应的bb是第i个前驱bb 或者第2i+1个操作数(拿到的是bbvalue)
             auto val = src_inst->GetOperand(2 * i);
@@ -718,9 +718,11 @@ ArmModule* GenerateArmFromSSA::GenCode(SSAModule* module) {
             }
             // std::cout << i << std::endl;
           }
-        } else {
-          break;
         }
+        // NOTE: 可能把一条phi指令优化为mov 所以并非phi指令都在最前面
+        // else {
+        // break;
+        //}
       }
     }
 
