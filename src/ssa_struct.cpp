@@ -96,6 +96,15 @@ SSAFunction::~SSAFunction() {
   // used_glob_var_list_.clear();
 }
 
+SSABasicBlock* SSABasicBlock::GetNextBB() {
+  // maybe return nullptr
+  auto& bb_list = func_->GetBBList();
+  auto it = ++std::find(bb_list.begin(), bb_list.end(), this);
+  if (it == bb_list.end())
+    return nullptr;
+  else
+    return *it;
+}
 void SSABasicBlock::AddInstruction(SSAInstruction* inst) {
   inst_list_.push_back(inst);
   inst->SetParent(this);

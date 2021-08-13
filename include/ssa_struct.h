@@ -120,6 +120,8 @@ class SSABasicBlock {
   void SetFunction(SSAFunction* func) { func_ = func; }
   SSAFunction* GetFunction() const { return func_; }
 
+  SSABasicBlock* GetNextBB();
+
   std::list<SSAInstruction*>& GetInstructions() { return inst_list_; }
   void AddInstruction(SSAInstruction* inst);
   void AddInstruction(SSAInstruction* inst, SSAInstruction* insert_before);
