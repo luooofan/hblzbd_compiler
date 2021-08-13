@@ -16,9 +16,9 @@ void ArmModule::EmitCode(std::ostream& out) {
   out << "@ module: " << this->name_ << std::endl;
   out << std::endl;
   out << R"(
-.macro mov32, reg, val
-    movw \reg, #:lower16:\val
-    movt \reg, #:upper16:\val
+.macro mov32, cond, reg, val
+    movw\cond \reg, #:lower16:\val
+    movt\cond \reg, #:upper16:\val
 .endm
   )" << std::endl;
   out << std::endl;
@@ -85,23 +85,20 @@ void ArmModule::EmitCode(std::ostream& out) {
     out << std::endl;
   }
 }
-void ArmModule::Check() {
-  for (auto func : func_list_) func->Check();
-}
 
 void ArmFunction::EmitCode(std::ostream& out) {
   out << ".global " << this->name_ << std::endl;
   out << "\t.type " << this->name_ << ", %function" << std::endl;
   out << this->name_ << ":" << std::endl;
-  out << "@ call_func: ";
-  for (auto func : this->call_func_list_) {
-    out << func->name_ << " ";
-  }
+  // out << "@ call_func: ";
+  // for (auto func : this->call_func_list_) {
+  //   out << func->name_ << " ";
+  // }
   // out << std::endl;
-  out << "@ arg_num: " << this->arg_num_ << " ";        // << std::endl;
-  out << "@ stack_size: " << this->stack_size_ << " ";  // << std::endl;
-  out << "@ virtual_reg_max: " << this->virtual_reg_max << " ";
-  out << std::endl;
+  // out << "@ arg_num: " << this->arg_num_ << " ";        // << std::endl;
+  // out << "@ stack_size: " << this->stack_size_ << " ";  // << std::endl;
+  // out << "@ virtual_reg_max: " << this->virtual_reg_max << " ";
+  // out << std::endl;
 
   out << "@ Function Begin:" << std::endl;
   for (auto bb : bb_list_) {
@@ -110,10 +107,6 @@ void ArmFunction::EmitCode(std::ostream& out) {
   }
   out << "@ Function End." << std::endl;
 }
-void ArmFunction::Check() {
-  for (auto bb : bb_list_) bb->Check();
-}
-
 void ArmBasicBlock::EmitCode(std::ostream& out) {
   if (this->HasLabel()) {
     out << this->label_ << ":" << std::endl;
@@ -154,9 +147,6 @@ void ArmBasicBlock::EmitCode(std::ostream& out) {
     inst->EmitCode(out);
   }
   // out << "  @ BasicBlock End." << std::endl;
-}
-void ArmBasicBlock::Check() {
-  for (auto inst : inst_list_) inst->Check();
 }
 int ArmBasicBlock::IndexInFunc() {
   MyAssert(nullptr != this->func_);

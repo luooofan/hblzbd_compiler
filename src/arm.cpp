@@ -6,7 +6,27 @@
 
 namespace arm {
 
-std::unordered_set<std::string> gAllLabel;
+Cond GetOppositeCond(Cond cond) {
+  switch (cond) {
+    case Cond::AL:
+      return Cond::AL;
+    case Cond::EQ:
+      return Cond::NE;
+    case Cond::NE:
+      return Cond::EQ;
+    case Cond::GT:
+      return Cond::LE;
+    case Cond::GE:
+      return Cond::LT;
+    case Cond::LT:
+      return Cond::GE;
+    case Cond::LE:
+      return Cond::GT;
+    default:
+      MyAssert(0);
+      break;
+  }
+}
 
 std::string CondToString(Cond cond) {
   switch (cond) {
@@ -31,25 +51,23 @@ std::string CondToString(Cond cond) {
   return "";
 }
 
-void Reg::Check() { MyAssert(reg_id_ >= 0 && reg_id_ < 16); }
-
 Shift::operator std::string() {
   std::string opcode = "";
   switch (opcode_) {
     case OpCode::ASR:
-      opcode = "ASR";
+      opcode = "asr";
       break;
     case OpCode::LSL:
-      opcode = "LSL";
+      opcode = "lsl";
       break;
     case OpCode::LSR:
-      opcode = "LSR";
+      opcode = "lsr";
       break;
     case OpCode::ROR:
-      opcode = "ROR";
+      opcode = "ror";
       break;
     case OpCode::RRX:
-      return "RRX";
+      return "rrx";
     default:
       MyAssert(0);
       break;
@@ -58,31 +76,6 @@ Shift::operator std::string() {
     return opcode + " #" + std::to_string(shift_imm_);
   } else {
     return opcode + " " + std::string(*shift_reg_);
-  }
-}
-void Shift::Check() {
-  // 如果是RRX 不应该跟立即数或寄存器 其他移位类型立即数有相应限制
-  if (is_imm_) {
-    switch (opcode_) {
-      case OpCode::LSL:
-        MyAssert(shift_imm_ >= 0 && shift_imm_ <= 31);
-        break;
-      case OpCode::LSR:
-      case OpCode::ASR:
-        MyAssert(shift_imm_ >= 1 && shift_imm_ <= 32);
-        break;
-      case OpCode::ROR:
-        MyAssert(shift_imm_ >= 1 && shift_imm_ <= 31);
-        break;
-      case OpCode::RRX:
-        MyAssert(0 == shift_imm_);
-        break;
-      default:
-        MyAssert(0);
-        break;
-    }
-  } else {
-    MyAssert(nullptr != shift_reg_);
   }
 }
 
@@ -102,24 +95,8 @@ bool Operand2::CheckImm8m(int imm) {
   }
   return false;
 }
-void Operand2::Check() {
-  if (is_imm_) {
-    MyAssert(CheckImm8m(imm_num_));
-  } else {
-    MyAssert(nullptr != reg_);
-    reg_->Check();
-    if (nullptr != shift_) shift_->Check();
-  }
-}
 
-BinaryInst::~BinaryInst() {
-  // if(nullptr!=this->rd_){
-  //     delete this->rd_;
-  // }
-  // if(nullptr!=this->rn_){
-
-  // }
-}
+BinaryInst::~BinaryInst() {}
 void BinaryInst::EmitCode(std::ostream& outfile) {
   std::string opcode;
   switch (this->opcode_) {
@@ -174,19 +151,6 @@ void BinaryInst::EmitCode(std::ostream& outfile) {
   outfile << "\t" << opcode << " " << (nullptr != this->rd_ ? (std::string(*this->rd_) + ", ") : "")
           << std::string(*this->rn_) << ", " << std::string(*this->op2_) << std::endl;
 }
-void BinaryInst::Check() {
-  if (nullptr != rd_) {
-    // TODO: Check
-    // MyAssert(opcode_ == OpCode::ADD || opcode_ == OpCode::SUB || opcode_ == OpCode::RSB ||
-    //          ((opcode_ == OpCode::MUL || opcode_ == OpCode::SDIV) && !op2_->is_imm_));
-    rd_->Check();
-  } else {
-    MyAssert(opcode_ == OpCode::CMP);
-  }
-  MyAssert(nullptr != rn_ && nullptr != op2_);
-  rn_->Check();
-  op2_->Check();
-}
 
 Move::~Move() {}
 void Move::EmitCode(std::ostream& outfile) {
@@ -195,11 +159,6 @@ void Move::EmitCode(std::ostream& outfile) {
   opcode += CondToString(this->cond_);
   outfile << "\t" << opcode << " " << std::string(*this->rd_);
   outfile << ", " << std::string(*this->op2_) << std::endl;
-}
-void Move::Check() {
-  MyAssert(nullptr != rd_ && nullptr != op2_);
-  rd_->Check();
-  op2_->Check();
 }
 
 Branch::~Branch() {}
@@ -219,15 +178,6 @@ void Branch::EmitCode(std::ostream& outfile) {
   if (this->has_x_) opcode += "x";
   opcode += CondToString(this->cond_);
   outfile << "\t" << opcode << " " << this->label_ << std::endl;
-}
-void Branch::Check() {
-  MyAssert(label_ != "" && label_ != "putf");  // 要么以点开头 要么是函数名
-  // std::cout << label_ << std::endl;
-  // if (label_ != "lr") MyAssert(arm::gAllLabel.find(label_) != arm::gAllLabel.end());
-  // this->EmitCode();
-  if (has_x_) {
-    MyAssert(label_ == "lr");
-  }  // 目前没有blx bx只能是bx lr
 }
 
 LdrStr::~LdrStr() {}
@@ -255,54 +205,34 @@ void LdrStr::EmitCode(std::ostream& outfile) {
   }
   outfile << "\t" << prefix << std::endl;
 }
-void LdrStr::Check() {
-  MyAssert(nullptr != rd_ && nullptr != rn_);
-  rd_->Check();
-  rn_->Check();
-  if (is_offset_imm_) {
-    MyAssert(CheckImm12(offset_imm_) && nullptr == offset_);
-  } else {
-    MyAssert(nullptr != offset_);
-    offset_->Check();
-  }
-}
 
 LdrPseudo::~LdrPseudo() {}
 void LdrPseudo::EmitCode(std::ostream& outfile) {
   // convert ldr-pseudo inst to movw&movt
   // https://community.arm.com/developer/ip-products/processors/b/processors-ip-blog/posts/how-to-load-constants-in-assembly-for-arm-architecture
   if (!this->is_imm_) {
-    outfile << "\tmov32 " << std::string(*(this->rd_)) + ", " << this->literal_ << std::endl;
+    outfile << "\tmov32 " << CondToString(this->cond_) << ", " << std::string(*(this->rd_)) + ", " << this->literal_
+            << std::endl;
   } else if (0 == ((this->imm_ >> 16) & 0xFFFF)) {
-    outfile << "\tmovw " << std::string(*(this->rd_)) + ", #" << (this->imm_ & 0xFFFF) << std::endl;
+    outfile << "\tmovw" << CondToString(this->cond_) << " " << std::string(*(this->rd_)) + ", #"
+            << (this->imm_ & 0xFFFF) << std::endl;
   } else {
-    outfile << "\tmov32 " << std::string(*(this->rd_)) + ", " << this->imm_ << std::endl;
+    outfile << "\tmov32 " << CondToString(this->cond_) << ", " << std::string(*(this->rd_)) + ", " << this->imm_
+            << std::endl;
   }
   // outfile << "\tmov32 " << std::string(*(this->rd_)) << ", "
   //         << (this->is_imm_ ? std::to_string(this->imm_) : this->literal_) << std::endl;
 }
-void LdrPseudo::Check() {
-  MyAssert(nullptr != rd_);
-  rd_->Check();
-  // NOTE: literal_应该能在全局表中找到 TODO!!!
-  // MyAssert(IsImm() || (ir::gScopes[0].symbol_table_.find(literal_) != ir::gScopes[0].symbol_table_.end()));
-}
-
 PushPop::~PushPop() {}
 void PushPop::EmitCode(std::ostream& outfile) {
   MyAssert(!this->reg_list_.empty());
   std::string opcode = this->opkind_ == OpKind::PUSH ? "push" : "pop";
+  opcode += CondToString(this->cond_);
   outfile << "\t" << opcode << " { " << std::string(*(this->reg_list_[0]));
   for (auto iter = this->reg_list_.begin() + 1; iter != this->reg_list_.end(); ++iter) {
     outfile << ", " << std::string(**iter);
   }
   outfile << " }" << std::endl;
-}
-void PushPop::Check() {
-  MyAssert(!reg_list_.empty());
-  for (auto reg : reg_list_) {
-    reg->Check();
-  }
 }
 
 }  // namespace arm

@@ -22,7 +22,6 @@ class ArmModule : public Module {
   ArmModule(ir::Scope& global_scope) : global_scope_(global_scope) {}
   virtual ~ArmModule() {}
   void EmitCode(std::ostream& out = std::cout);
-  void Check();
 };
 
 class ArmFunction {
@@ -46,7 +45,6 @@ class ArmFunction {
     return call_func_list_.empty();
   }
   void EmitCode(std::ostream& out = std::cout);
-  void Check();
 };
 
 class ArmBasicBlock {
@@ -74,7 +72,6 @@ class ArmBasicBlock {
 
   bool HasLabel() { return !label_.empty(); }
   void EmitCode(std::ostream& out = std::cout);
-  void Check();
   int IndexInFunc();
 };
 

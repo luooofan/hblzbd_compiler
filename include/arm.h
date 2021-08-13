@@ -8,7 +8,7 @@ class ArmBasicBlock;
 namespace arm {
 // ref: https://en.wikipedia.org/wiki/Calling_convention#ARM_(A32)
 // ref: https://developer.arm.com/documentation/ihi0042/j/
-extern std::unordered_set<std::string> gAllLabel;
+// ref: https://developer.arm.com/documentation/ddi0406/latest
 
 enum class ArmReg {
   // args and return value (caller saved)
@@ -50,7 +50,7 @@ class Reg {
   Reg(int reg_id) : reg_id_(reg_id) {}
   Reg(ArmReg armreg) : reg_id_(static_cast<int>(armreg)) {}
   explicit operator std::string() { return "r" + std::to_string(reg_id_); }
-  void Check();  // NOTE: only used for final check.
+  // NOTE: only used for final check.
   void AddUsedInst(Instruction* inst) { used_inst_set.insert(inst); }
   const std::unordered_set<Instruction*>& GetUsedInsts() const { return used_inst_set; }
   const unsigned GetUsedInstNum() const { return used_inst_set.size(); }
@@ -75,7 +75,6 @@ class Shift {
   Shift(OpCode opcode, int shift) : opcode_(opcode), shift_imm_(shift) {}
   bool IsNone() { return opcode_ == OpCode::LSL && is_imm_ && 0 == shift_imm_; }
   explicit operator std::string();
-  void Check();
   void AddUsedInst(Instruction* inst) {
     if (!is_imm_) shift_reg_->AddUsedInst(inst);
   }
@@ -96,7 +95,6 @@ class Operand2 {
   Operand2(Reg* reg, Shift* shift) : is_imm_(false), reg_(reg), shift_(shift) {}
   explicit operator std::string();
   static bool CheckImm8m(int imm);
-  void Check();
   bool HasShift() { return /*!is_imm_ &&*/ nullptr != shift_; }
   bool HasUsedAsOp2(Reg* reg) { return reg_ == reg; }
   bool HasUsedAsOp2WithoutShift(Reg* reg) { return !HasShift() && HasUsedAsOp2(reg); }
@@ -116,6 +114,7 @@ enum class Cond {
   LE,
 };
 
+Cond GetOppositeCond(Cond cond);
 std::string CondToString(Cond cond);
 
 class Instruction {
@@ -127,7 +126,6 @@ class Instruction {
   Instruction(ArmBasicBlock* parent) : cond_(Cond::AL), parent_(parent) {}
   virtual ~Instruction() = default;
   virtual void EmitCode(std::ostream& outfile = std::clog) = 0;
-  virtual void Check() = 0;
   virtual void AddUsedInst(){};
 
   // 这几个函数其实只实际作用于Binaryinst Move和LdrStr语句 为了方便才提升到Instruction中
@@ -164,8 +162,8 @@ class BinaryInst : public Instruction {
     // convert shift-inst to mov-inst
   };
   OpCode opcode_;
-  bool has_s_ = false;  // only mean if opcode has char 'S'. don't mean the
-                        // instruction whether updates CPSR or not.
+  bool has_s_ = false;  // only mean if opcode has char 'S'. don't mean the instruction whether updates CPSR or not.
+                        // for CMP, CMN, TST, TEQ
   Reg* rd_ = nullptr;   // Note: rd may nullptr
   Reg* rn_;
   Operand2* op2_;
@@ -193,7 +191,6 @@ class BinaryInst : public Instruction {
 
   bool HasS() { return has_s_; }
   virtual void EmitCode(std::ostream& outfile = std::clog) override;
-  virtual void Check() override;
   virtual void AddUsedInst() override { rn_->AddUsedInst(this), op2_->AddUsedInst(this); }
   virtual bool HasUsedAsOp2(Reg* reg) override { return op2_->HasUsedAsOp2(reg); }
   virtual bool HasUsedAsOp2WithoutShift(Reg* reg) override { return op2_->HasUsedAsOp2WithoutShift(reg); }
@@ -204,7 +201,7 @@ class BinaryInst : public Instruction {
 class Move : public Instruction {
  public:
   bool is_mvn_;
-  bool has_s_ = false;  // only mean if opcode has char 'S'. don't mean the instruction whether updates CPSR or not.
+  bool has_s_ = false;
   Reg* rd_;
   Operand2* op2_;
 
@@ -220,7 +217,6 @@ class Move : public Instruction {
 
   bool HasS() { return has_s_; }
   virtual void EmitCode(std::ostream& outfile = std::clog) override;
-  virtual void Check() override;
   virtual void AddUsedInst() override { op2_->AddUsedInst(this); }
   virtual bool HasUsedAsOp2(Reg* reg) override { return op2_->HasUsedAsOp2(reg); }
   virtual bool HasUsedAsOp2WithoutShift(Reg* reg) override { return op2_->HasUsedAsOp2WithoutShift(reg); }
@@ -241,7 +237,6 @@ class Branch : public Instruction {
       : Instruction(parent), has_l_(has_l), has_x_(has_x), label_(label) {}
   virtual ~Branch();
   virtual void EmitCode(std::ostream& outfile = std::clog) override;
-  virtual void Check() override;
 };
 
 // LoadStore: <op>/*{size}*/ rd, rn {, #<imm12>} OR rd , rn, +/- rm {, <opsh>}, i.e. a Operand2-style offset.
@@ -283,7 +278,7 @@ class LdrStr : public Instruction {
 
   virtual void EmitCode(std::ostream& outfile = std::clog) override;
   static bool CheckImm12(int imm) { return (imm < 4096) && (imm > -4096); }
-  virtual void Check() override;
+
   virtual void AddUsedInst() override {
     if (opkind_ == OpKind::STR) rd_->AddUsedInst(this);
     rn_->AddUsedInst(this);
@@ -325,7 +320,6 @@ class LdrPseudo : public Instruction {
 
   bool IsImm() { return is_imm_; }
   virtual void EmitCode(std::ostream& outfile = std::clog) override;
-  virtual void Check() override;
 
  private:
   bool is_imm_;
@@ -341,7 +335,6 @@ class PushPop : public Instruction {
   PushPop(OpKind opkind, ArmBasicBlock* parent) : Instruction(parent), opkind_(opkind) {}
   virtual ~PushPop();
   virtual void EmitCode(std::ostream& outfile = std::clog) override;
-  virtual void Check() override;
 };
 
 }  // namespace arm
