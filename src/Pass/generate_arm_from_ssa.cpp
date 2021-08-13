@@ -173,6 +173,20 @@ bool GenerateArmFromSSA::ConvertDiv2Shift(ArmBasicBlock* armbb, Reg* rd, Value* 
     ADD_NEW_INST(Move(rd, op2));
     return true;
   }
+  // 考虑负数情况
+  if (0 == (imm & (imm - 1))) {
+    // 1. asr vreg, rn, #31;  i.e. mov vreg, rn, ASR #31;
+    auto vreg = NewVirtualReg();
+    auto rn = ResolveValue2Reg(armbb, val);
+    ADD_NEW_INST(Move(vreg, new Operand2(rn, new Shift(Shift::OpCode::ASR, 31))));
+    // 2. add vreg2, rn, vreg, lsr #(32-n);
+    auto vreg2 = NewVirtualReg();
+    auto n = eval_n(imm);
+    auto op2 = new Operand2(vreg, new Shift(Shift::OpCode::LSR, 32 - n));
+    ADD_NEW_INST(BinaryInst(BinaryInst::OpCode::ADD, vreg2, rn, op2));
+    // 3. asr rd, vreg2, #n;  i.e. mov rd, vreg2, ASR #n;
+    ADD_NEW_INST(Move(rd, new Operand2(vreg2, new Shift(Shift::OpCode::ASR, n))));
+  }
   return false;
 }
 
@@ -181,6 +195,14 @@ bool GenerateArmFromSSA::ConvertMod2And(ArmBasicBlock* armbb, Reg* rd, Value* va
   if (0 == imm) {
     MyAssert(0);
   }
+  auto eval_n = [](int imm) {
+    int n = 0;
+    while (imm > 1) {
+      imm >>= 1;
+      ++n;
+    }
+    return n;
+  };
   // 如果是2的幂次方 生成一条and rd rm n-1的指令
   // FIXME: 这样做并不适用于被除数是负数的情况
   if (0 == (imm & (imm - 1))) {
@@ -188,6 +210,21 @@ bool GenerateArmFromSSA::ConvertMod2And(ArmBasicBlock* armbb, Reg* rd, Value* va
     auto rm = ResolveValue2Reg(armbb, val);
     ADD_NEW_INST(BinaryInst(BinaryInst::OpCode::AND, rd, rm, ResolveImm2Operand2(armbb, imm - 1)));
     return true;
+  }
+  if (0 == (imm & (imm - 1))) {
+    // 1. asr vreg, rn, #31;  i.e. mov vreg, rn, ASR #31;
+    auto vreg = NewVirtualReg();
+    auto rn = ResolveValue2Reg(armbb, val);
+    ADD_NEW_INST(Move(vreg, new Operand2(rn, new Shift(Shift::OpCode::ASR, 31))));
+    // 2. add vreg2, rn, vreg, lsr #(32-n);
+    auto vreg2 = NewVirtualReg();
+    auto n = eval_n(imm);
+    auto op2 = new Operand2(vreg, new Shift(Shift::OpCode::LSR, 32 - n));
+    ADD_NEW_INST(BinaryInst(BinaryInst::OpCode::ADD, vreg2, rn, op2));
+    // 3. bic vreg2, vreg2, #(2^n-1);  i.e. bfc vreg2, #0, #n;
+    ADD_NEW_INST(BinaryInst(BinaryInst::OpCode::BIC, vreg2, vreg2, ResolveImm2Operand2(armbb, imm - 1)));
+    // 4. sub rd, rn, vreg2
+    ADD_NEW_INST(BinaryInst(BinaryInst::OpCode::SUB, rd, rn, new Operand2(vreg2)));
   }
   return false;
 }
