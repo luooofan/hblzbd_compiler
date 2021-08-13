@@ -32,6 +32,7 @@ void SPOffsetFixup::Fixup4Func(ArmFunction *func) {
       if (auto pushpop_inst = dynamic_cast<PushPop *>(*iter)) {
         // pushpop_inst->EmitCode(outfile);
         pushpop_inst->reg_list_.clear();
+        Cond cond = pushpop_inst->cond_;
         for (auto reg : func->used_callee_saved_regs) {
           pushpop_inst->reg_list_.push_back(new Reg(reg));
         }
@@ -52,7 +53,7 @@ void SPOffsetFixup::Fixup4Func(ArmFunction *func) {
           }
           // 此时iter指向原pop指令的下一条指令
           if (!is_lr_used) {  // 不在push中 插入一条 bx lr
-            iter = bb->inst_list_.insert(iter, static_cast<Instruction *>(new Branch(false, true, Cond::AL, "lr", bb)));
+            iter = bb->inst_list_.insert(iter, static_cast<Instruction *>(new Branch(false, true, cond, "lr", bb)));
           }
           continue;
         }
