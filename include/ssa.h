@@ -54,9 +54,20 @@ class Use {
   Use(const Use& u) : val_(u.Get()), user_(u.GetUser()) {
     if (nullptr != val_) val_->AddUse(this);
   }
+  Use& operator=(const Use& u) {
+    user_ = u.GetUser();
+    Set(u.Get());
+    return *this;
+  }
   Use(Use&& u) : val_(u.Get()), user_(u.GetUser()) {
     u.Set(nullptr);
     if (nullptr != val_) val_->AddUse(this);
+  }
+  Use& operator=(Use&& u) {
+    user_ = u.GetUser();
+    Set(u.Get());
+    u.Set(nullptr);
+    return *this;
   }
   ~Use() {
     if (nullptr != val_) val_->KillUse(this);
@@ -221,6 +232,7 @@ class User : public Value {
   std::vector<Use> operands_;  // All Use instances are constructed in User
   User(Type* type, const std::string& name) : Value(type, name) { operands_.reserve(4); }
   Value* GetOperand(unsigned i);
+  void RemoveOperand(unsigned i);
   std::vector<Use>& GetOperands() { return operands_; }
   unsigned GetNumOperands() const { return operands_.size(); }
   virtual ~User();
@@ -302,13 +314,24 @@ class BranchInst : public SSAInstruction {
       : SSAInstruction(new Type(Type::VoidTyID), "", parent), cond_(Cond::AL) {
     operands_.push_back(Use(target, this));
   }
+  BranchInst(BasicBlockValue* target, SSAInstruction* inst)
+      : SSAInstruction(new Type(Type::VoidTyID), "", inst), cond_(Cond::AL) {
+    operands_.push_back(Use(target, this));
+  }
   BranchInst(Cond cond, Value* lhs, Value* rhs, BasicBlockValue* target, SSABasicBlock* parent)
       : SSAInstruction(new Type(Type::VoidTyID), "", parent), cond_(cond) {
     operands_.push_back(Use(lhs, this));
     operands_.push_back(Use(rhs, this));
     operands_.push_back(Use(target, this));
   }
+  BranchInst(Cond cond, Value* lhs, Value* rhs, BasicBlockValue* target, SSAInstruction* inst)
+      : SSAInstruction(new Type(Type::VoidTyID), "", inst), cond_(cond) {
+    operands_.push_back(Use(lhs, this));
+    operands_.push_back(Use(rhs, this));
+    operands_.push_back(Use(target, this));
+  }
   bool HasCond() const { return cond_ != Cond::AL; }
+  bool ComputeConstInt(int lhs, int rhs);
   virtual ~BranchInst() {}
   virtual void Print(std::ostream& outfile = std::clog);
 };

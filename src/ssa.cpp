@@ -66,6 +66,10 @@ Value *User::GetOperand(unsigned i) {
   MyAssert(i < GetNumOperands());
   return operands_[i].Get();
 }
+void User::RemoveOperand(unsigned i) {
+  MyAssert(i < GetNumOperands());
+  operands_.erase(operands_.begin() + i);
+}
 
 SSAInstruction::SSAInstruction(Type *type, const std::string &name, SSABasicBlock *parent)
     : User(type, name), parent_(nullptr) {
@@ -107,6 +111,26 @@ int UnaryOperator::ComputeConstInt(int lhs) {
       break;
   }
   return 0;
+}
+
+bool BranchInst::ComputeConstInt(int lhs, int rhs) {
+  switch (cond_) {
+    case EQ:
+      return lhs == rhs;
+    case NE:
+      return lhs != rhs;
+    case GT:
+      return lhs > rhs;
+    case GE:
+      return lhs >= rhs;
+    case LT:
+      return lhs < rhs;
+    case LE:
+      return lhs <= rhs;
+    default:
+      MyAssert(0);
+      return false;
+  }
 }
 
 void Value::Print(std::ostream &outfile) { outfile << std::setw(INDENT) << "%" + name_; }
