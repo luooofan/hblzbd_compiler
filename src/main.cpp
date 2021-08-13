@@ -4,6 +4,7 @@
 #include <fstream>
 
 #include "../include/Pass/allocate_register.h"
+#include "../include/Pass/arm_if_to_cond.h"
 #include "../include/Pass/arm_liveness_analysis.h"
 #include "../include/Pass/arm_offset_fixup.h"
 #include "../include/Pass/convert_ssa.h"
@@ -134,19 +135,22 @@ int main(int argc, char **argv) {
   // ==================Add Quad-Pass Above==================
   pm.AddPass<SimplifyCFG>(false);  // necessary
   pm.AddPass<ComputeDominance>(false);
-  pm.AddPass<ConvertSSA>(false);
+  pm.AddPass<ConvertSSA>(true);
   // ==================Add SSA-Pass Below==================
   pm.AddPass<DeadCodeEliminate>(false);
   pm.AddPass<SimpleOptimize>(false);
-  pm.AddPass<DeadCodeEliminate>(true);
+  pm.AddPass<SimpleOptimize>(false);
+  pm.AddPass<DeadCodeEliminate>(false);
   pm.AddPass<GlobalValueNumbering>(true);  // actually redundant common expression eliminate
   // ==================Add SSA-Pass Above==================
   pm.AddPass<GenerateArmFromSSA>(true);  // define macro control MUL_TO_SHIFT optimize
-  pm.AddPass<SimplifyArm>(false);        // optional
+  pm.AddPass<SimplifyArm>(true);         // optional
+  pm.AddPass<IfToCond>(true);            // optional
   pm.AddPass<RegAlloc>(false);
-  pm.AddPass<SPOffsetFixup>(false);
+  pm.AddPass<SPOffsetFixup>(true);
   // ==================Add Arm-Pass Below==================
   pm.AddPass<SimplifyArm>(false);
+  pm.AddPass<IfToCond>(true);
   // ==================Add Arm-Pass Above==================
   if (logfile.is_open()) {
     pm.Run(PASS_LOG, logfile);
@@ -158,7 +162,6 @@ int main(int argc, char **argv) {
   std::cout << "Passes End." << std::endl;
 #endif
   MyAssert(typeid(*module_ptr) == typeid(ArmModule));
-  dynamic_cast<ArmModule *>(module_ptr)->Check();
 
 #ifdef DEBUG_PROCESS
   std::cout << "Emit Start:" << std::endl;
