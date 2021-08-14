@@ -448,7 +448,12 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
           if (ok_colors.empty()) {  // 实际溢出 不给它分配 继续进行其他结点的分配以找到全部的实际溢出结点
             spilled_nodes.insert(vreg);
           } else {  // 可分配
-            auto color = *std::min_element(ok_colors.begin(), ok_colors.end(), [](auto a, auto b) {
+            auto color = *std::min_element(ok_colors.begin(), ok_colors.end(), [&](auto a, auto b) {
+              if (!func->IsLeaf()) {
+                // 意味着一定会保存lr 所以能用就用
+                if (a == 14) return true;
+                if (b == 14) return false;
+              }
               if (a > 3 && b > 3) {
                 if (a == 12) return true;
                 if (b == 12) return false;
