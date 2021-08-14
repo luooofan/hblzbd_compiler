@@ -3,6 +3,7 @@
 
 #include <functional>
 #include <unordered_set>
+#include <vector>
 
 #include "../arm.h"
 #include "../ssa.h"
@@ -14,24 +15,24 @@ class ArmBasicBlock;
 class ArmFunction;
 class ArmModule;
 using namespace arm;
-// NO OPT VERSION
+
 class GenerateArmFromSSA : public Transform {
  public:
-  GenerateArmFromSSA(Module** m) : Transform(m) {}
+  GenerateArmFromSSA(Module** m);
   // will change *m: SSAModule -> ArmModule
   void Run();
   ArmModule* GenCode(SSAModule* module);
 
  protected:
   // these data is valid in one function. they should be reset at the beginning of every function.
+  std::vector<Reg*> machine_regs;
   int virtual_reg_id = 16;
-  // 全局 局部 中间变量的占用寄存器(存放值)map
-  std::unordered_map<Value*, Reg*> var_map;  // varname, scope_id, reg
-  // 保存有初始sp的vreg 一定是也必须是r16 maybe not used. FIXME
-  Reg* sp_vreg = nullptr;
+  std::unordered_map<Value*, Reg*> var_map;
   int stack_size = 0;
   std::unordered_set<Instruction*> sp_arg_fixup;
   std::unordered_set<Instruction*> sp_fixup;
+  ArmBasicBlock* prologue = nullptr;
+  ArmBasicBlock* epilogue = nullptr;
 
  protected:
   // used for generate arm code.
@@ -47,6 +48,7 @@ class GenerateArmFromSSA : public Transform {
   bool ConvertMod2And(ArmBasicBlock* armbb, Reg* rd, Value* val, int imm);
   void AddEpilogue(ArmBasicBlock* armbb);
   void AddPrologue(ArmFunction* func, FunctionValue* func_val);
+  void AddEpilogue(ArmFunction* func);
   void ResetFuncData();
   void GenerateArmBasicBlocks(ArmFunction* armfunc, SSAFunction* func,
                               std::unordered_map<SSABasicBlock*, ArmBasicBlock*>& bb_map);
