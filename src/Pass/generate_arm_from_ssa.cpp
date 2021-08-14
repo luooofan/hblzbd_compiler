@@ -295,8 +295,10 @@ void GenerateArmFromSSA::AddPrologue(ArmFunction* func, FunctionValue* func_val)
   MyAssert(!op2->is_imm_);
   ADD_NEW_INST(BinaryInst(BinaryInst::OpCode::SUB, new Reg(ArmReg::sp), new Reg(ArmReg::sp), op2, armbb));
 
-  // mov sp_vreg(r16),sp FIXME
-  // ADD_NEW_INST(Move(sp_vreg, new Operand2(new Reg(ArmReg::sp))));
+  // TODO:
+  // 实际上可以把prologue单独当作一个基本块 把原来第一个bb的idom指向prologue 并维护其他关系
+  // 取参数和全局变量到一个vreg中的操作可以放到在该函数内其所有使用的最小公共祖先基本块的末尾(dom tree)
+  // 这样应该能在一定程度上优化寄存器分配
   for (auto arg : func_val->GetArgList()) {
     ResolveValue2Reg(armbb, arg);
   }
@@ -310,6 +312,7 @@ void GenerateArmFromSSA::AddPrologue(ArmFunction* func, FunctionValue* func_val)
 }
 
 void GenerateArmFromSSA::AddEpilogue(ArmBasicBlock* armbb) {
+  // 目前的策略是每个return前都要加epilogue 也可以在函数最后放一个epilogue基本块 然后return翻译成跳转
   // 要为每一个ret语句添加epilogue
   // add sp, sp, #stack_size 之后应该修改为栈大小 记录在sp_fixup里
   auto op2 = ResolveImm2Operand2(armbb, 0, true);
@@ -326,7 +329,6 @@ void GenerateArmFromSSA::AddEpilogue(ArmBasicBlock* armbb) {
 void GenerateArmFromSSA::ResetFuncData() {
   this->virtual_reg_id = 16;
   this->var_map.clear();
-  // this->sp_vreg = NewVirtualReg();
   this->sp_vreg = new Reg(ArmReg::sp);
   this->stack_size = 0;
   this->sp_arg_fixup.clear();
@@ -533,22 +535,6 @@ ArmModule* GenerateArmFromSSA::GenCode(SSAModule* module) {
         } else if (auto src_inst = dynamic_cast<CallInst*>(inst)) {
           // NOTE: 这里对调用语句的处理并不规范 但方便目标代码的生成和寄存器溢出情况的处理
 
-          // 在call语句之前把全局范围的一些vreg mov到新的vreg中 减短其活跃期 优化寄存器分配
-          // 全局范围的vreg为 参数和函数内使用的全局变量
-          // std::unordered_map<Value*, Reg*> temp_var_map;
-          // for (auto param : func->GetValue()->GetArgList()) {
-          //   auto new_vreg = NewVirtualReg();
-          //   temp_var_map[param] = var_map[param];
-          //   ADD_NEW_INST(Move(new_vreg, new Operand2(var_map[param]), armbb));
-          //   var_map[param] = new_vreg;
-          // }
-          // for (auto glo_var : func->GetUsedGlobVarList()) {
-          //   auto new_vreg = NewVirtualReg();
-          //   temp_var_map[glo_var] = var_map[glo_var];
-          //   ADD_NEW_INST(Move(new_vreg, new Operand2(var_map[glo_var]), armbb));
-          //   var_map[glo_var] = new_vreg;
-          // }
-
           // 第一个操作数一定是FunctionValue
           int param_num = src_inst->GetNumOperands() - 1;
 
@@ -593,17 +579,6 @@ ArmModule* GenerateArmFromSSA::GenCode(SSAModule* module) {
             auto vreg = ResolveValue2Reg(armbb, src_inst);
             ADD_NEW_INST(Move(false, Cond::AL, vreg, new Operand2(new Reg(ArmReg::r0)), armbb));
           }
-
-          // 在call语句之后把全局范围的一些vreg恢复回来
-          // 全局范围的vreg为 参数和函数内使用的全局变量
-          // for (auto param : func->GetValue()->GetArgList()) {
-          //   ADD_NEW_INST(Move(temp_var_map[param], new Operand2(var_map[param]), armbb));
-          //   var_map[param] = temp_var_map[param];
-          // }
-          // for (auto glo_var : func->GetUsedGlobVarList()) {
-          //   ADD_NEW_INST(Move(temp_var_map[glo_var], new Operand2(var_map[glo_var]), armbb));
-          //   var_map[glo_var] = temp_var_map[glo_var];
-          // }
 
         } else if (auto src_inst = dynamic_cast<ReturnInst*>(inst)) {
           // NOTE: 无论有没有返回值都要mov到r0中 为了之后活跃分析时认为是对r0的一次定值
