@@ -533,6 +533,22 @@ ArmModule* GenerateArmFromSSA::GenCode(SSAModule* module) {
         } else if (auto src_inst = dynamic_cast<CallInst*>(inst)) {
           // NOTE: 这里对调用语句的处理并不规范 但方便目标代码的生成和寄存器溢出情况的处理
 
+          // 在call语句之前把全局范围的一些vreg mov到新的vreg中 减短其活跃期 优化寄存器分配
+          // 全局范围的vreg为 参数和函数内使用的全局变量
+          // std::unordered_map<Value*, Reg*> temp_var_map;
+          // for (auto param : func->GetValue()->GetArgList()) {
+          //   auto new_vreg = NewVirtualReg();
+          //   temp_var_map[param] = var_map[param];
+          //   ADD_NEW_INST(Move(new_vreg, new Operand2(var_map[param]), armbb));
+          //   var_map[param] = new_vreg;
+          // }
+          // for (auto glo_var : func->GetUsedGlobVarList()) {
+          //   auto new_vreg = NewVirtualReg();
+          //   temp_var_map[glo_var] = var_map[glo_var];
+          //   ADD_NEW_INST(Move(new_vreg, new Operand2(var_map[glo_var]), armbb));
+          //   var_map[glo_var] = new_vreg;
+          // }
+
           // 第一个操作数一定是FunctionValue
           int param_num = src_inst->GetNumOperands() - 1;
 
@@ -577,6 +593,17 @@ ArmModule* GenerateArmFromSSA::GenCode(SSAModule* module) {
             auto vreg = ResolveValue2Reg(armbb, src_inst);
             ADD_NEW_INST(Move(false, Cond::AL, vreg, new Operand2(new Reg(ArmReg::r0)), armbb));
           }
+
+          // 在call语句之后把全局范围的一些vreg恢复回来
+          // 全局范围的vreg为 参数和函数内使用的全局变量
+          // for (auto param : func->GetValue()->GetArgList()) {
+          //   ADD_NEW_INST(Move(temp_var_map[param], new Operand2(var_map[param]), armbb));
+          //   var_map[param] = temp_var_map[param];
+          // }
+          // for (auto glo_var : func->GetUsedGlobVarList()) {
+          //   ADD_NEW_INST(Move(temp_var_map[glo_var], new Operand2(var_map[glo_var]), armbb));
+          //   var_map[glo_var] = temp_var_map[glo_var];
+          // }
 
         } else if (auto src_inst = dynamic_cast<ReturnInst*>(inst)) {
           // NOTE: 无论有没有返回值都要mov到r0中 为了之后活跃分析时认为是对r0的一次定值
