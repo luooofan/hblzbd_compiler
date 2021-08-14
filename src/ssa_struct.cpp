@@ -135,10 +135,10 @@ void SSAModule::EmitCode(std::ostream& out) {
     glob->Print(out);
   }
   out << std::endl;
-  for (auto func : builtin_func_list_) {
-    func->EmitCode(out);
-    out << std::endl;
-  }
+  // for (auto func : builtin_func_list_) {
+  //   func->EmitCode(out);
+  //   out << std::endl;
+  // }
   for (auto func : func_list_) {
     func->EmitCode(out);
     out << std::endl;
