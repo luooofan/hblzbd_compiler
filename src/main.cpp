@@ -4,7 +4,6 @@
 #include <fstream>
 
 #include "../include/Pass/loop_unroll.h"
-#include "../include/Pass/loop.h"
 #include "../include/Pass/allocate_register.h"
 #include "../include/Pass/arm_if_to_cond.h"
 #include "../include/Pass/arm_liveness_analysis.h"
@@ -36,7 +35,7 @@ extern void yyset_lineno(int _line_number);
 
 bool AST_LOG = false;
 bool IRLIST_LOG = false;
-bool PASS_LOG = false;
+bool PASS_LOG = true;
 
 #define ASSERT_ENABLE
 #include "../include/myassert.h"
@@ -135,28 +134,28 @@ int main(int argc, char **argv) {
 
   // ==================Add Quad-Pass Below==================
   pm.AddPass<LoopUnroll>(false);
-  pm.AddPass<InvariantExtrapolation>(false);
+  // pm.AddPass<InvariantExtrapolation>(false);
   // ==================Add Quad-Pass Above==================
   pm.AddPass<SimplifyCFG>(false);  // necessary
   pm.AddPass<ComputeDominance>(false);
   pm.AddPass<ConvertSSA>(true);
   // ==================Add SSA-Pass Below==================
-  pm.AddPass<DeadCodeEliminate>(false);
-  pm.AddPass<SimpleOptimize>(false);
-  pm.AddPass<SimpleOptimize>(false);
-  pm.AddPass<DeadCodeEliminate>(false);
-  pm.AddPass<GlobalValueNumbering>(true);  // actually redundant common expression eliminate
+  // pm.AddPass<DeadCodeEliminate>(false);
+  // pm.AddPass<SimpleOptimize>(false);
+  // pm.AddPass<SimpleOptimize>(false);
+  // pm.AddPass<DeadCodeEliminate>(false);
+  // pm.AddPass<GlobalValueNumbering>(true);  // actually redundant common expression eliminate
   // ==================Add SSA-Pass Above==================
   pm.AddPass<GenerateArmFromSSA>(true);  // define macro control MUL_TO_SHIFT optimize
   // ==================Add Arm(vreg)-Pass Below==================
-  pm.AddPass<SimplifyArm>(true);
-  pm.AddPass<IfToCond>(true);
+  // pm.AddPass<SimplifyArm>(true);
+  // pm.AddPass<IfToCond>(true);
   // ==================Add Arm(vreg)-Pass Above==================
   pm.AddPass<RegAlloc>(false);
   pm.AddPass<SPOffsetFixup>(true);
   // ==================Add Arm-Pass Below==================
-  pm.AddPass<SimplifyArm>(false);
-  pm.AddPass<IfToCond>(true);
+  // pm.AddPass<SimplifyArm>(false);
+  // pm.AddPass<IfToCond>(true);
   // ==================Add Arm-Pass Above==================
   if (logfile.is_open()) {
     pm.Run(PASS_LOG, logfile);

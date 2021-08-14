@@ -148,6 +148,7 @@ vector<pair<IRBasicBlock*,IRBasicBlock*> > find_back(vector<IRBasicBlock*> bb_li
         for(auto& bb:bb_list)
         {
             int last=dom[bb].size();
+            if(bb->pred_.size()==0)dom[bb].clear();
             for(auto& pred:bb->pred_)dom[bb]=cross(dom[bb],dom[pred]);
             if(bb!=bb_list[0])dom[bb].push_back(bb);
             flag|=(last!=dom[bb].size());
@@ -229,126 +230,6 @@ vector<ir::Opn*> find_basicvar(ir::Opn* var,IRBasicBlock* bb)
     }
     return basic;
 }
-
-// // 这个类只用于find_change函数的返回值，因为返回3个不好写
-// class find_change_res
-// {
-// public:
-//     int flag;
-//     ir::IR* ir;
-//     ir::Opn* var;
-//     find_change_res(int f,ir::IR* i,ir::Opn* v){flag=f,ir=i,var=v;}
-// };
-
-// // 对于bel里的变量，找哪些变量在loop中有定值
-// // flag0表示无变化，1有1次变化，2有>1次变化，ir是真正计算的那条ir，var是哪个变量变化了
-// find_change_res find_change(vector<ir::Opn*> bel,vector<IRBasicBlock*> loop)
-// {
-//     pair<ir::IR*,ir::Opn*> pos=make_pair(nullptr,nullptr);
-//     for(auto& op:bel)
-//     {
-//         for(auto& bb:loop)
-//         {
-//             if(bb==loop[0])continue;
-//             for(auto& ir:bb->ir_list_)
-//             {
-//                 auto res=&ir->res_;
-//                 if(res->name_==op->name_)
-//                 {
-                    
-//                     if(pos.first==0)pos=make_pair(ir,op);
-//                     else return *(new find_change_res(2,nullptr,nullptr));
-//                 }
-//             }
-//         }
-//     }
-//     if(pos.first)
-//     {
-//         ir::IR* last=nullptr;
-//         for(int i=0;i<loop[1]->ir_list_.size()-1;i++)
-//         {
-//             if(loop[1]->ir_list_[i+1]==pos.second)
-//             {
-//                 if(loop[1]->ir_list_[i]->op_!=ir::IR::OpKind::ADD &&
-//                    loop[1]->ir_list_[i]->op_!=ir::IR::OpKind::SUB)
-//                    return *(new find_change_res(2,nullptr,nullptr));
-//                 pos.second=loop[1]->ir_list_[i];
-//             }
-//         }
-//     }
-//     if(pos.first==0)return *(new find_change_res(0,nullptr,nullptr));
-//     else return *(new find_change_res(1,pos.first,pos.second));
-// }
-
-// // check1检查迭代关系是否是<><=>=，2个操作数应该均为常数或Var并且不是全局变量，并且
-// // 1个在loop内无定值，另1个(及其所属)在loop内只有1次定值
-// find_change_res c1,c2;
-// bool check2(vector<IRBasicBlock*> loop)
-// {
-//     auto& ir=loop[0]->ir_list_[loop[0]->ir_list_.size()-1];
-//     if(ir->op_!=ir::IR::OpKind::JLT && ir->op_!=ir::IR::OpKind::JLE
-//     && ir->op_!=ir::IR::OpKind::JGT && ir->op_!=ir::IR::OpKind::JGE)
-//         return false; //只要不是< <= > >=就不行
-
-//     auto op1=&ir->opn1_;
-//     auto op2=&ir->opn2_;
-//     if(op1->type_!=ir::Opn::Type::Imm && op1->type_!=ir::Opn::Type::Var || 
-//        op2->type_==ir::Opn::Type::Imm && op2->type_==ir::Opn::Type::Var)
-//         return false;
-//     vector<ir::Opn*> bel1=find_basicvar(op1,loop[0]),bel2=find_basicvar(op2,loop[0]); // 保存产生了op1、op2的用户变量
-    
-//     cout<<"输出找到的用户变量:"<<endl;
-//     cout<<op1->name_<<":";
-//     for(auto var:bel1)cout<<var->name_<<" ";
-//     cout<<endl;
-//     cout<<op2->name_<<":";
-//     for(auto var:bel2)cout<<var->name_<<" ";
-//     cout<<endl;
-    
-//     c1=find_change(bel1,loop),c2=find_change(bel2,loop); // 在循环中找谁的变量变了
-    
-//     cout<<"输出查找变化的结果:"<<endl;
-//     cout<<c1.flag<<" "<<c2.flag<<endl;
-
-//     if(c1.flag==0 && c2.flag==1)swap(c1,c2);
-
-//     return (c1.flag==0 && c2.flag==1 && c2.ir->op_==ir::IR::OpKind::ADD) || c1.flag==1 && c2.flag==0;
-// }
-
-// 只能是2个基本块，循环条件必须1个i1个n，i的变化只能是+-
-// ir::Opn* op_i,op_n;
-// bool check(vector<IRBasicBlock*> loop)
-// {
-//     if(loop.size()!=2)return false; // 正好也限制了条件里调函数
-
-//     auto& cond_ir=loop[0]->ir_list_[loop[0]->ir_list_.size()-1];
-//     if(cond_ir->op_!=ir::IR::OpKind::JLT && cond_ir->op_!=ir::IR::OpKind::JLE
-//     && cond_ir->op_!=ir::IR::OpKind::JGT && cond_ir->op_!=ir::IR::OpKind::JGE)
-//         return false; //只要不是< <= > >=就不行
-
-//     auto op1=&cond_ir->opn1_,op2=&cond_ir->opn2_;
-//     if(op1->type_!=ir::Opn::Type::Var && op1->type_!=ir::Opn::Type::Imm ||
-//        op2->type_!=ir::Opn::Type::Var && op2->type_!=ir::Opn::Type::Imm)
-//         return false; // 涉及到数组就不行
-
-//     vector<ir::Opn*> bel1=find_basicvar(op1,loop[0]),bel2=find_basicvar(op2,loop[0]);
-//     vector<ir::Opn*> change1=find_basicvar(op1,loop[1]),change2=find_basicvar(op2,loop[1]);
-    
-//     cout<<"输出找到的变量:"<<endl;
-//     cout<<op1->name_<<" "<<op2->name_<<endl;
-//     for(auto var:bel1)cout<<var->name_<<" ";
-//     cout<<endl;
-//     for(auto var:bel2)cout<<var->name_<<" ";
-//     cout<<endl;
-//     for(auto var:change1)cout<<var->name_<<" ";
-//     cout<<endl;
-//     for(auto var:change2)cout<<var->name_<<" ";
-//     cout<<endl;
-
-//     if(!(change1.size()==2 && change2.size()==0) && !(change1.size()==0 && change2.size()==2))return false; // 这里后续可以改，这里限制死了，i只能是i=i op c,n不能有定值
-
-//     return true;
-// }
 
 void LoopUnroll::Run()
 {
@@ -436,8 +317,8 @@ void LoopUnroll::Run()
                 continue; //只要不是< <= > >=就不行
 
             auto op1=&cond_ir->opn1_,op2=&cond_ir->opn2_;
-            if(op1->type_!=ir::Opn::Type::Var && op1->type_!=ir::Opn::Type::Imm ||
-            op2->type_!=ir::Opn::Type::Var && op2->type_!=ir::Opn::Type::Imm)
+            if( (op1->type_!=ir::Opn::Type::Var && op1->type_!=ir::Opn::Type::Imm) ||
+                (op2->type_!=ir::Opn::Type::Var && op2->type_!=ir::Opn::Type::Imm))
                 continue; // 涉及到数组就不行
 
             vector<ir::Opn*> basic1=find_basicvar(op1,loop[0]),basic2=find_basicvar(op2,loop[0]);
@@ -446,10 +327,10 @@ void LoopUnroll::Run()
             for(auto basic:basic2)flag&=(basic->type_!=ir::Opn::Type::Array);
             if(!flag)continue;
             
-            cout<<"临时"<<endl;
-            cout<<op1->name_<<" "<<op2->name_<<endl;
-            cout<<(op1->type_!=ir::Opn::Type::Var)<<" "<<(op1->type_!=ir::Opn::Type::Imm)<<" "
-            <<(op2->type_!=ir::Opn::Type::Var)<<" "<<(op2->type_!=ir::Opn::Type::Imm)<<endl;
+            // cout<<"临时"<<endl;
+            // cout<<op1->name_<<" "<<op2->name_<<endl;
+            // cout<<(op1->type_!=ir::Opn::Type::Var)<<" "<<(op1->type_!=ir::Opn::Type::Imm)<<" "
+            // <<(op2->type_!=ir::Opn::Type::Var)<<" "<<(op2->type_!=ir::Opn::Type::Imm)<<endl;
 
             vector<ir::Opn*> change1=find_basicvar(op1,loop[1]),change2=find_basicvar(op2,loop[1]);
             
@@ -478,25 +359,25 @@ void LoopUnroll::Run()
             // cout<<"输出找到的那句IR:"<<endl;
             // cal_ir->PrintIR();
 
-            // 前面的结果是：确认了格式可以，然后找到了i(op1)、n(op2)和i=i+c(cal_ir)
-            IRBasicBlock* new_body=new IRBasicBlock();
-            new_body->func_=func;
-            int num=bb_id.size();
-            bb_id[new_body]=num,id_bb[num]=new_body;
-            // loop[1]的ir复制过来
-            for(auto ir:loop[1]->ir_list_)
-            {
-                ir::IR* new_ir=new ir::IR(ir->op_,ir->opn1_,ir->opn2_,ir->res_);
-                new_body->ir_list_.push_back(new_ir);
-            }
-            // new_body连入图中
-            loop[1]->succ_.pop_back(),loop[0]->pred_.erase(find(loop[0]->pred_.begin(),loop[0]->pred_.end(),loop[1]));
-            loop[1]->succ_.push_back(new_body),new_body->pred_.push_back(loop[1]);
-            new_body->succ_.push_back(loop[0]),loop[0]->pred_.push_back(new_body);
-            // 新的label，new_body弄进去，loop[1]弄进去
-            ir::IR* new_ir=new ir::IR(ir::IR::OpKind::LABEL,*(new ir::Opn(ir::Opn::Type::Label,".label"+to_string(++label),scope_id)));
-            new_body->ir_list_.insert(new_body->ir_list_.begin(),new_ir);
-            loop[1]->ir_list_[loop[1]->ir_list_.size()-1]->opn1_.name_=".label"+to_string(label);
+            // 循环体变2倍。不新建基本块而是直接在旧基本块里把除了最后一句goto loop[0].begin()以外全部复制一遍
+            // IRBasicBlock* new_body=new IRBasicBlock();
+            // new_body->func_=func;
+            // int num=bb_id.size();
+            // bb_id[new_body]=num,id_bb[num]=new_body;
+            // // loop[1]的ir复制过来
+            // for(auto ir:loop[1]->ir_list_)
+            // {
+            //     ir::IR* new_ir=new ir::IR(ir->op_,ir->opn1_,ir->opn2_,ir->res_);
+            //     new_body->ir_list_.push_back(new_ir);
+            // }
+            // // new_body连入图中
+            // loop[1]->succ_.pop_back(),loop[0]->pred_.erase(find(loop[0]->pred_.begin(),loop[0]->pred_.end(),loop[1]));
+            // loop[1]->succ_.push_back(new_body),new_body->pred_.push_back(loop[1]);
+            // new_body->succ_.push_back(loop[0]),loop[0]->pred_.push_back(new_body);
+            // // 新的label，new_body弄进去，loop[1]弄进去
+            // ir::IR* new_ir=new ir::IR(ir::IR::OpKind::LABEL,*(new ir::Opn(ir::Opn::Type::Label,".label"+to_string(++label),scope_id)));
+            // new_body->ir_list_.insert(new_body->ir_list_.begin(),new_ir);
+            // loop[1]->ir_list_[loop[1]->ir_list_.size()-1]->opn1_.name_=".label"+to_string(label);
 
             // cout<<"输出新循环体:"<<endl;
             // for(auto& ir:new_body->ir_list_)ir->PrintIR();
@@ -518,6 +399,25 @@ void LoopUnroll::Run()
 
             // cout<<"输出i+c的那个c:"<<endl;
             // cout<<c->name_<<endl;
+
+            // 调了顺序，原本该给loop[0]插入n±c，但因为new_loop要旧的loop[0]，所以下面先创建
+            // new_loop并复制，然后再给loop[0]插入n±c
+
+            vector<IRBasicBlock*> new_loop;
+            new_loop.push_back(new IRBasicBlock()),new_loop.push_back(new IRBasicBlock());
+            new_loop[0]->func_=new_loop[1]->func_=func;
+            int num=bb_id.size();
+            bb_id[new_loop[0]]=num,id_bb[num]=new_loop[0];
+            ++num;
+            bb_id[new_loop[1]]=num,id_bb[num]=new_loop[1];
+            for(int i=0;i<2;i++)
+            {
+                for(auto ir:loop[i]->ir_list_)
+                {
+                    ir::IR* new_ir=new ir::IR(ir->op_,ir->opn1_,ir->opn2_,ir->res_);
+                    new_loop[i]->ir_list_.push_back(new_ir);
+                }
+            }
 
             // 如果是ADD，则i<n变i<n-c
             if(cal_ir->op_==ir::IR::OpKind::ADD)
@@ -549,21 +449,7 @@ void LoopUnroll::Run()
             // cout<<"B"<<bb_id[loop[0]]<<":"<<endl;
             // for(auto& ir:loop[0]->ir_list_)ir->PrintIR();
 
-            vector<IRBasicBlock*> new_loop;
-            new_loop.push_back(new IRBasicBlock()),new_loop.push_back(new IRBasicBlock());
-            new_loop[0]->func_=new_loop[1]->func_=func;
-            num=bb_id.size();
-            bb_id[new_loop[0]]=num,id_bb[num]=new_loop[0];
-            ++num;
-            bb_id[new_loop[1]]=num,id_bb[num]=new_loop[1];
-            for(int i=0;i<2;i++)
-            {
-                for(auto ir:loop[i]->ir_list_)
-                {
-                    ir::IR* new_ir=new ir::IR(ir->op_,ir->opn1_,ir->opn2_,ir->res_);
-                    new_loop[i]->ir_list_.push_back(new_ir);
-                }
-            }
+
 
             // cout<<"输出新的循环:"<<endl;
             // for(auto& bb:new_loop)
@@ -587,6 +473,23 @@ void LoopUnroll::Run()
 
             new_loop[0]->succ_.push_back(new_loop[1]),new_loop[1]->pred_.push_back(new_loop[0]);
             new_loop[1]->succ_.push_back(new_loop[0]),new_loop[0]->pred_.push_back(new_loop[1]);
+            
+            auto insert_it=find(bb_list.begin(),bb_list.end(),loop[1]);
+            insert_it++;
+            bb_list.insert(insert_it,new_loop[0]);
+            insert_it=find(bb_list.begin(),bb_list.end(),new_loop[0]);
+            insert_it++;
+            bb_list.insert(insert_it,new_loop[1]);
+
+            int tmp=loop[1]->ir_list_.size()-1;
+            for(int i=0;i<tmp;i++)
+            {
+                auto tail=loop[1]->ir_list_.end();
+                --tail;
+                auto ir=loop[1]->ir_list_[i];
+                ir::IR* new_ir=new ir::IR(ir->op_,ir->opn1_,ir->opn2_,ir->res_);
+                loop[1]->ir_list_.insert(tail,new_ir);
+            }
 
             // cout<<"再次输出新的循环:"<<endl;
             // for(auto& bb:new_loop)
@@ -600,8 +503,6 @@ void LoopUnroll::Run()
             //     for(auto& suc:bb->succ_)cout<<bb_id[suc]<<" ";
             //     cout<<endl;
             // }
-
-            bb_list.push_back(new_body),bb_list.push_back(new_loop[0]),bb_list.push_back(new_loop[1]);
 
             // cout<<"输出处理完本循环的汇总:"<<endl;
             // cout<<"输出IR:"<<endl;
@@ -621,19 +522,19 @@ void LoopUnroll::Run()
         del_scope_id(func);
     }
 
-    cout<<"最终汇总:"<<endl;
-    for(auto func:irmodule->func_list_)
-    {
-        cout<<"func:"<<func->name_<<endl;
-        for(auto bb:func->bb_list_)
-        {
-            cout<<"B"<<bb_id[bb]<<" ";
-            cout<<"pred:";
-            for(auto pre:bb->pred_)cout<<bb_id[pre]<<" ";
-            cout<<"succ:";
-            for(auto suc:bb->succ_)cout<<bb_id[suc]<<" ";
-            cout<<endl;
-            for(auto ir:bb->ir_list_)ir->PrintIR();
-        }
-    }
+    // cout<<"最终汇总:"<<endl;
+    // for(auto func:irmodule->func_list_)
+    // {
+    //     cout<<"func:"<<func->name_<<endl;
+    //     for(auto bb:func->bb_list_)
+    //     {
+    //         cout<<"B"<<bb_id[bb]<<" ";
+    //         cout<<"pred:";
+    //         for(auto pre:bb->pred_)cout<<bb_id[pre]<<" ";
+    //         cout<<"succ:";
+    //         for(auto suc:bb->succ_)cout<<bb_id[suc]<<" ";
+    //         cout<<endl;
+    //         for(auto ir:bb->ir_list_)ir->PrintIR();
+    //     }
+    // }
 }
