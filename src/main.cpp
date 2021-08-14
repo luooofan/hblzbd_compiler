@@ -144,8 +144,10 @@ int main(int argc, char **argv) {
   pm.AddPass<GlobalValueNumbering>(true);  // actually redundant common expression eliminate
   // ==================Add SSA-Pass Above==================
   pm.AddPass<GenerateArmFromSSA>(true);  // define macro control MUL_TO_SHIFT optimize
-  pm.AddPass<SimplifyArm>(true);         // optional
-  pm.AddPass<IfToCond>(true);            // optional
+  // ==================Add Arm(vreg)-Pass Below==================
+  pm.AddPass<SimplifyArm>(true);
+  pm.AddPass<IfToCond>(true);
+  // ==================Add Arm(vreg)-Pass Above==================
   pm.AddPass<RegAlloc>(false);
   pm.AddPass<SPOffsetFixup>(true);
   // ==================Add Arm-Pass Below==================
