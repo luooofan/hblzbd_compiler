@@ -1,6 +1,9 @@
 #include "../include/arm.h"
 
+#include <algorithm>
 #include <unordered_set>
+
+#include "../include/arm_struct.h"
 #define ASSERT_ENABLE
 #include "../include/myassert.h"
 
@@ -94,6 +97,19 @@ bool Operand2::CheckImm8m(int imm) {
     encoding = (encoding << 30u) | (encoding >> 2u);
   }
   return false;
+}
+
+Instruction::Instruction(Cond cond, ArmBasicBlock* parent, bool push_back) : cond_(cond), parent_(parent) {
+  if (push_back) parent_->inst_list_.push_back(this);
+}
+Instruction::Instruction(ArmBasicBlock* parent, bool push_back) : parent_(parent) {
+  if (push_back) parent_->inst_list_.push_back(this);
+}
+Instruction::Instruction(Instruction* inst) : parent_(inst->parent_) {
+  auto& inst_list = parent_->inst_list_;
+  auto it = std::find(inst_list.begin(), inst_list.end(), inst);
+  MyAssert(it != inst_list.end());
+  inst_list.insert(it, this);
 }
 
 BinaryInst::~BinaryInst() {}

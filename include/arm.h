@@ -10,7 +10,7 @@ namespace arm {
 // ref: https://developer.arm.com/documentation/ihi0042/j/
 // ref: https://developer.arm.com/documentation/ddi0406/latest
 
-enum class ArmReg {
+enum ArmReg {
   // args and return value (caller saved)
   r0,
   r1,
@@ -120,10 +120,11 @@ std::string CondToString(Cond cond);
 class Instruction {
  public:
   ArmBasicBlock* parent_;
-  Cond cond_;
+  Cond cond_ = Cond::AL;
   bool IsAL() { return cond_ == Cond::AL; }
-  Instruction(Cond cond, ArmBasicBlock* parent) : cond_(cond), parent_(parent) {}
-  Instruction(ArmBasicBlock* parent) : cond_(Cond::AL), parent_(parent) {}
+  Instruction(Cond cond, ArmBasicBlock* parent, bool push_back = true);
+  Instruction(ArmBasicBlock* parent, bool push_back = true);
+  Instruction(Instruction* inst);
   virtual ~Instruction() = default;
   virtual void EmitCode(std::ostream& outfile = std::clog) = 0;
   virtual void AddUsedInst(){};
@@ -205,12 +206,16 @@ class Move : public Instruction {
   Reg* rd_;
   Operand2* op2_;
 
-  Move(bool has_s, Cond cond, Reg* rd, Operand2* op2, ArmBasicBlock* parent, bool is_mvn = false)
-      : Instruction(cond, parent), has_s_(has_s), rd_(rd), op2_(op2), is_mvn_(is_mvn) {
+  Move(bool has_s, Cond cond, Reg* rd, Operand2* op2, ArmBasicBlock* parent, bool is_mvn = false, bool push_back = true)
+      : Instruction(cond, parent, push_back), has_s_(has_s), rd_(rd), op2_(op2), is_mvn_(is_mvn) {
     AddUsedInst();
   }
-  Move(Reg* rd, Operand2* op2, ArmBasicBlock* parent, bool is_mvn = false)
-      : Instruction(parent), rd_(rd), op2_(op2), is_mvn_(is_mvn) {
+  Move(Reg* rd, Operand2* op2, ArmBasicBlock* parent, bool is_mvn = false, bool push_back = true)
+      : Instruction(parent, push_back), rd_(rd), op2_(op2), is_mvn_(is_mvn) {
+    AddUsedInst();
+  }
+  Move(Reg* rd, Operand2* op2, Instruction* inst, bool is_mvn = false)
+      : Instruction(inst), rd_(rd), op2_(op2), is_mvn_(is_mvn) {
     AddUsedInst();
   }
   virtual ~Move();
@@ -231,10 +236,10 @@ class Branch : public Instruction {
   bool has_x_;
   bool IsCall();
   bool IsRet();
-  Branch(bool has_l, bool has_x, Cond cond, std::string label, ArmBasicBlock* parent)
-      : Instruction(cond, parent), has_l_(has_l), has_x_(has_x), label_(label) {}
-  Branch(bool has_l, bool has_x, std::string label, ArmBasicBlock* parent)
-      : Instruction(parent), has_l_(has_l), has_x_(has_x), label_(label) {}
+  Branch(bool has_l, bool has_x, Cond cond, std::string label, ArmBasicBlock* parent, bool push_back = true)
+      : Instruction(cond, parent, push_back), has_l_(has_l), has_x_(has_x), label_(label) {}
+  Branch(bool has_l, bool has_x, std::string label, ArmBasicBlock* parent, bool push_back = true)
+      : Instruction(parent, push_back), has_l_(has_l), has_x_(has_x), label_(label) {}
   virtual ~Branch();
   virtual void EmitCode(std::ostream& outfile = std::clog) override;
 };
@@ -252,16 +257,18 @@ class LdrStr : public Instruction {
   int offset_imm_ = -1;
   Operand2* offset_ = nullptr;  // a reg, or a scaled reg(imm_shift)
 
-  LdrStr(OpKind opkind, Type type, Cond cond, Reg* rd, Reg* rn, Operand2* offset, ArmBasicBlock* parent)
-      : Instruction(cond, parent), opkind_(opkind), type_(type), rd_(rd), rn_(rn), offset_(offset) {
+  LdrStr(OpKind opkind, Type type, Cond cond, Reg* rd, Reg* rn, Operand2* offset, ArmBasicBlock* parent,
+         bool push_back = true)
+      : Instruction(cond, parent, push_back), opkind_(opkind), type_(type), rd_(rd), rn_(rn), offset_(offset) {
     AddUsedInst();
   }
-  LdrStr(OpKind opkind, Reg* rd, Reg* rn, Operand2* offset, ArmBasicBlock* parent)
-      : Instruction(parent), opkind_(opkind), rd_(rd), rn_(rn), offset_(offset) {
+  LdrStr(OpKind opkind, Reg* rd, Reg* rn, Operand2* offset, ArmBasicBlock* parent, bool push_back = true)
+      : Instruction(parent, push_back), opkind_(opkind), rd_(rd), rn_(rn), offset_(offset) {
     AddUsedInst();
   }
-  LdrStr(OpKind opkind, Type type, Cond cond, Reg* rd, Reg* rn, int offset, ArmBasicBlock* parent)
-      : Instruction(cond, parent),
+  LdrStr(OpKind opkind, Type type, Cond cond, Reg* rd, Reg* rn, int offset, ArmBasicBlock* parent,
+         bool push_back = true)
+      : Instruction(cond, parent, push_back),
         opkind_(opkind),
         type_(type),
         rd_(rd),
@@ -270,8 +277,8 @@ class LdrStr : public Instruction {
         offset_imm_(offset) {
     AddUsedInst();
   }
-  LdrStr(OpKind opkind, Reg* rd, Reg* rn, int offset, ArmBasicBlock* parent)
-      : Instruction(parent), opkind_(opkind), rd_(rd), rn_(rn), is_offset_imm_(true), offset_imm_(offset) {
+  LdrStr(OpKind opkind, Reg* rd, Reg* rn, int offset, ArmBasicBlock* parent, bool push_back = true)
+      : Instruction(parent, push_back), opkind_(opkind), rd_(rd), rn_(rn), is_offset_imm_(true), offset_imm_(offset) {
     AddUsedInst();
   }
   virtual ~LdrStr();
@@ -308,13 +315,14 @@ class LdrPseudo : public Instruction {
   Reg* rd_;
   std::string literal_;
   int imm_;
-  LdrPseudo(Cond cond, Reg* rd, const std::string& literal, ArmBasicBlock* parent)
-      : Instruction(cond, parent), rd_(rd), is_imm_(false), literal_(literal) {}
-  LdrPseudo(Reg* rd, const std::string& literal, ArmBasicBlock* parent)
-      : Instruction(parent), rd_(rd), is_imm_(false), literal_(literal) {}
-  LdrPseudo(Cond cond, Reg* rd, int imm, ArmBasicBlock* parent)
-      : Instruction(cond, parent), rd_(rd), is_imm_(true), imm_(imm) {}
-  LdrPseudo(Reg* rd, int imm, ArmBasicBlock* parent) : Instruction(parent), rd_(rd), is_imm_(true), imm_(imm) {}
+  LdrPseudo(Cond cond, Reg* rd, const std::string& literal, ArmBasicBlock* parent, bool push_back = true)
+      : Instruction(cond, parent, push_back), rd_(rd), is_imm_(false), literal_(literal) {}
+  LdrPseudo(Reg* rd, const std::string& literal, ArmBasicBlock* parent, bool push_back = true)
+      : Instruction(parent, push_back), rd_(rd), is_imm_(false), literal_(literal) {}
+  LdrPseudo(Cond cond, Reg* rd, int imm, ArmBasicBlock* parent, bool push_back = true)
+      : Instruction(cond, parent, push_back), rd_(rd), is_imm_(true), imm_(imm) {}
+  LdrPseudo(Reg* rd, int imm, ArmBasicBlock* parent, bool push_back = true)
+      : Instruction(parent, push_back), rd_(rd), is_imm_(true), imm_(imm) {}
 
   virtual ~LdrPseudo();
 
