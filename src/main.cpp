@@ -3,6 +3,7 @@
 #include <cstring>
 #include <fstream>
 
+#include "../include/Pass/loop_unroll.h"
 #include "../include/Pass/loop.h"
 #include "../include/Pass/allocate_register.h"
 #include "../include/Pass/arm_liveness_analysis.h"
@@ -121,6 +122,7 @@ int main(int argc, char **argv) {
 #endif
   PassManager pm(module_ptr_addr);
 
+  pm.AddPass<LoopUnroll>(false);
   pm.AddPass<InvariantExtrapolation>(false);
 
   pm.AddPass<ComputeDominance>(false);
