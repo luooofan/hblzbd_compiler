@@ -16,7 +16,7 @@
 namespace ast {
 
 // 若计算成功 返回一个立即数形式的ir::Opn
-void Number::Evaluate(ir::ContextInfo& ctx) { ctx.opn_ = ir::Opn(ir::Opn::Type::Imm, value_, ctx.scope_id_); }
+void Number::Evaluate(ir::ContextInfo& ctx) { ctx.opn_ = ir::Opn(ir::Opn::Type::Imm, value_); }
 
 void Identifier::Evaluate(ir::ContextInfo& ctx) {
   ir::SymbolTableItem* s = nullptr;
@@ -29,7 +29,7 @@ void Identifier::Evaluate(ir::ContextInfo& ctx) {
     ir::SemanticError(line_no_, name_ + ": not const type");
   }
 
-  ctx.opn_ = ir::Opn(ir::Opn::Type::Imm, s->initval_[0], scope_id);
+  ctx.opn_ = ir::Opn(ir::Opn::Type::Imm, s->initval_[0]);
 }
 void ArrayIdentifier::Evaluate(ir::ContextInfo& ctx) {
   ir::SymbolTableItem* s = nullptr;
@@ -53,7 +53,7 @@ void ArrayIdentifier::Evaluate(ir::ContextInfo& ctx) {
     }
   }
 
-  ctx.opn_ = ir::Opn(ir::Opn::Type::Imm, s->initval_[index / 4], scope_id);
+  ctx.opn_ = ir::Opn(ir::Opn::Type::Imm, s->initval_[index / 4]);
 }
 void ConditionExpression::Evaluate(ir::ContextInfo& ctx) { ir::RuntimeError("条件表达式不实现Evaluate函数"); }
 void BinaryExpression::Evaluate(ir::ContextInfo& ctx) {
@@ -93,7 +93,7 @@ void BinaryExpression::Evaluate(ir::ContextInfo& ctx) {
       break;
   }
 
-  ctx.opn_ = ir::Opn(ir::Opn::Type::Imm, res, ctx.scope_id_);
+  ctx.opn_ = ir::Opn(ir::Opn::Type::Imm, res);
 }
 void UnaryExpression::Evaluate(ir::ContextInfo& ctx) {
   int r, res;
@@ -117,7 +117,7 @@ void UnaryExpression::Evaluate(ir::ContextInfo& ctx) {
       break;
   }
 
-  ctx.opn_ = ir::Opn(ir::Opn::Type::Imm, res, ctx.scope_id_);
+  ctx.opn_ = ir::Opn(ir::Opn::Type::Imm, res);
 }
 void FunctionCall::Evaluate(ir::ContextInfo& ctx) {  // 不应该试图对Function调用evaluate函数
   MyAssert(0);

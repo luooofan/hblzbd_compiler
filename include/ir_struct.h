@@ -4,8 +4,8 @@
 #include <string>
 #include <unordered_set>
 
-#include "../include/general_struct.h"
-#include "../include/ir.h"
+#include "./general_struct.h"
+#include "./ir.h"
 class IRBasicBlock;
 class IRFunction;
 
@@ -13,28 +13,33 @@ class IRModule : public Module {
  public:
   // functions: ordered
   std::vector<IRFunction*> func_list_;
+  ir::Scope& global_scope_;
 
  public:
-  IRModule(const std::string& name, ir::Scope& global_scope) : Module(name, global_scope) {}
-  IRModule(ir::Scope& global_scope) : Module(global_scope) {}
+  IRModule(const std::string& name, ir::Scope& global_scope) : Module(name), global_scope_(global_scope) {}
+  IRModule(ir::Scope& global_scope) : global_scope_(global_scope) {}
   virtual ~IRModule() {}
   void EmitCode(std::ostream& out = std::cout);
 };
 
-class IRFunction : public Function {
+class IRFunction {
  public:
+  std::string name_;
+  int arg_num_;
+  int stack_size_;
   // basicblocks: ordered
   std::vector<IRBasicBlock*> bb_list_;
   std::vector<IRFunction*> call_func_list_;
 
  public:
-  IRFunction(const std::string& name, int arg_num, int stack_size) : Function(name, arg_num, stack_size) {}
+  IRFunction(const std::string& name, int arg_num, int stack_size)
+      : name_(name), arg_num_(arg_num), stack_size_(stack_size) {}
   virtual ~IRFunction() {}
   bool IsLeaf() { return call_func_list_.empty(); }
   void EmitCode(std::ostream& out = std::cout);
 };
 
-class IRBasicBlock : public BasicBlock {
+class IRBasicBlock {
  public:
   // all irs
   std::vector<ir::IR*> ir_list_;
@@ -47,8 +52,9 @@ class IRBasicBlock : public BasicBlock {
   std::unordered_set<std::string> def_;
   std::unordered_set<std::string> use_;
   std::unordered_set<std::string> livein_;
-  std::unordered_set<std::string> liveout_; //name+"_#"+(str)scope_id
+  std::unordered_set<std::string> liveout_;
 
+  // std::vector<DAG_node*> node_list_;
 
   // used for ssa
   IRBasicBlock* idom_ = nullptr;          // 直接支配结点 即支配结点树中的父节点

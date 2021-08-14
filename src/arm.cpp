@@ -1,20 +1,33 @@
 #include "../include/arm.h"
 
-#include <cassert>
 #include <unordered_set>
 #define ASSERT_ENABLE
-// assert(res);
-#ifdef ASSERT_ENABLE
-#define MyAssert(res)                                                    \
-  if (!(res)) {                                                          \
-    std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl; \
-    exit(255);                                                           \
-  }
-#else
-#define MyAssert(res) ;
-#endif
+#include "../include/myassert.h"
+
 namespace arm {
-std::unordered_set<std::string> gAllLabel;
+
+Cond GetOppositeCond(Cond cond) {
+  switch (cond) {
+    case Cond::AL:
+      return Cond::AL;
+    case Cond::EQ:
+      return Cond::NE;
+    case Cond::NE:
+      return Cond::EQ;
+    case Cond::GT:
+      return Cond::LE;
+    case Cond::GE:
+      return Cond::LT;
+    case Cond::LT:
+      return Cond::GE;
+    case Cond::LE:
+      return Cond::GT;
+    default:
+      MyAssert(0);
+      break;
+  }
+}
+
 std::string CondToString(Cond cond) {
   switch (cond) {
     case Cond::AL:
@@ -38,6 +51,38 @@ std::string CondToString(Cond cond) {
   return "";
 }
 
+Shift::operator std::string() {
+  std::string opcode = "";
+  switch (opcode_) {
+    case OpCode::ASR:
+      opcode = "asr";
+      break;
+    case OpCode::LSL:
+      opcode = "lsl";
+      break;
+    case OpCode::LSR:
+      opcode = "lsr";
+      break;
+    case OpCode::ROR:
+      opcode = "ror";
+      break;
+    case OpCode::RRX:
+      return "rrx";
+    default:
+      MyAssert(0);
+      break;
+  }
+  if (is_imm_) {
+    return opcode + " #" + std::to_string(shift_imm_);
+  } else {
+    return opcode + " " + std::string(*shift_reg_);
+  }
+}
+
+Operand2::operator std::string() {
+  return is_imm_ ? ("#" + std::to_string(imm_num_))
+                 : (std::string(*reg_) + (nullptr == shift_ || shift_->IsNone() ? "" : ", " + std::string(*shift_)));
+}
 bool Operand2::CheckImm8m(int imm) {
   // NOTE: assign a int to unsigned int
   unsigned int encoding = imm;
@@ -51,14 +96,7 @@ bool Operand2::CheckImm8m(int imm) {
   return false;
 }
 
-BinaryInst::~BinaryInst() {
-  // if(nullptr!=this->rd_){
-  //     delete this->rd_;
-  // }
-  // if(nullptr!=this->rn_){
-
-  // }
-}
+BinaryInst::~BinaryInst() {}
 void BinaryInst::EmitCode(std::ostream& outfile) {
   std::string opcode;
   switch (this->opcode_) {
@@ -125,6 +163,7 @@ void Move::EmitCode(std::ostream& outfile) {
 
 Branch::~Branch() {}
 bool Branch::IsCall() {
+  // 所有的标签都要由.开头
   if (this->has_l_ && this->label_.size() > 0 && this->label_ != "lr" && this->label_[0] != '.') {
     return true;
   } else {
@@ -171,28 +210,24 @@ LdrPseudo::~LdrPseudo() {}
 void LdrPseudo::EmitCode(std::ostream& outfile) {
   // convert ldr-pseudo inst to movw&movt
   // https://community.arm.com/developer/ip-products/processors/b/processors-ip-blog/posts/how-to-load-constants-in-assembly-for-arm-architecture
-  // if (!this->is_imm_) {
-  //   outfile << "\tmov32 " << std::string(*(this->rd_)) + ", " + this->literal_ << std::endl;
-  // } else if (0 == this->imm_) {
-  //   outfile << "\tmovw " << std::string(*(this->rd_)) + ", #0" << std::endl;
-  // } else {
-  //   if (0 != (this->imm_ & 0xFFFF)) {
-  //     outfile << "\tmovw " << std::string(*(this->rd_)) + ", #" << std::to_string(this->imm_ & 0xFFFF) <<
-  //     std::endl;
-  //   }
-  //   if (0 != ((this->imm_ >> 16) & 0xFFFF)) {
-  //     outfile << "\tmovt " << std::string(*(this->rd_)) + ", #" << std::to_string((this->imm_ >> 16) & 0xFFFF)
-  //             << std::endl;
-  //   }
-  // }
-  outfile << "\tmov32 " << std::string(*(this->rd_)) << ", "
-          << (this->is_imm_ ? std::to_string(this->imm_) : this->literal_) << std::endl;
+  if (!this->is_imm_) {
+    outfile << "\tmov32 " << CondToString(this->cond_) << ", " << std::string(*(this->rd_)) + ", " << this->literal_
+            << std::endl;
+  } else if (0 == ((this->imm_ >> 16) & 0xFFFF)) {
+    outfile << "\tmovw" << CondToString(this->cond_) << " " << std::string(*(this->rd_)) + ", #"
+            << (this->imm_ & 0xFFFF) << std::endl;
+  } else {
+    outfile << "\tmov32 " << CondToString(this->cond_) << ", " << std::string(*(this->rd_)) + ", " << this->imm_
+            << std::endl;
+  }
+  // outfile << "\tmov32 " << std::string(*(this->rd_)) << ", "
+  //         << (this->is_imm_ ? std::to_string(this->imm_) : this->literal_) << std::endl;
 }
-
 PushPop::~PushPop() {}
 void PushPop::EmitCode(std::ostream& outfile) {
   MyAssert(!this->reg_list_.empty());
   std::string opcode = this->opkind_ == OpKind::PUSH ? "push" : "pop";
+  opcode += CondToString(this->cond_);
   outfile << "\t" << opcode << " { " << std::string(*(this->reg_list_[0]));
   for (auto iter = this->reg_list_.begin() + 1; iter != this->reg_list_.end(); ++iter) {
     outfile << ", " << std::string(**iter);
@@ -202,7 +237,4 @@ void PushPop::EmitCode(std::ostream& outfile) {
 
 }  // namespace arm
 
-#undef MyAssert
-#ifdef ASSERT_ENABLE
 #undef ASSERT_ENABLE
-#endif
