@@ -4,6 +4,8 @@
 #include "../../include/ssa.h"
 #include "../../include/ssa_struct.h"
 #define ASSERT_ENABLE  // enable assert for this file.
+#include <deque>
+
 #include "../../include/myassert.h"
 
 // #define DEBUG_CONVERT_SSA_PROCESS
@@ -509,9 +511,22 @@ SSAModule* ConvertSSA::ConstructSSA(IRModule* module) {
     this->GenerateSSABasicBlocks(func, ssafunc, bb_map);
 
     // for every ir basicblock
-    for (auto bb : func->bb_list_) {
+    // NOTE: 需要保证转化SSA时dom tree未发生变化 每次新填充到glob map和work map中的不能删除 为了之后填充phi结点用
+    std::deque<IRBasicBlock*> q;
+    if (!func->bb_list_.empty()) q.push_back(func->bb_list_.front());
+    while (!q.empty()) {
+      auto bb = q.front();
+      q.pop_front();
       ConstructSSA4BB(bb, ssafunc, bb_map);
+      for (auto dom : bb->doms_) {
+        q.push_back(dom);
+      }
     }
+
+    // for every ir basicblock
+    // for (auto bb : func->bb_list_) {
+    //   ConstructSSA4BB(bb, ssafunc, bb_map);
+    // }
 
     FillPhiInst(func, ssafunc, bb_map);
   }  // end of ir function loop
