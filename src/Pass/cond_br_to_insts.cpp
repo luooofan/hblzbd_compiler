@@ -9,7 +9,8 @@
 // #define DEBUG_CONDBRTOINSTS_PROCESS
 #define OUTPUT_CONDBRTOINSTS_EFFECT
 
-static const int kMaxInstNumInBB = 5;  // [HYPERPARAMETER]
+// NOTE: 限制最大指令数 不过因为mov32汇编宏的存在可能实际上不止4条
+static const int kMaxInstNumInBB = 4;  // [HYPERPARAMETER]
 static int kCount = 0;
 
 void CondBrToInsts::Run() {
@@ -51,10 +52,6 @@ void CondBrToInsts::Run4Func(ArmFunction* func) {
           for (auto next_it = next_bb->inst_list_.begin(); next_it != next_bb->inst_list_.end(); ++next_it) {
             auto inst = *next_it;
             if (inst->cond_ != Cond::AL && inst->cond_ != src_inst->cond_) {
-              can_delete = false;
-              break;
-            }
-            if (dynamic_cast<PushPop*>(inst)) {
               can_delete = false;
               break;
             }
