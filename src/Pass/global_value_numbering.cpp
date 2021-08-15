@@ -1,6 +1,8 @@
 #include "../../include/Pass/global_value_numbering.h"
 
 #include <algorithm>
+#include <queue>
+#include <set>
 #include <string>
 #include <unordered_set>
 
@@ -11,9 +13,12 @@
 #define ASSERT_ENABLE
 #include "../../include/myassert.h"
 
-// #define DEBUG_GVN_PROCESS
+#define DEBUG_GVN_PROCESS
+#define DEBUG_GVN_EFFECT
+static int kCount = 0;
 
 void GlobalValueNumbering::Run() {
+  kCount = 0;
   auto m = dynamic_cast<SSAModule*>(*(this->m_));
   MyAssert(nullptr != m);
   DeadCodeEliminate::FindNoSideEffectFunc(m, no_side_effect_funcs);
@@ -27,15 +32,47 @@ void GlobalValueNumbering::Run() {
 #endif
 
   for (auto func : m->GetFuncList()) {
+    // find back-edge
+    std::set<std::pair<SSABasicBlock*, SSABasicBlock*>> back_edges;
+    for (auto bb : func->GetBasicBlocks()) {
+      auto&& dom_set = bb->GetDomSet();
+      for (auto succ : bb->GetSuccBB()) {
+        if (dom_set.count(succ)) back_edges.insert({bb, succ});
+      }
+    }
+    // find loop and fill bbs_in_loop
+    bbs_in_loop.clear();
+    std::queue<SSABasicBlock*> q;
+    std::unordered_set<SSABasicBlock*> loop;
+    for (auto [st, ed] : back_edges) {
+      MyAssert(q.empty() && loop.empty());
+      loop.insert(ed);
+      q.push(st);
+      while (!q.empty()) {
+        auto front = q.front();
+        q.pop();
+        if (loop.count(front)) continue;
+        loop.insert(front);
+        for (auto pred : front->GetPredBB()) q.push(pred);
+      }
+      bbs_in_loop.insert(loop.begin(), loop.end());
+      loop.clear();
+    }
+    // prepared run for function
     exp_val_vec.clear();
     Run4Func(func);
   }
+
+#ifdef DEBUG_GVN_EFFECT
+  std::cout << "GVN Pass works on " << kCount << " insts" << std::endl;
+#endif
 }
 
 void GlobalValueNumbering::Run4Func(SSAFunction* func) {
 #ifdef DEBUG_GVN_PROCESS
   std::cout << "CommenExpressionEliminate for function: " << func->GetFuncName() << std::endl;
 #endif
+  // if (func->GetFuncName() != "main") return;  // debug for single function in single testcase
 
   if (func->GetBBList().size() > 0) CommenExpressionEliminate(func->GetBBList().front());
 }
@@ -84,6 +121,7 @@ void GlobalValueNumbering::CommenExpressionEliminate(SSABasicBlock* bb) {
       }
     };
     auto replace = [&bb, &it](Value* src, Value* target) {
+      ++kCount;
 #ifdef DEBUG_GVN_PROCESS
       std::cout << "  find redundant: ";
       src->Print(std::cout);
@@ -211,6 +249,8 @@ void GlobalValueNumbering::CommenExpressionEliminate(SSABasicBlock* bb) {
       auto check = [this, &check_inst_range](SSAInstruction* source, LoadInst* target) {
         // 检查从source指令开始到target指定的所有路径上有没有对同一块内存区域的store语句或者对副作用函数的调用语句
         // source可能是load或store target一定是load
+        // source->Print(std::cout);
+        // target->Print(std::cout);
         auto source_bb = source->GetParent();
         auto target_bb = target->GetParent();
         // 1 if source and target in the same bb
@@ -223,35 +263,64 @@ void GlobalValueNumbering::CommenExpressionEliminate(SSABasicBlock* bb) {
         // 2 in different bbs
         // NOTE: 好像会导致更多的溢出 禁用 等决赛可以取消禁用提交一次
         else {
-          return false;
+          // return false;
           // 2.1 check source bb
           auto src_inst_list = source_bb->GetInstList();
           if (!check_inst_range(++std::find(src_inst_list.begin(), src_inst_list.end(), source), src_inst_list.end(),
                                 target))
             return false;
+          // std::cout << 1 << std::endl;
           // 2.2 check target bb
           auto tar_inst_list = target_bb->GetInstList();
           if (!check_inst_range(tar_inst_list.begin(), std::find(tar_inst_list.begin(), tar_inst_list.end(), target),
                                 target))
             return false;
-          // 2.3 dfs all road
-          // dfs get all roads
+          // std::cout << 2 << std::endl;
+          // 2.3 check all reached bb in road
+          std::unordered_set<SSABasicBlock*> src_reach;
+          std::unordered_set<SSABasicBlock*> tar_reach;
+          std::queue<SSABasicBlock*> q;
           std::unordered_set<SSABasicBlock*> vis;
-          std::vector<SSABasicBlock*> road;
-          std::vector<std::vector<SSABasicBlock*>> roads;
-          GetAllRoads(source_bb, target_bb, road, roads, vis);
-          // check all roads
-          std::unordered_set<SSABasicBlock*> check_true_bbs;
-          for (auto& road : roads) {
-            for (auto bb : road) {
-              if (check_true_bbs.count(bb)) continue;
-              auto inst_list = bb->GetInstList();
-              if (!check_inst_range(inst_list.begin(), inst_list.end(), target))
-                return false;
-              else
-                check_true_bbs.insert(bb);
+          auto dfs = [&q, &vis](std::unordered_set<SSABasicBlock*>& reach, bool succ = true) {
+            while (!q.empty()) {
+              auto front = q.front();
+              reach.insert(front);
+              q.pop();
+              for (auto next_bb : (succ ? front->GetSuccBB() : front->GetPredBB())) {
+                if (vis.count(next_bb)) continue;
+                q.push(next_bb);
+                vis.insert(next_bb);
+              }
             }
+            vis.clear();
+          };
+
+          // 2.3.1 fill src_reach
+          q.push(source_bb);
+          vis.insert(source_bb);
+          dfs(src_reach, true);
+
+          // 2.3.2 fill tar_reach
+          q.push(target_bb);
+          vis.insert(target_bb);
+          dfs(tar_reach, false);
+
+          // 2.3.3 compute cross set
+          std::unordered_set<SSABasicBlock*> reached_bb;
+          for (auto reach_bb : src_reach)
+            if (tar_reach.count(reach_bb)) reached_bb.insert(reach_bb);
+
+          // 2.3.4 determine source_bb and target_bb whether in road or not(just end point).
+          if (!bbs_in_loop.count(source_bb)) reached_bb.erase(source_bb);
+          if (!bbs_in_loop.count(target_bb)) reached_bb.erase(target_bb);
+
+          // 2.3.5 check all bbs in road
+          for (auto bb : reached_bb) {
+            auto inst_list = bb->GetInstList();
+            if (!check_inst_range(inst_list.begin(), inst_list.end(), target)) return false;
           }
+
+          // std::cout << 3 << std::endl;
           return true;
         }
       };
@@ -297,28 +366,6 @@ void GlobalValueNumbering::CommenExpressionEliminate(SSABasicBlock* bb) {
   exp_val_vec.erase(exp_val_vec.begin() + src_vec_size, exp_val_vec.end());
 }
 
-void GlobalValueNumbering::GetAllRoads(SSABasicBlock* source, SSABasicBlock* target, std::vector<SSABasicBlock*>& road,
-                                       std::vector<std::vector<SSABasicBlock*>>& roads,
-                                       std::unordered_set<SSABasicBlock*>& vis) {
-  // source一定没有被访问过
-  MyAssert(!vis.count(source));
-
-  if (source == target) {
-    roads.push_back(road);
-    return;
-  }
-
-  road.push_back(source);
-  vis.insert(source);
-  for (auto succ : source->GetSuccBB()) {
-    if (vis.count(succ)) continue;
-    GetAllRoads(succ, target, road, roads, vis);
-  }
-  vis.erase(source);
-  road.pop_back();
-  return;
-}
-
 GlobalValueNumbering::Expression::operator std::string() const {
   std::string res = "";
   for (auto opn : operands_) {
@@ -332,13 +379,13 @@ GlobalValueNumbering::Expression::operator std::string() const {
 }
 
 void GlobalValueNumbering::DFS(std::vector<SSABasicBlock*>& po, std::unordered_set<SSABasicBlock*>& vis,
-                               SSABasicBlock* bb) {
+                               SSABasicBlock* bb, bool succ) {
   MyAssert(nullptr != bb);
   if (vis.find(bb) == vis.end()) {
     vis.insert(bb);
-    for (auto succ : bb->GetSuccBB()) {
-      MyAssert(nullptr != succ);
-      DFS(po, vis, succ);
+    for (auto next_bb : (succ ? bb->GetSuccBB() : bb->GetPredBB())) {
+      MyAssert(nullptr != next_bb);
+      DFS(po, vis, next_bb);
     }
     po.push_back(bb);
   }

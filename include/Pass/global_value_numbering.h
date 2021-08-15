@@ -21,10 +21,9 @@ class GlobalValueNumbering : public Transform {
   void CommenExpressionEliminate(SSABasicBlock* bb);
 
   // actually useless
-  static void DFS(std::vector<SSABasicBlock*>& po, std::unordered_set<SSABasicBlock*>& vis, SSABasicBlock* bb);
+  static void DFS(std::vector<SSABasicBlock*>& po, std::unordered_set<SSABasicBlock*>& vis, SSABasicBlock* bb,
+                  bool succ = true);
   static std::vector<SSABasicBlock*> ComputeRPO(SSAFunction* func);
-  static void GetAllRoads(SSABasicBlock* source, SSABasicBlock* target, std::vector<SSABasicBlock*>& road,
-                          std::vector<std::vector<SSABasicBlock*>>& roads, std::unordered_set<SSABasicBlock*>& vis);
 
  private:
   // 一个Value唯一标识一个值(except ConstantInt) 所以Value*可作为number 不必真正地编号
@@ -63,6 +62,7 @@ class GlobalValueNumbering : public Transform {
   };
 
   std::unordered_set<SSAFunction*> no_side_effect_funcs;
+  std::unordered_set<SSABasicBlock*> bbs_in_loop;
   std::vector<std::pair<Expression, Value*>> exp_val_vec;
 };
 

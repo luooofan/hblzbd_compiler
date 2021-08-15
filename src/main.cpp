@@ -136,7 +136,7 @@ int main(int argc, char **argv) {
 
   // ==================Add Quad-Pass Below==================
   // pm.AddPass<ReachDefine>(false);
-  pm.AddPass<ConstantPropagation>(false);
+  pm.AddPass<ConstantPropagation>(true);
   pm.AddPass<LoopUnroll>(true);
   pm.AddPass<InvariantExtrapolation>(true);
   // ==================Add Quad-Pass Above==================
