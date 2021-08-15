@@ -9,6 +9,9 @@
 
 using namespace std;
 
+// 展开次数
+const int TIME=12;
+
 map<IRBasicBlock*,int> bb_id;
 map<int,IRBasicBlock*> id_bb;
 
@@ -46,21 +49,24 @@ vector<IRBasicBlock*> cross(vector<IRBasicBlock*> a,vector<IRBasicBlock*> b)
     return res;
 }
 
-int find_max_label(IRFunction* func)
+int find_max_label(IRModule* irmodule)
 {
     int mx=0;
-    for(auto& bb:func->bb_list_)
+    for(auto& func:irmodule->func_list_)
     {
-        for(auto& ir:bb->ir_list_)
+        for(auto& bb:func->bb_list_)
         {
-            if(ir->op_==ir::IR::OpKind::LABEL)
+            for(auto& ir:bb->ir_list_)
             {
-                string tmp=ir->opn1_.name_;
-                if(*tmp.begin()=='.')
+                if(ir->op_==ir::IR::OpKind::LABEL)
                 {
-                    for(int i=0;i<6;i++)tmp.erase(tmp.begin());
-                    if(*tmp.begin()=='-')continue; // 说明是循环不变量外提写的
-                    mx=max(mx,stoi(tmp)); // find_max_label在add_scope_id前
+                    string tmp=ir->opn1_.name_;
+                    if(*tmp.begin()=='.')
+                    {
+                        for(int i=0;i<6;i++)tmp.erase(tmp.begin());
+                        if(*tmp.begin()=='-')continue; // 说明是循环不变量外提写的
+                        mx=max(mx,stoi(tmp)); // find_max_label在add_scope_id前
+                    }
                 }
             }
         }
@@ -68,24 +74,27 @@ int find_max_label(IRFunction* func)
     return mx;
 }
 
-int find_max_temp(IRFunction* func)
+int find_max_temp(IRModule* irmodule)
 {
     int mx=0;
-    for(auto& bb:func->bb_list_)
+    for(auto& func:irmodule->func_list_)
     {
-        for(auto& ir:bb->ir_list_)
+        for(auto& bb:func->bb_list_)
         {
-            vector<ir::Opn*> tmp;
-            tmp.push_back(&ir->opn1_);
-            tmp.push_back(&ir->opn2_);
-            tmp.push_back(&ir->res_);
-            for(auto opn:tmp)
+            for(auto& ir:bb->ir_list_)
             {
-                if(opn->type_==ir::Opn::Type::Var && find(opn->name_.begin(),opn->name_.end(),'-')!=opn->name_.end())
+                vector<ir::Opn*> tmp;
+                tmp.push_back(&ir->opn1_);
+                tmp.push_back(&ir->opn2_);
+                tmp.push_back(&ir->res_);
+                for(auto opn:tmp)
                 {
-                    string name=opn->name_;
-                    for(int i=0;i<4;i++)name.erase(name.begin());
-                    mx=max(mx,stoi(name));
+                    if(opn->type_==ir::Opn::Type::Var && find(opn->name_.begin(),opn->name_.end(),'-')!=opn->name_.end())
+                    {
+                        string name=opn->name_;
+                        for(int i=0;i<=4;i++)name.erase(name.begin());
+                        mx=max(mx,stoi(name));
+                    }
                 }
             }
         }
@@ -233,10 +242,16 @@ vector<ir::Opn*> find_basicvar(ir::Opn* var,IRBasicBlock* bb)
 
 void LoopUnroll::Run()
 {
+    int CNT=0;
+
     IRModule* irmodule=dynamic_cast<IRModule*>(*m_);
+
+    int label=find_max_label(irmodule);
+    int temp=find_max_temp(irmodule);
 
     for(int func_id=0;func_id<irmodule->func_list_.size();func_id++)
     {
+
         auto& func=irmodule->func_list_[func_id];
         auto& bb_list=func->bb_list_;
 
@@ -258,9 +273,7 @@ void LoopUnroll::Run()
         //     for(auto& suc:bb->succ_)cout<<bb_id[suc]<<" ";
         //     cout<<endl;
         // }
-        
-        int label=find_max_label(func);
-        int temp=find_max_temp(func);
+
         add_scope_id(func);
 
         // cout<<"输出当前函数IR(添加作用域后):"<<func->name_<<endl;
@@ -344,7 +357,7 @@ void LoopUnroll::Run()
             if(!(change1.size()==2 && change2.size()==0) && !(change1.size()==0 && change2.size()==2))continue; // 这里后续可以改，这里限制死了，i只能是i=i op c,n不能有定值
 
             if(change1.size()==0)swap(change1,change2),swap(op1,op2);
-            
+
             ir::IR* cal_ir;
             for(int i=0;i<loop[1]->ir_list_.size();i++)
             {
@@ -355,6 +368,8 @@ void LoopUnroll::Run()
                 }
             }
             if(cal_ir==nullptr)continue;
+
+            if(cal_ir->op_!=ir::IR::OpKind::ADD && cal_ir->op_!=ir::IR::OpKind::SUB)continue;
 
             // cout<<"输出找到的那句IR:"<<endl;
             // cal_ir->PrintIR();
@@ -397,6 +412,10 @@ void LoopUnroll::Run()
             if(cal_ir->opn1_.name_==op1->name_)c=&cal_ir->opn2_;
             else c=&cal_ir->opn1_;
 
+            if(op2->type_==ir::Opn::Type::Imm && c->type_==ir::Opn::Type::Imm &&
+               (long long)op2->imm_num_+(TIME-1)*(long long) c->imm_num_ >2147483647ll )
+                continue;
+
             // cout<<"输出i+c的那个c:"<<endl;
             // cout<<c->name_<<endl;
 
@@ -414,16 +433,39 @@ void LoopUnroll::Run()
             {
                 for(auto ir:loop[i]->ir_list_)
                 {
-                    ir::IR* new_ir=new ir::IR(ir->op_,ir->opn1_,ir->opn2_,ir->res_);
+                    vector<ir::Opn> tmp;
+                    tmp.push_back(ir->opn1_),tmp.push_back(ir->opn2_),tmp.push_back(ir->res_);
+                    for(auto& opn:tmp)
+                    {
+                        if(opn.type_==ir::Opn::Type::Array)
+                        {
+                            ir::Opn* off=opn.offset_;
+                            ir::Opn* new_off;
+                            if(off->type_==ir::Opn::Type::Var)
+                                new_off=new ir::Opn(off->type_,off->name_,off->scope_id_);
+                            else
+                                new_off=new ir::Opn(off->type_,off->imm_num_);
+                            opn.offset_=new_off;
+                        }
+                    }
+                    ir::IR* new_ir=new ir::IR(ir->op_,tmp[0],tmp[1],tmp[2]);
                     new_loop[i]->ir_list_.push_back(new_ir);
                 }
             }
 
-            // 如果是ADD，则i<n变i<n-c
+
+            ir::Opn* new_temp1=new ir::Opn(ir::Opn::Type::Var,"temp-"+to_string(++temp)+"_#"+to_string(scope_id),scope_id);
+            ir::Opn* new_temp2=new ir::Opn(ir::Opn::Type::Imm,TIME-1);
+            ir::IR* new_ir=new ir::IR(ir::IR::OpKind::MUL,*c,*new_temp2,*new_temp1);
+
+            auto it=loop[0]->ir_list_.end();
+            loop[0]->ir_list_.insert(--it,new_ir);
+
+            // 如果是ADD，则i<n变i<n-TIME*c
             if(cal_ir->op_==ir::IR::OpKind::ADD)
             {
                 ir::Opn* new_temp=new ir::Opn(ir::Opn::Type::Var,"temp-"+to_string(++temp)+"_#"+to_string(scope_id),scope_id);
-                ir::IR* new_ir=new ir::IR(ir::IR::OpKind::SUB,*op2,*c,*new_temp);
+                ir::IR* new_ir=new ir::IR(ir::IR::OpKind::SUB,*op2,*new_temp1,*new_temp);
 
                 auto it=loop[0]->ir_list_.end();
                 loop[0]->ir_list_.insert(--it,new_ir);
@@ -432,10 +474,10 @@ void LoopUnroll::Run()
                 else
                     loop[0]->ir_list_[loop[0]->ir_list_.size()-1]->opn1_=*new_temp;
             }
-            else // SUB，i<n变i<n+c
+            else // SUB，i<n变i<n+TIME*c
             {
                 ir::Opn* new_temp=new ir::Opn(ir::Opn::Type::Var,"temp-"+to_string(++temp)+"_#"+to_string(scope_id),scope_id);
-                ir::IR* new_ir=new ir::IR(ir::IR::OpKind::ADD,*op2,*c,*new_temp);
+                ir::IR* new_ir=new ir::IR(ir::IR::OpKind::ADD,*op2,*new_temp1,*new_temp);
 
                 auto it=loop[0]->ir_list_.end();
                 loop[0]->ir_list_.insert(--it,new_ir);
@@ -444,12 +486,6 @@ void LoopUnroll::Run()
                 else
                     loop[0]->ir_list_[loop[0]->ir_list_.size()-1]->opn1_=*new_temp;
             }
-
-            // cout<<"输出新的循环条件:"<<endl;
-            // cout<<"B"<<bb_id[loop[0]]<<":"<<endl;
-            // for(auto& ir:loop[0]->ir_list_)ir->PrintIR();
-
-
 
             // cout<<"输出新的循环:"<<endl;
             // for(auto& bb:new_loop)
@@ -474,6 +510,7 @@ void LoopUnroll::Run()
             new_loop[0]->succ_.push_back(new_loop[1]),new_loop[1]->pred_.push_back(new_loop[0]);
             new_loop[1]->succ_.push_back(new_loop[0]),new_loop[0]->pred_.push_back(new_loop[1]);
             
+            // bb_list.push_back(new_loop[0]),bb_list.push_back(new_loop[1]);
             auto insert_it=find(bb_list.begin(),bb_list.end(),loop[1]);
             insert_it++;
             bb_list.insert(insert_it,new_loop[0]);
@@ -482,14 +519,68 @@ void LoopUnroll::Run()
             bb_list.insert(insert_it,new_loop[1]);
 
             int tmp=loop[1]->ir_list_.size()-1;
-            for(int i=0;i<tmp;i++)
+            for(int time=1;time<TIME;time++)
             {
-                auto tail=loop[1]->ir_list_.end();
-                --tail;
-                auto ir=loop[1]->ir_list_[i];
-                ir::IR* new_ir=new ir::IR(ir->op_,ir->opn1_,ir->opn2_,ir->res_);
-                loop[1]->ir_list_.insert(tail,new_ir);
+                for(int i=0;i<tmp;i++)
+                {
+                    auto tail=loop[1]->ir_list_.end();
+                    --tail;
+                    auto ir=loop[1]->ir_list_[i];
+                    auto op1=ir->opn1_,op2=ir->opn2_,res=ir->res_;
+                    vector<ir::Opn> tmp;
+                    tmp.push_back(op1),tmp.push_back(op2),tmp.push_back(res);
+                    for(auto& t:tmp)
+                    {
+                        if(t.type_==ir::Opn::Type::Array)
+                        {
+                            auto off=t.offset_;
+                            ir::Opn* new_off;
+                            if(off->type_==ir::Opn::Type::Var)
+                                new_off=new ir::Opn(off->type_,off->name_,off->scope_id_);
+                            else
+                                new_off=new ir::Opn(off->type_,off->imm_num_);
+                            t.offset_=new_off;
+                        }
+                    }
+                    ir::IR* new_ir=new ir::IR(ir->op_,tmp[0],tmp[1],tmp[2]);
+                    loop[1]->ir_list_.insert(tail,new_ir);
+                }
             }
+
+            // IRBasicBlock* old_body=loop[1];
+            // IRBasicBlock* new_body=new IRBasicBlock();
+            // for(int i=0;i<TIME;i++)
+            // {
+            //     for(int j=0;j<old_body->ir_list_.size()-1;j++)
+            //     {
+            //         auto ir=loop[1]->ir_list_[j];
+            //         auto op1=ir->opn1_,op2=ir->opn2_,res=ir->res_;
+            //         vector<ir::Opn> tmp;
+            //         tmp.push_back(op1),tmp.push_back(op2),tmp.push_back(res);
+            //         for(auto& t:tmp)
+            //         {
+            //             if(t.type_==ir::Opn::Type::Array)
+            //             {
+            //                 auto off=t.offset_;
+            //                 ir::Opn* new_off;
+            //                 if(off->type_==ir::Opn::Type::Var)
+            //                     new_off=new ir::Opn(off->type_,off->name_,off->scope_id_);
+            //                 else
+            //                     new_off=new ir::Opn(off->type_,off->imm_num_);
+            //                 t.offset_=new_off;
+            //             }
+            //         }
+            //         ir::IR* new_ir=new ir::IR(ir->op_,tmp[0],tmp[1],tmp[2]);
+            //         new_body->ir_list_.push_back(new_ir);
+            //     }
+            // }
+            // cout<<"输出new body IR:"<<endl;
+            // for(auto ir:new_body->ir_list_)ir->PrintIR();
+
+            // new_body->ir_list_.push_back(old_body->ir_list_[old_body->ir_list_.size()-1]);
+            // old_body=new_body;
+
+            ++CNT;
 
             // cout<<"再次输出新的循环:"<<endl;
             // for(auto& bb:new_loop)
@@ -537,4 +628,5 @@ void LoopUnroll::Run()
     //         for(auto ir:bb->ir_list_)ir->PrintIR();
     //     }
     // }
+    cout<<"展开了"<<CNT<<"个循环"<<endl;
 }

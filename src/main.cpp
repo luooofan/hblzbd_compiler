@@ -134,28 +134,28 @@ int main(int argc, char **argv) {
 
   // ==================Add Quad-Pass Below==================
   pm.AddPass<LoopUnroll>(false);
-  // pm.AddPass<InvariantExtrapolation>(false);
+  pm.AddPass<InvariantExtrapolation>(false);
   // ==================Add Quad-Pass Above==================
   pm.AddPass<SimplifyCFG>(false);  // necessary
   pm.AddPass<ComputeDominance>(false);
   pm.AddPass<ConvertSSA>(true);
   // ==================Add SSA-Pass Below==================
-  // pm.AddPass<DeadCodeEliminate>(false);
-  // pm.AddPass<SimpleOptimize>(false);
-  // pm.AddPass<SimpleOptimize>(false);
-  // pm.AddPass<DeadCodeEliminate>(false);
-  // pm.AddPass<GlobalValueNumbering>(true);  // actually redundant common expression eliminate
+  pm.AddPass<DeadCodeEliminate>(false);
+  pm.AddPass<SimpleOptimize>(false);
+  pm.AddPass<SimpleOptimize>(false);
+  pm.AddPass<DeadCodeEliminate>(false);
+  pm.AddPass<GlobalValueNumbering>(true);  // actually redundant common expression eliminate
   // ==================Add SSA-Pass Above==================
   pm.AddPass<GenerateArmFromSSA>(true);  // define macro control MUL_TO_SHIFT optimize
   // ==================Add Arm(vreg)-Pass Below==================
-  // pm.AddPass<SimplifyArm>(true);
-  // pm.AddPass<IfToCond>(true);
+  pm.AddPass<SimplifyArm>(true);
+  pm.AddPass<IfToCond>(true);
   // ==================Add Arm(vreg)-Pass Above==================
   pm.AddPass<RegAlloc>(false);
   pm.AddPass<SPOffsetFixup>(true);
   // ==================Add Arm-Pass Below==================
-  // pm.AddPass<SimplifyArm>(false);
-  // pm.AddPass<IfToCond>(true);
+  pm.AddPass<SimplifyArm>(false);
+  pm.AddPass<IfToCond>(true);
   // ==================Add Arm-Pass Above==================
   if (logfile.is_open()) {
     pm.Run(PASS_LOG, logfile);
