@@ -125,7 +125,7 @@ int main(int argc, char **argv) {
   // it represents IRModule before GenerateArm Pass and ArmModule after GenerateArm Pass.
   // the source space will be released when running GenerateArm Pass.
   Module *module_ptr = static_cast<Module *>(ConstructModule(std::string(src)));
-  module_ptr->EmitCode(std::cout);
+  // module_ptr->EmitCode(std::cout);
   Module **const module_ptr_addr = &module_ptr;
 
 #ifdef DEBUG_PROCESS
@@ -134,7 +134,7 @@ int main(int argc, char **argv) {
   PassManager pm(module_ptr_addr);
   // ==================Add Quad-Pass Below==================
   // pm.AddPass<ReachDefine>(false);
-  pm.AddPass<ConstantPropagation>(true);
+  pm.AddPass<ConstantPropagation>(false);
   pm.AddPass<InvariantExtrapolation>(false);
   // ==================Add Quad-Pass Above==================
   pm.AddPass<SimplifyCFG>(false);  // necessary
@@ -142,10 +142,11 @@ int main(int argc, char **argv) {
   pm.AddPass<ConvertSSA>(true);
   // ==================Add SSA-Pass Below==================
   pm.AddPass<DeadCodeEliminate>(false);
-  pm.AddPass<SimpleOptimize>(false);
-  pm.AddPass<SimpleOptimize>(false);
+  pm.AddPass<SimpleOptimize>(true);
   pm.AddPass<DeadCodeEliminate>(false);
   pm.AddPass<GlobalValueNumbering>(true);  // actually redundant common expression eliminate
+  pm.AddPass<SimpleOptimize>(true);
+  pm.AddPass<DeadCodeEliminate>(false);
   // ==================Add SSA-Pass Above==================
   pm.AddPass<GenerateArmFromSSA>(true);  // define macro control MUL_TO_SHIFT DIV_TO_SHIFT MOD_TO_AND optimize
   // ==================Add Arm(vreg)-Pass Below==================
