@@ -82,7 +82,7 @@ void ReachDefine::Run(){
   }
 
   for (auto func : m->func_list_){
-    std::cout << "analysis func:" << func->name_ << std::endl;
+    // std::cout << "analysis func:" << func->name_ << std::endl;
     Run4Func(func);
   }
 

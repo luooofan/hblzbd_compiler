@@ -21,6 +21,7 @@
 #include "../include/Pass/reach_define.h"
 #include "../include/Pass/constant_propagation.h"
 #include "../include/Pass/ssa_simple_optimize.h"
+#include "../include/Pass/dead_function_eliminate.h"
 #include "../include/arm.h"
 #include "../include/arm_struct.h"
 #include "../include/ast.h"
@@ -136,6 +137,7 @@ int main(int argc, char **argv) {
   PassManager pm(module_ptr_addr);
   // ==================Add Quad-Pass Below==================
   pm.AddPass<ConstantPropagation>(false);
+  pm.AddPass<DeadFunctionEliminate>(true);
   // pm.AddPass<DeadCodeEliminate>(false);
   // pm.AddPass<BasicBlockOptimize>(false);
   // pm.AddPass<ReachDefine>(false);
