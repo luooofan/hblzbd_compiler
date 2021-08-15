@@ -7,7 +7,7 @@
 #include "../../include/myassert.h"
 
 // #define DEBUG_SIMPLE_OPTIMIZE_PROCESS
-#define DEBUG_SIMPLE_OPTIMIZE_EFFECT
+// #define DEBUG_SIMPLE_OPTIMIZE_EFFECT
 static int kCount = 0;
 
 void SimpleOptimize::Run() {
