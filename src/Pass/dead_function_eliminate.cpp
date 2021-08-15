@@ -7,7 +7,10 @@
 #include <algorithm>
 
 // #define PRINT_DEAD_RET_FUNCTION
+// #define PRINT_FUNCTABLE
+// #define PRINT_DEBUG
 // #define PRINT_CALL_IR
+// #define PRINT_ALL_INT_FUNCTION
 
 void print_set(std::unordered_set<std::string> func_set){
   for(auto name : func_set){
@@ -48,6 +51,18 @@ void DeadFunctionEliminate::Run(){
 
   std::unordered_set<std::string> dead_ret_function;
 
+  for(auto func_item : ir::gFuncTable){
+    if(func_item.second.ret_type_ == INT && func_item.first != "main"){
+      dead_ret_function.insert(func_item.first);
+    } 
+  }
+
+// #ifdef PRINT_ALL_INT_FUNCTION
+//   for(auto func_name : dead_ret_function){
+//     std::cout << func_name << std::endl;
+//   }
+// #endif
+
   for(auto func : m->func_list_){
     for(auto bb : func->bb_list_){
       for(auto ir : bb->ir_list_){
@@ -57,10 +72,20 @@ void DeadFunctionEliminate::Run(){
 #endif
           auto func_table_item = ir::gFuncTable[ir->opn1_.name_];
           if(func_table_item.ret_type_ == INT){
+#ifdef PRINT_DEBUG
             if(!isLiveness(bb, ir, ir->res_)){
-              dead_ret_function.insert(ir->opn1_.name_);
+              ir->PrintIR();
+              printf("/*********   不活跃，可以删除\n");
             }else if(dead_ret_function.find(ir->opn1_.name_) != dead_ret_function.end()){
+              ir->PrintIR();
+              printf("/*********   活跃，不可以删除\n");
+            }
+#endif
+            if(!isLiveness(bb, ir, ir->res_)){
+
+            }else{
               dead_ret_function.erase(ir->opn1_.name_);
+              // std::cout << ir->opn1_.name_ << std::endl;
             }
           }
         }
@@ -86,6 +111,10 @@ void DeadFunctionEliminate::Run(){
       }
     }
   }
+
+#ifdef PRINT_FUNCTABLE
+  ir::PrintFuncTable();
+#endif
 }
 
 
