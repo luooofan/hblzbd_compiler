@@ -38,6 +38,7 @@ DAG_node* createOpnNode(ir::Opn* opn){
     default:
       break;
   }
+  return nullptr;
 }
 
 bool isSameOpn(ir::Opn opn, DAG_node *node){
