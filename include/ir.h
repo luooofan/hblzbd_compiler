@@ -124,7 +124,7 @@ class IR {
     PHI,      //
     ALLOCA,   //
     DECLARE,  // 函数参数声明
-    // OFFSET_ASSIGN,  // []=
+    OFFSET_ASSIGN,  // []=     NOTE: 这个操作只会用于生成DAG的时候，在最终由DAG重构得到的四元式中不会出现该操作
   };
   OpKind op_;
   Opn opn1_, opn2_, res_;

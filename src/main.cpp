@@ -14,6 +14,9 @@
 #include "../include/Pass/pass_manager.h"
 #include "../include/Pass/simplify_armcode.h"
 #include "../include/Pass/simplify_cfg.h"
+#include "../include/Pass/basic_block_optimize.h"
+#include "../include/Pass/reach_define.h"
+#include "../include/Pass/constant_propagation.h"
 #include "../include/arm.h"
 #include "../include/arm_struct.h"
 #include "../include/ast.h"
@@ -124,8 +127,11 @@ int main(int argc, char **argv) {
 #endif
   PassManager pm(module_ptr_addr);
   // ==================Add Quad-Pass Below==================
+  pm.AddPass<ConstantPropagation>(false);
   pm.AddPass<MXD>(false);
   // pm.AddPass<DeadCodeEliminate>(false);
+  // pm.AddPass<BasicBlockOptimize>(false);
+  // pm.AddPass<ReachDefine>(false);
   // ==================Add Quad-Pass Above==================
   pm.AddPass<SimplifyCFG>(false);  // necessary
   pm.AddPass<ComputeDominance>(false);

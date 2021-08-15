@@ -29,12 +29,12 @@ DAG_node* createOpnNode(ir::Opn* opn){
       node = new DAG_node(DAG_node::Type::Null);
       return node;
       break;
-    case ir::Opn::Type::Array:
-      node = new DAG_node(DAG_node::Type::Array, opn->name_, opn->scope_id_);
-      DAG_node *offset_node = createOpnNode(opn->offset_);
-      node->offset_ = offset_node;
-      return node;
-      break;
+    // case ir::Opn::Type::Array:
+    //   node = new DAG_node(DAG_node::Type::Array, opn->name_, opn->scope_id_);
+    //   DAG_node *offset_node = createOpnNode(opn->offset_);
+    //   node->offset_ = offset_node;
+    //   return node;
+    //   break;
     default:
       break;
   }
@@ -209,7 +209,7 @@ void DAG_analysis::Run4bb(IRBasicBlock *bb){
       // 如果有返回值这需要将返回值加入到call节点的定值变量表中去
       if(ir->res_.type_ != ir::Opn::Type::Null){
         call_node->var_list_.insert(ir->res_.name_ + "_#" + std::to_string(ir->res_.scope_id_));
-      } 
+      }
 
       bb->node_list_.push_back(call_node);
     }else if(ir->op_ == ir::IR::OpKind::RET){
@@ -326,6 +326,45 @@ void DAG_analysis::Run4bb(IRBasicBlock *bb){
   }
 }
 
+void DAG_analysis::replaceOldArray(IRBasicBlock *bb){
+  printf("<<<<<<<<<<<<<<<<<<<< before replace array operation >>>>>>>>>>>>>>>>>>>\n");
+  bb->EmitCode();
+  for(auto iter = bb->ir_list_.begin(); iter != bb->ir_list_.end(); ++iter){
+    auto ir = *iter;
+    ir::IR *opn1_ir = nullptr;
+    ir::IR *opn2_ir = nullptr;
+    ir::IR *res_ir = nullptr;
+    ir::IR *entirety = new ir::IR(ir->op_, ir->opn1_, ir->opn2_, ir->res_); 
+
+    if(ir->opn1_.type_ == ir::Opn::Type::Array){
+      std::string tempopn1 = ir::NewTemp();
+      ir::Opn opn1_var = ir::Opn(ir::Opn::Type::Var, tempopn1, ir->opn1_.scope_id_);
+      opn1_ir = new ir::IR(ir::IR::OpKind::ASSIGN_OFFSET, ir->opn1_, opn1_var);
+      entirety->opn1_ = opn1_var;
+      bb->ir_list_backup_.push_back(opn1_ir);
+    }
+    if(ir->opn2_.type_ == ir::Opn::Type::Array){
+      std::string tempopn2 = ir::NewTemp();
+      ir::Opn opn2_var = ir::Opn(ir::Opn::Type::Var, tempopn2, ir->opn2_.scope_id_);
+      opn2_ir = new ir::IR(ir::IR::OpKind::ASSIGN_OFFSET, ir->opn2_, opn2_var);
+      entirety->opn2_ = opn2_var;
+      bb->ir_list_backup_.push_back(opn2_ir);
+    }
+    if(ir->res_.type_ == ir::Opn::Type::Array){
+      std::string tempres = ir::NewTemp();
+      ir::Opn res_var = ir::Opn(ir::Opn::Type::Var, tempres, ir->res_.scope_id_);
+      res_ir = new ir::IR(ir::IR::OpKind::OFFSET_ASSIGN, res_var, ir->res_);
+      entirety->res_ = res_var;
+    }
+    bb->ir_list_backup_.push_back(entirety);
+    if(nullptr != res_ir){
+      bb->ir_list_backup_.push_back(res_ir);
+    }
+  }
+  printf("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< after replaceing array operation >>>>>>>>>>>>>>>>>>>\n");
+  bb->EmitBackupCode();
+}
+
 void DAG_analysis::Run(){
   auto m = dynamic_cast<IRModule *>(*(this->m_));
 
@@ -333,6 +372,7 @@ void DAG_analysis::Run(){
 
   for(auto func : m->func_list_){
     for(auto bb : func->bb_list_){
+      replaceOldArray(bb);
       Run4bb(bb);
     }
   }

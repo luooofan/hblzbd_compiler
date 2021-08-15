@@ -4,8 +4,9 @@
 #include "pass_manager.h"
 #include "../DAG.h"
 
-class BasicBlockOptimize : Transform{
+class BasicBlockOptimize : public Transform{
 public:
+
 	BasicBlockOptimize(Module **m) : Transform(m) {}
 
 	void Run();

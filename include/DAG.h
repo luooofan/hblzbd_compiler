@@ -66,6 +66,7 @@ public:
   DAG_node* FindSameOpNode(IRBasicBlock *bb, ir::IR *ir);
   DAG_node* FindSameOpnNode(IRBasicBlock *bb, ir::Opn *ir);
   void DeleteVar(IRBasicBlock *bb, std::string var);
+  void replaceOldArray(IRBasicBlock *bb);
 };
 
 #endif
