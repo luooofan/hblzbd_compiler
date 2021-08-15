@@ -22,7 +22,7 @@ void SPOffsetFixup::Fixup4Func(ArmFunction *func) {
 #endif
   // 每一个函数确定了之后 更改push/pop指令 更改add/sub sp sp stack_size指令
   int offset_fixup_diff = func->used_callee_saved_regs.size() * 4 + func->stack_size_;
-  bool is_lr_used = func->used_callee_saved_regs.find((int)ArmReg::lr) != func->used_callee_saved_regs.end();
+  bool is_lr_used = func->used_callee_saved_regs.find(ArmReg::lr) != func->used_callee_saved_regs.end();
 
 #ifdef DEBUG_FIXUP_PROCESS
   std::cout << "Modify Push Pop Start:" << std::endl;
@@ -43,8 +43,8 @@ void SPOffsetFixup::Fixup4Func(ArmFunction *func) {
           }
         } else {
           if (is_lr_used) {  // 把pop lr 改为pop pc
-            MyAssert(pushpop_inst->reg_list_.back()->reg_id_ == (int)ArmReg::lr);
-            pushpop_inst->reg_list_.back()->reg_id_ = (int)ArmReg::pc;
+            MyAssert(pushpop_inst->reg_list_.back()->reg_id_ == ArmReg::lr);
+            pushpop_inst->reg_list_.back()->reg_id_ = ArmReg::pc;
           }
           if (pushpop_inst->reg_list_.empty()) {
             iter = bb->inst_list_.erase(iter);
@@ -53,7 +53,7 @@ void SPOffsetFixup::Fixup4Func(ArmFunction *func) {
           }
           // 此时iter指向原pop指令的下一条指令
           if (!is_lr_used) {  // 不在push中 插入一条 bx lr
-            iter = bb->inst_list_.insert(iter, static_cast<Instruction *>(new Branch(false, true, cond, "lr", bb)));
+            iter = bb->inst_list_.insert(iter, new Branch(false, true, cond, "lr", bb, false));
           }
           continue;
         }
@@ -84,7 +84,7 @@ void SPOffsetFixup::Fixup4Func(ArmFunction *func) {
           // inst_it现在指向了ldr vreg sp op2指令 要把op2改为立即数类型
           auto ldr_inst = dynamic_cast<LdrStr *>(*inst_it);
           MyAssert(nullptr != ldr_inst && !ldr_inst->is_offset_imm_ && nullptr != ldr_inst->offset_ &&
-                   ldr_inst->rn_->reg_id_ == (int)ArmReg::sp && !ldr_inst->offset_->is_imm_ &&
+                   ldr_inst->rn_->reg_id_ == ArmReg::sp && !ldr_inst->offset_->is_imm_ &&
                    ldr_inst->offset_->reg_->reg_id_ == src_inst->rd_->reg_id_);
           // TODO delete src op2
           ldr_inst->offset_ = new Operand2(imm);
@@ -127,7 +127,7 @@ void SPOffsetFixup::Fixup4Func(ArmFunction *func) {
           } else {
             imm = src_inst->op2_->imm_num_;
           }
-          auto pseudo_ldr_inst = static_cast<Instruction *>(new LdrPseudo(Cond::AL, src_inst->rd_, imm, bb));
+          auto pseudo_ldr_inst = new LdrPseudo(Cond::AL, src_inst->rd_, imm, bb);
           inst_it = bb->inst_list_.insert(inst_it, pseudo_ldr_inst);
           // TODO: delete
           // *it = pseudo_ldr_inst;
@@ -157,8 +157,8 @@ void SPOffsetFixup::Fixup4Func(ArmFunction *func) {
           inst_it = bb->inst_list_.erase(inst_it);
           // inst_it现在指向了add或sub sp sp op2指令 要把op2改为立即数类型
           auto addsub_inst = dynamic_cast<BinaryInst *>(*inst_it);
-          MyAssert(nullptr != addsub_inst && addsub_inst->rd_->reg_id_ == (int)ArmReg::sp &&
-                   addsub_inst->rn_->reg_id_ == (int)ArmReg::sp);
+          MyAssert(nullptr != addsub_inst && addsub_inst->rd_->reg_id_ == ArmReg::sp &&
+                   addsub_inst->rn_->reg_id_ == ArmReg::sp);
           // TODO delete src op2
           addsub_inst->op2_ = new Operand2(imm);
           // *it = addsub_inst;  // 之后sp_fixup中会出现addsub指令

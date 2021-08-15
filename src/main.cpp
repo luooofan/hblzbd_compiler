@@ -3,17 +3,17 @@
 #include <cstring>
 #include <fstream>
 
-#include "../include/Pass/loop_unroll.h"
 #include "../include/Pass/allocate_register.h"
-#include "../include/Pass/arm_if_to_cond.h"
 #include "../include/Pass/arm_liveness_analysis.h"
 #include "../include/Pass/arm_offset_fixup.h"
+#include "../include/Pass/cond_br_to_insts.h"
 #include "../include/Pass/convert_ssa.h"
 #include "../include/Pass/dead_code_eliminate.h"
 #include "../include/Pass/dominant.h"
 #include "../include/Pass/generate_arm_from_ssa.h"
 #include "../include/Pass/global_value_numbering.h"
 #include "../include/Pass/loop.h"
+#include "../include/Pass/loop_unroll.h"
 #include "../include/Pass/pass_manager.h"
 #include "../include/Pass/simplify_armcode.h"
 #include "../include/Pass/simplify_cfg.h"
@@ -34,8 +34,8 @@ extern void yyset_lineno(int _line_number);
 // #define DEBUG_PROCESS
 
 bool AST_LOG = false;
-bool IRLIST_LOG = false;
-bool PASS_LOG = true;
+bool IRLIST_LOG = true;
+bool PASS_LOG = false;
 
 #define ASSERT_ENABLE
 #include "../include/myassert.h"
@@ -146,16 +146,16 @@ int main(int argc, char **argv) {
   pm.AddPass<DeadCodeEliminate>(false);
   pm.AddPass<GlobalValueNumbering>(true);  // actually redundant common expression eliminate
   // ==================Add SSA-Pass Above==================
-  pm.AddPass<GenerateArmFromSSA>(true);  // define macro control MUL_TO_SHIFT optimize
+  pm.AddPass<GenerateArmFromSSA>(true);  // define macro control MUL_TO_SHIFT DIV_TO_SHIFT MOD_TO_AND optimize
   // ==================Add Arm(vreg)-Pass Below==================
   pm.AddPass<SimplifyArm>(true);
-  pm.AddPass<IfToCond>(true);
+  pm.AddPass<CondBrToInsts>(true);
   // ==================Add Arm(vreg)-Pass Above==================
-  pm.AddPass<RegAlloc>(false);
+  pm.AddPass<RegAlloc>(true);
   pm.AddPass<SPOffsetFixup>(true);
   // ==================Add Arm-Pass Below==================
   pm.AddPass<SimplifyArm>(false);
-  pm.AddPass<IfToCond>(true);
+  pm.AddPass<CondBrToInsts>(true);
   // ==================Add Arm-Pass Above==================
   if (logfile.is_open()) {
     pm.Run(PASS_LOG, logfile);

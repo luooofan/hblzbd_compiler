@@ -1,4 +1,6 @@
 #include "../../include/Pass/simplify_armcode.h"
+
+#include <algorithm>
 #define ASSERT_ENABLE
 #include "../../include/myassert.h"
 
@@ -25,8 +27,8 @@ void SimplifyArm::Run() {
           // e.g. mov rd, rn LSL #2; add rd2, rn2, rd; -> add rd2, rn2, rn LSL #2
           //      mov rd, rn LSL #2; ldr/str rd2, [rn2, rd]; -> ldr/str rd2, [rn2, rn LSL #2]
           auto mov_rd = src_inst->rd_;
-          if (mov_op2->HasShift() && mov_rd->reg_id_ > 15 &&
-              src_inst->cond_ == Cond::AL) {  // NOTE HERE! 预着色的寄存器可能不只有一次new
+          if (mov_op2->HasShift() && mov_rd->reg_id_ > 15 /*4?*/ &&
+              src_inst->cond_ == Cond::AL) {  // NOTE HERE! 预着色的寄存器可能有其他作用
             bool can_delete = true;
             for (auto used_inst : mov_rd->GetUsedInsts()) {
               // 如果有一条语句不是把它用作一个没有偏移的op2 那么就不执行替换
@@ -55,8 +57,12 @@ void SimplifyArm::Run() {
           if (src_inst->opcode_ == BinaryInst::OpCode::ADD || src_inst->opcode_ == BinaryInst::OpCode::SUB) {
             if (src_inst->op2_->is_imm_ && 0 == src_inst->op2_->imm_num_ && !func->sp_fixup_.count(src_inst)) {
               it = bb->inst_list_.erase(it);
-              it = bb->inst_list_.insert(it, static_cast<Instruction*>(new Move(false, Cond::AL, src_inst->rd_,
-                                                                                new Operand2(src_inst->rn_), bb)));
+              it = bb->inst_list_.insert(
+                  it, new Move(false, Cond::AL, src_inst->rd_, new Operand2(src_inst->rn_), bb, false, false));
+              // new Move(src_inst->rd_, new Operand2(src_inst->rn_), src_inst);
+              // it = std::find(bb->inst_list_.begin(), bb->inst_list_.end(), src_inst);
+              // MyAssert(it != bb->inst_list_.end());
+              // it = bb->inst_list_.erase(it);
               // 继续检查新加的这条mov指令
               continue;
             }

@@ -90,6 +90,7 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
 
       // 把u-v v-u添加到冲突图中 不维护预着色结点的邻接表
       auto add_edge = [&adj_set, &adj_list, &degree](RegId u, RegId v) {
+        // std::cout << "冲突: " << u << " " << v << std::endl;
         if (adj_set.find({u, v}) == adj_set.end() && u != v) {
           adj_set.insert({u, v});
           adj_set.insert({v, u});
@@ -107,6 +108,7 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
       // 根据每个bb中的livein liveout计算每条指令的livein liveout 据此构造冲突图
       auto build = [&]() {
         for (auto bb : func->bb_list_) {
+          // bb->EmitCode(std::cout);
           // live-out[B] is also live-out[B-last-inst]
           auto live = bb->liveout_;
           for (auto inst_iter = bb->inst_list_.rbegin(); inst_iter != bb->inst_list_.rend(); ++inst_iter) {
@@ -449,14 +451,15 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
             spilled_nodes.insert(vreg);
           } else {  // 可分配
             auto color = *std::min_element(ok_colors.begin(), ok_colors.end(), [&](auto a, auto b) {
-              if (!func->IsLeaf()) {
-                // 意味着一定会保存lr 所以能用就用
-                if (a == 14) return true;
-                if (b == 14) return false;
-              }
+              // r0-r3以及r12不用保存 能用就用
               if (a > 3 && b > 3) {
                 if (a == 12) return true;
                 if (b == 12) return false;
+                // r0-r3和r12都不能用的时候 如果该函数不是叶函数 那么能用lr就用lr
+                if (!func->IsLeaf()) {
+                  if (a == 14) return true;
+                  if (b == 14) return false;
+                }
               }
               return a < b;
             });
@@ -464,7 +467,9 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
               used_callee_saved_regs.insert(color);
             }
             colored[vreg] = color;
-            // outfile << "给" << vreg << "结点分配了" << color << std::endl;
+            // #ifdef DEBUG_REGALLOC_PROCESS
+            // std::cout << "给" << vreg << "结点分配了" << color << std::endl;
+            // #endif
           }
         }
 
@@ -614,8 +619,8 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
               // 插入str语句后iter指向str语句 插入ldr语句后iter指向原语句
               Instruction *inst;
               if (LdrStr::CheckImm12(offset)) {
-                inst = static_cast<Instruction *>(new LdrStr(opkind, LdrStr::Type::Norm, Cond::AL, new Reg(new_vreg),
-                                                             new Reg(ArmReg::sp), offset, bb));
+                inst = new LdrStr(opkind, LdrStr::Type::Norm, Cond::AL, new Reg(new_vreg), new Reg(ArmReg::sp), offset,
+                                  bb, false);
                 if (opkind == LdrStr::OpKind::LDR) {
                   return bb->inst_list_.insert(iter, inst) + 1;
                 } else {
@@ -624,17 +629,16 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
               } else {
                 auto vreg = new Reg(func->virtual_reg_max++);
                 if (Operand2::CheckImm8m(offset)) {
-                  inst = static_cast<Instruction *>(new Move(false, Cond::AL, vreg, new Operand2(offset), bb));
+                  inst = new Move(false, Cond::AL, vreg, new Operand2(offset), bb, false, false);
                   // } else if (offset < 0 && Operand2::CheckImm8m(-offset - 1)) {  // mvn
                   //   MyAssert(0);
                   //   inst = static_cast<Instruction *>(new Move(false, Cond::AL, vreg, new Operand2(-offset - 1),
                   //   true));
                 } else {
-                  inst = static_cast<Instruction *>(new LdrPseudo(Cond::AL, vreg, offset, bb));
+                  inst = new LdrPseudo(Cond::AL, vreg, offset, bb, false);
                 }
-                auto inst2 =
-                    static_cast<Instruction *>(new LdrStr(opkind, LdrStr::Type::Norm, Cond::AL, new Reg(new_vreg),
-                                                          new Reg(ArmReg::sp), new Operand2(vreg), bb));
+                auto inst2 = new LdrStr(opkind, LdrStr::Type::Norm, Cond::AL, new Reg(new_vreg), new Reg(ArmReg::sp),
+                                        new Operand2(vreg), bb, false);
                 if (opkind == LdrStr::OpKind::LDR) {
                   iter = bb->inst_list_.insert(iter, inst) + 1;
                   return bb->inst_list_.insert(iter, inst2) + 1;
