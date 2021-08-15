@@ -13,7 +13,7 @@
 #define ASSERT_ENABLE
 #include "../../include/myassert.h"
 
-#define DEBUG_GVN_PROCESS
+// #define DEBUG_GVN_PROCESS
 #define DEBUG_GVN_EFFECT
 static int kCount = 0;
 

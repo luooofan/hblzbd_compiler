@@ -453,48 +453,54 @@ void LoopUnroll::Run()
                         while(ti<tn)TIME++,ti-=tc;
                     }
                 }
-                
-                loop[0]->ir_list_.clear();
-                int now=di;
-                
-                for(int time=0;time<TIME;time++)
+
+                if(TIME<=100) // 如果循环次数>100则不展开，因为代码会太长
                 {
-                    for(auto ir:loop[1]->ir_list_)
-                    {
-                        if(ir==loop[1]->ir_list_[loop[1]->ir_list_.size()-1])break;
-                        if(ir==cal_ir)now+=dc;
-                        else if(ir==cal_ir_next)continue;
-                        else
+                    loop[0]->ir_list_.clear();
+                    int now = di;
+
+                    for (int time = 0; time < TIME; time++) {
+                        for (auto ir : loop[1]->ir_list_) {
+                        if (ir == loop[1]->ir_list_[loop[1]->ir_list_.size() - 1]) break;
+                        if (ir == cal_ir)
                         {
-                            ir::Opn op1=ir->opn1_,op2=ir->opn2_,res=ir->res_;
+                          if (cal_ir->op_ == ir::IR::OpKind::ADD) now += dc;
+                          else now-=dc;
+                        }
+                        else if (ir == cal_ir_next)
+                            continue;
+                        else {
+                            ir::Opn op1 = ir->opn1_, op2 = ir->opn2_, res = ir->res_;
                             vector<ir::Opn> tmp;
-                            tmp.push_back(op1),tmp.push_back(op2),tmp.push_back(res);
-                            for(int i=0;i<3;i++)
-                            {
-                                if(tmp[i].type_==ir::Opn::Type::Array)
-                                {
-                                    ir::Opn* new_off,*off=tmp[i].offset_;
-                                    if(off->type_==ir::Opn::Type::Var)
-                                        new_off=new ir::Opn(off->type_,off->name_,off->scope_id_);
-                                    else
-                                        new_off=new ir::Opn(off->type_,off->imm_num_);
-                                    tmp[i].offset_=new_off;
-                                }
-                                else if(tmp[i].name_==basic1[0]->name_)
-                                {
-                                    ir::Opn* new_i=new ir::Opn(ir::Opn::Type::Imm,now);
-                                    tmp[i]=*new_i;
-                                }
+                            tmp.push_back(op1), tmp.push_back(op2), tmp.push_back(res);
+                            for (int i = 0; i < 3; i++) {
+                            if (tmp[i].type_ == ir::Opn::Type::Array) {
+                                ir::Opn *new_off, *off = tmp[i].offset_;
+                                if (off->type_ == ir::Opn::Type::Var)
+                                new_off = new ir::Opn(off->type_, off->name_, off->scope_id_);
+                                else
+                                new_off = new ir::Opn(off->type_, off->imm_num_);
+                                tmp[i].offset_ = new_off;
+                            } else if (tmp[i].name_ == basic1[0]->name_) {
+                                ir::Opn* new_i = new ir::Opn(ir::Opn::Type::Imm, now);
+                                tmp[i] = *new_i;
                             }
-                            ir::IR* new_ir=new ir::IR(ir->op_,tmp[0],tmp[1],tmp[2]);
+                            }
+                            ir::IR* new_ir = new ir::IR(ir->op_, tmp[0], tmp[1], tmp[2]);
                             loop[0]->ir_list_.push_back(new_ir);
                         }
+                        }
                     }
+                    // i还要加一句赋值让它等于最后的那个数，因为i后续可能还要用
+                    ir::Opn *new_i=new ir::Opn(ir::Opn::Type::Imm,now);
+                    ir::IR* new_ir=new ir::IR(ir::IR::OpKind::ASSIGN,*new_i,*op1);
+                    loop[0]->ir_list_.push_back(new_ir);
+
+                    loop[0]->pred_.erase(find(loop[0]->pred_.begin(), loop[0]->pred_.end(), loop[1]));
+                    loop[0]->succ_.erase(find(loop[0]->succ_.begin(), loop[0]->succ_.end(), loop[1]));
+                    bb_list.erase(find(bb_list.begin(), bb_list.end(), loop[1]));
                 }
 
-                loop[0]->pred_.erase(find(loop[0]->pred_.begin(),loop[0]->pred_.end(),loop[1]));
-                loop[0]->succ_.erase(find(loop[0]->succ_.begin(),loop[0]->succ_.end(),loop[1]));
-                bb_list.erase(find(bb_list.begin(),bb_list.end(),loop[1]));
             }
 
             else
@@ -635,13 +641,6 @@ void LoopUnroll::Run()
             //     for(auto suc:bb->succ_)cout<<bb_id[suc]<<" ";
             //     cout<<endl;
             //     for(auto& ir:bb->ir_list_)ir->PrintIR();
-            // }
-            // cout<<"输出图:"<<endl;
-            // for(auto& bb:bb_list)
-            // {
-            //     cout<<bb_id[bb]<<":";
-            //     for(auto& suc:bb->succ_)cout<<bb_id[suc]<<" ";
-            //     cout<<endl;
             // }
         }
         
