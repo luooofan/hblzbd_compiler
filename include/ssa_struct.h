@@ -142,6 +142,7 @@ class SSABasicBlock {
 
   void AddDomBB(SSABasicBlock* dom) { doms_.push_back(dom); }
   std::vector<SSABasicBlock*>& GetDoms() { return doms_; }
+  std::unordered_set<SSABasicBlock*> GetDomSet();
 
   void AddDF(SSABasicBlock* df) { df_.insert(df); }
   std::unordered_set<SSABasicBlock*>& GetDF() { return df_; }

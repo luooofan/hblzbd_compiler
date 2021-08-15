@@ -1,6 +1,7 @@
 #include "../include/ssa_struct.h"
 
 #include <algorithm>
+#include <queue>
 
 #include "../include/ssa.h"
 #define ASSERT_ENABLE
@@ -118,6 +119,17 @@ void SSABasicBlock::RemoveInstruction(SSAInstruction* inst) {
   inst_list_.remove(inst);
   // TODO: manage memory and use used.
 }
+std::unordered_set<SSABasicBlock*> SSABasicBlock::GetDomSet() {
+  // all ancestor in dom tree, including itself
+  std::unordered_set<SSABasicBlock*> res;
+  auto temp = this;
+  while (nullptr != temp) {
+    res.insert(temp);
+    temp = temp->GetIDom();
+  }
+  return res;
+}
+
 SSABasicBlock::~SSABasicBlock() {
   // func_ = nullptr;
   // delete value_; // FIXME: should be delete and remove all use
