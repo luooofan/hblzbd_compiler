@@ -2,6 +2,7 @@
 #include "../../include/Pass/reach_define.h"
 #define ASSERT_ENABLE
 #include "../../include/myassert.h"
+// #define PRINT_DEBUG
 
 void ConstantPropagation::Run(){
   auto m = dynamic_cast<IRModule *>(*m_);
@@ -26,7 +27,9 @@ void ConstantPropagation::Run(){
               if(opn_set.size() == 1){
                 auto ir_opn = *opn_set.begin();
                 if(ir_opn->op_ == ir::IR::OpKind::ASSIGN && ir_opn->opn1_.type_ == ir::Opn::Type::Imm){
+#ifdef PRINT_DEBUG
                   std::cout << "将变量: " << opn->name_ + "_#" + std::to_string(opn->scope_id_) << " 变为常数" << ir_opn->opn1_.imm_num_ << std::endl; 
+#endif
                   changed = true;
                   if(opn_num == 1){
                     ir->opn1_ = ir_opn->opn1_;
