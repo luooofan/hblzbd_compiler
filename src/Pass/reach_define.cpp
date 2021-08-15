@@ -3,6 +3,9 @@
 #include "../../include/myassert.h"
 #include <algorithm>
 
+// #define PRINT_USE_DEF_CHAIN
+// #define PRINT_SET
+
 void print_map(std::unordered_map<std::string, std::unordered_set<ir::IR*>> umap){
   for(auto iter : umap){
     std::cout << iter.first << ": " << iter.second.size() << std::endl;
@@ -63,7 +66,7 @@ void ReachDefine::Run(){
   for(auto func : m->func_list_){
     for(auto bb : func->bb_list_){
       for(auto ir : bb->ir_list_){
-        if(ir->res_.type_ == ir::Opn::Type::Var || ir->res_.type_ == ir::Opn::Type::Array){
+        if(ir->res_.type_ == ir::Opn::Type::Var && ir->res_.scope_id_ != 0){
           std::string var_name = ir->res_.name_ + "_#" + std::to_string(ir->res_.scope_id_);
           if(0 == func->def_pre_var_.count(var_name)){
             std::unordered_set<ir::IR*> temp_set;
@@ -86,8 +89,13 @@ void ReachDefine::Run(){
   // 计算每个程序点处的使用-定值链
   GetUseDefChain(m);
 
+#ifdef PRINT_USE_DEF_CHAIN
   print_use_def_chain(m);
-  // print_set(m);
+#endif
+
+#ifdef PRINT_SET
+  print_set(m);
+#endif
 }
 
 bool isSameOpn(ir::Opn opn1, ir::Opn opn2){
@@ -127,6 +135,7 @@ void ReachDefine::GetUseDefChain(IRModule *m){
         std::unordered_map<ir::Opn*, std::unordered_set<ir::IR*>> map_this_ir;
         auto process_opn = [&bb, &map_this_ir](ir::IR * ir, ir::Opn* opn){
           if(opn->type_ != ir::Opn::Type::Var) return;
+          if(opn->scope_id_ == 0) return;
           ir::IR *def_opn = finddef(bb, ir, opn);
           std::unordered_set<ir::IR*> opn_set;
 
@@ -282,6 +291,8 @@ void ReachDefine::Run4Func(IRFunction *f){
 std::pair<std::unordered_set<ir::IR*>, std::unordered_set<ir::IR*>> ReachDefine::GetGenKill(ir::IR *ir, IRFunction *func){
   std::unordered_set<ir::IR*> gen;
   std::unordered_set<ir::IR*> kill;
+
+  if(ir->res_.scope_id_ == 0) return {gen, kill};
   
   if(ir::IR::OpKind::ADD == ir->op_ ||
      ir::IR::OpKind::SUB == ir->op_ ||
