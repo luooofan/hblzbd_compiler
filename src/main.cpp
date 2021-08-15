@@ -133,10 +133,10 @@ int main(int argc, char **argv) {
   PassManager pm(module_ptr_addr);
 
   // ==================Add Quad-Pass Below==================
-  pm.AddPass<LoopUnroll>(false);
-  pm.AddPass<InvariantExtrapolation>(false);
+  pm.AddPass<LoopUnroll>(true);
+  pm.AddPass<InvariantExtrapolation>(true);
   // ==================Add Quad-Pass Above==================
-  pm.AddPass<SimplifyCFG>(false);  // necessary
+  pm.AddPass<SimplifyCFG>(true);  // necessary
   pm.AddPass<ComputeDominance>(false);
   pm.AddPass<ConvertSSA>(true);
   // ==================Add SSA-Pass Below==================
