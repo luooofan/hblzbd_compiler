@@ -7,7 +7,7 @@
 #include "../../include/myassert.h"
 
 // #define DEBUG_CONDBRTOINSTS_PROCESS
-#define OUTPUT_CONDBRTOINSTS_EFFECT
+// #define OUTPUT_CONDBRTOINSTS_EFFECT
 
 // NOTE: 限制最大指令数 不过因为mov32汇编宏的存在可能实际上不止4条
 static const int kMaxInstNumInBB = 4;  // [HYPERPARAMETER]

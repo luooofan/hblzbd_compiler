@@ -7,8 +7,11 @@
 #include "../../include/myassert.h"
 
 // #define DEBUG_SIMPLE_OPTIMIZE_PROCESS
+// #define DEBUG_SIMPLE_OPTIMIZE_EFFECT
+static int kCount = 0;
 
 void SimpleOptimize::Run() {
+  kCount = 0;
   auto m = dynamic_cast<SSAModule*>(*(this->m_));
   MyAssert(nullptr != m);
   std::unordered_set<SSAInstruction*> worklist;
@@ -43,6 +46,7 @@ void SimpleOptimize::Run() {
     if (auto src_inst = dynamic_cast<PhiInst*>(inst)) {
       // 考虑只有一个参数
       if (2 == src_inst->GetNumOperands()) {
+        ++kCount;
         auto mov_inst = new MovInst(src_inst->GetType(), src_inst->GetName(), src_inst->GetOperand(0), src_inst);
         replace(src_inst, mov_inst);
         continue;
@@ -60,11 +64,13 @@ void SimpleOptimize::Run() {
       if (i == src_inst->GetNumOperands()) {
         auto mov_inst = new MovInst(src_inst->GetType(), src_inst->GetName(), constint, src_inst);
         replace(src_inst, mov_inst);
+        ++kCount;
         continue;
       }
     }
     // 如果是一条mov语句 该mov可删 用其操作数代替它自己
     else if (auto src_inst = dynamic_cast<MovInst*>(inst)) {
+      ++kCount;
 #ifdef DEBUG_SIMPLE_OPTIMIZE_PROCESS
       std::cout << "Remove :", src_inst->Print(std::cout);
 #endif
@@ -82,6 +88,7 @@ void SimpleOptimize::Run() {
       if (nullptr == const_lhs) continue;
       auto const_rhs = dynamic_cast<ConstantInt*>(src_inst->GetOperand(1));
       if (nullptr == const_rhs) continue;
+      ++kCount;
       int res = src_inst->ComputeConstInt(const_lhs->GetImm(), const_rhs->GetImm());
       auto mov_inst = new MovInst(src_inst->GetType(), src_inst->GetName(), new ConstantInt(res), src_inst);
       replace(src_inst, mov_inst);
@@ -90,6 +97,7 @@ void SimpleOptimize::Run() {
     else if (auto src_inst = dynamic_cast<UnaryOperator*>(inst)) {
       auto const_lhs = dynamic_cast<ConstantInt*>(src_inst->GetOperand(0));
       if (nullptr == const_lhs) continue;
+      ++kCount;
       int res = src_inst->ComputeConstInt(const_lhs->GetImm());
       auto mov_inst = new MovInst(src_inst->GetType(), src_inst->GetName(), new ConstantInt(res), src_inst);
       replace(src_inst, mov_inst);
@@ -107,6 +115,7 @@ void SimpleOptimize::Run() {
         auto bb = src_inst->GetParent(), target_bb = bb_val->GetBB();
         // continue;
         if (src_inst->ComputeConstInt(const_lhs->GetImm(), const_rhs->GetImm())) {
+          ++kCount;
           // 条件判断永远为真 转换为无条件跳转
           auto new_inst = new BranchInst(bb_val, src_inst);
 #ifdef DEBUG_SIMPLE_OPTIMIZE_PROCESS
@@ -135,6 +144,7 @@ void SimpleOptimize::Run() {
           src_inst->Remove();
           delete src_inst;
         } else {
+          ++kCount;
           // 条件判断永远为假 直接删除
 #ifdef DEBUG_SIMPLE_OPTIMIZE_PROCESS
           std::cout << "Remove :", src_inst->Print(std::cout);
@@ -162,4 +172,7 @@ void SimpleOptimize::Run() {
       }
     }
   }
+#ifdef DEBUG_SIMPLE_OPTIMIZE_EFFECT
+  std::cout << "SSA_SIMPLE_OPTIMIZE Pass works on " << kCount << " insts" << std::endl;
+#endif
 }

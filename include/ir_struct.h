@@ -4,10 +4,12 @@
 #include <string>
 #include <unordered_set>
 
+#include "./DAG.h"
 #include "./general_struct.h"
 #include "./ir.h"
 class IRBasicBlock;
 class IRFunction;
+class DAG_node;
 
 class IRModule : public Module {
  public:
@@ -31,6 +33,9 @@ class IRFunction {
   std::vector<IRBasicBlock*> bb_list_;
   std::vector<IRFunction*> call_func_list_;
 
+  // 用于到达定值分析
+  std::unordered_map<std::string, std::unordered_set<ir::IR*>> def_pre_var_;
+
  public:
   IRFunction(const std::string& name, int arg_num, int stack_size)
       : name_(name), arg_num_(arg_num), stack_size_(stack_size) {}
@@ -45,6 +50,8 @@ class IRBasicBlock {
   std::vector<ir::IR*> ir_list_;
   // only used for emitting
   IRFunction* func_;
+  // used for debug DAG array
+  std::vector<ir::IR*> ir_list_backup_;
 
   std::vector<IRBasicBlock*> pred_;
   std::vector<IRBasicBlock*> succ_;
@@ -54,7 +61,19 @@ class IRBasicBlock {
   std::unordered_set<std::string> livein_;
   std::unordered_set<std::string> liveout_;
 
-  // std::vector<DAG_node*> node_list_;
+  // 用于到达定值分析
+  std::unordered_set<ir::IR*> gen_;
+  std::unordered_set<ir::IR*> kill_;
+  std::unordered_set<ir::IR*> reach_in_;
+  std::unordered_set<ir::IR*> reach_out_;
+  std::vector<std::unordered_map<ir::Opn*, std::unordered_set<ir::IR*>>> use_def_chains_;
+
+  // use for DAG
+  std::vector<DAG_node*> node_list_;
+  std::vector<DAG_node*> root_node_;
+  //记录下这个基本块的Label，在基本块中就不处理label语句了
+  //形式：Label_#label or Label_#Func
+  std::string bb_label_;
 
   // used for ssa
   IRBasicBlock* idom_ = nullptr;          // 直接支配结点 即支配结点树中的父节点
@@ -68,6 +87,7 @@ class IRBasicBlock {
   IRBasicBlock(IRFunction* func) : func_(func) {}
   virtual ~IRBasicBlock() {}
   void EmitCode(std::ostream& out = std::cout);
+  void EmitBackupCode(std::ostream& out = std::cout);
   int IndexInFunc();
 };
 

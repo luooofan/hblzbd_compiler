@@ -91,4 +91,50 @@ void IRBasicBlock::EmitCode(std::ostream& out) {
   }
 }
 
+void IRBasicBlock::EmitBackupCode(std::ostream& out) {
+  out << "@ BasicBlock: id:" << this->IndexInFunc() << std::endl;
+  out << "@ pred bbs: ";
+  for (auto pred : this->pred_) {
+    out << pred->IndexInFunc() << " ";
+  }
+  // out << std::endl;
+  out << "@ succ bbs: ";
+  for (auto succ : this->succ_) {
+    out << succ->IndexInFunc() << " ";
+  }
+  out << std::endl;
+  out << "@ idom: " << (nullptr == this->idom_ ? "" : std::to_string(this->idom_->IndexInFunc()) + " ");
+  // out << std::endl;
+  out << "@ doms: ";
+  for (auto dom : this->doms_) {
+    out << dom->IndexInFunc() << " ";
+  }
+  // out << std::endl;
+  out << "@ df: ";
+  for (auto df : this->df_) {
+    out << df->IndexInFunc() << " ";
+  }
+  out << std::endl;
+  out << "@ def: ";
+  for (auto def : this->def_) {
+    out << def << " ";
+  }
+  out << "@ use: ";
+  for (auto use : this->use_) {
+    out << use << " ";
+  }
+  out << "@ livein: ";
+  for (auto livein : this->livein_) {
+    out << livein << " ";
+  }
+  out << "@ liveout: ";
+  for (auto liveout : this->liveout_) {
+    out << liveout << " ";
+  }
+  out << std::endl;
+  for (auto ir : this->ir_list_backup_) {
+    ir->PrintIR(out);
+  }
+}
+
 #undef ASSERT_ENABLE  // disable assert. this should be placed at the end of every file.
