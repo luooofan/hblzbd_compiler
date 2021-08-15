@@ -86,7 +86,7 @@ void ReachDefine::Run(){
   // 计算每个程序点处的使用-定值链
   GetUseDefChain(m);
 
-  // print_use_def_chain(m);
+  print_use_def_chain(m);
   // print_set(m);
 }
 
@@ -126,6 +126,7 @@ void ReachDefine::GetUseDefChain(IRModule *m){
       for(auto ir : bb->ir_list_){
         std::unordered_map<ir::Opn*, std::unordered_set<ir::IR*>> map_this_ir;
         auto process_opn = [&bb, &map_this_ir](ir::IR * ir, ir::Opn* opn){
+          if(opn->type_ != ir::Opn::Type::Var) return;
           ir::IR *def_opn = finddef(bb, ir, opn);
           std::unordered_set<ir::IR*> opn_set;
 
@@ -134,7 +135,7 @@ void ReachDefine::GetUseDefChain(IRModule *m){
               map_this_ir.emplace(opn, opn_set);
             }else{
               for(auto in : bb->reach_in_){
-                if(isSameOpn(in->res_, ir->opn1_)){
+                if(isSameOpn(in->res_, *opn)){
                   opn_set.insert(in);
                 }
               }
@@ -214,7 +215,7 @@ void ReachDefine::GetUseDefChain(IRModule *m){
           bb->use_def_chains_.push_back(map_this_ir);
         }else{
           MyAssert(0);
-        }        
+        }
       }
     }
   }

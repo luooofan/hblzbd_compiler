@@ -127,7 +127,7 @@ int main(int argc, char **argv) {
   // it represents IRModule before GenerateArm Pass and ArmModule after GenerateArm Pass.
   // the source space will be released when running GenerateArm Pass.
   Module *module_ptr = static_cast<Module *>(ConstructModule(std::string(src)));
-  // module_ptr->EmitCode(std::cout);
+  module_ptr->EmitCode(std::cout);
   Module **const module_ptr_addr = &module_ptr;
 
 #ifdef DEBUG_PROCESS
@@ -135,7 +135,7 @@ int main(int argc, char **argv) {
 #endif
   PassManager pm(module_ptr_addr);
   // ==================Add Quad-Pass Below==================
-  pm.AddPass<ConstantPropagation>(false);
+  pm.AddPass<ConstantPropagation>(true);
   // pm.AddPass<DeadCodeEliminate>(false);
   // pm.AddPass<BasicBlockOptimize>(false);
   // pm.AddPass<ReachDefine>(false);
