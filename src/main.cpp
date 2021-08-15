@@ -5,9 +5,9 @@
 
 #include "../include/Pass/allocate_register.h"
 #include "../include/Pass/arm_liveness_analysis.h"
-#include "../include/Pass/dead_code_eliminate.h"
 #include "../include/Pass/arm_offset_fixup.h"
 #include "../include/Pass/cond_br_to_insts.h"
+#include "../include/Pass/constant_propagation.h"
 #include "../include/Pass/convert_ssa.h"
 #include "../include/Pass/dead_code_eliminate.h"
 #include "../include/Pass/dominant.h"
@@ -15,11 +15,9 @@
 #include "../include/Pass/global_value_numbering.h"
 #include "../include/Pass/loop.h"
 #include "../include/Pass/pass_manager.h"
+#include "../include/Pass/reach_define.h"
 #include "../include/Pass/simplify_armcode.h"
 #include "../include/Pass/simplify_cfg.h"
-#include "../include/Pass/basic_block_optimize.h"
-#include "../include/Pass/reach_define.h"
-#include "../include/Pass/constant_propagation.h"
 #include "../include/Pass/ssa_simple_optimize.h"
 #include "../include/arm.h"
 #include "../include/arm_struct.h"
@@ -135,10 +133,8 @@ int main(int argc, char **argv) {
 #endif
   PassManager pm(module_ptr_addr);
   // ==================Add Quad-Pass Below==================
-  pm.AddPass<ConstantPropagation>(false);
-  // pm.AddPass<DeadCodeEliminate>(false);
-  // pm.AddPass<BasicBlockOptimize>(false);
   // pm.AddPass<ReachDefine>(false);
+  pm.AddPass<ConstantPropagation>(true);
   pm.AddPass<InvariantExtrapolation>(false);
   // ==================Add Quad-Pass Above==================
   pm.AddPass<SimplifyCFG>(false);  // necessary
