@@ -20,17 +20,23 @@ class SSAModule : public Module {
  private:
   std::list<GlobalVariable*> glob_var_list_;
   std::list<SSAFunction*> func_list_;
+  std::list<SSAFunction*> builtin_func_list_;
 
  public:
-  ir::Scope& global_scope_;  // FIXME: terrible design
+  ir::Scope global_scope_;  // FIXME: terrible design
   // a symbol table
   std::string name_;
   SSAModule(ir::Scope& global_scope, std::string name = "") : Module(name), name_(name), global_scope_(global_scope){};
   // SSAModule(std::string name = "") : Module(name), name_(name){};
+  ~SSAModule();
 
+  std::list<SSAFunction*>& GetFuncList() { return func_list_; }
+  std::list<SSAFunction*>& GetBuiltinFuncList() { return builtin_func_list_; }
   const std::list<SSAFunction*>& GetFuncList() const { return func_list_; }
+  const std::list<SSAFunction*>& GetBuiltinFuncList() const { return builtin_func_list_; }
   const std::list<GlobalVariable*>& GetGlobVarList() const { return glob_var_list_; }
   void AddFunction(SSAFunction* f);
+  void AddBuiltinFunction(SSAFunction* f);
   void RemoveFunction(SSAFunction* f);
   void AddGlobalVariable(GlobalVariable* g);
   void RemoveGlobalVariable(GlobalVariable* g);
@@ -50,17 +56,23 @@ class SSAFunction {
   std::unordered_set<GlobalVariable*> used_glob_var_list_;  // may can be unorderd
 
  public:
-  void BindValue(FunctionValue* value) { value_ = value; }
-  FunctionValue* GetValue() const { return value_; }
-
-  const std::string& GetFuncName() const { return func_name_; }
   SSAFunction(const std::string& func_name, SSAModule* m) : func_name_(func_name), m_(m) { m->AddFunction(this); }
   SSAFunction(const std::string& func_name) : func_name_(func_name) {}  // builtin function will not be added to module
+  ~SSAFunction();
+
+  bool IsCalled();
+  void Remove();
+
+  const std::string& GetFuncName() const { return func_name_; }
+
+  void BindValue(FunctionValue* value) { value_ = value; }
+  FunctionValue* GetValue() const { return value_; }
 
   const std::list<SSABasicBlock*>& GetBBList() const { return bb_list_; }
 
   void AddCallFunc(SSAFunction* func);
   void AddCallFunc(FunctionValue* func_val);
+  void MaintainCallFunc();
   std::unordered_set<SSAFunction*>& GetCallFuncList() { return call_func_list_; }
 
   void AddUsedGlobVar(GlobalVariable* glob_var);
@@ -85,6 +97,10 @@ class SSABasicBlock {
   std::list<SSABasicBlock*> pred_;
   std::list<SSABasicBlock*> succ_;
 
+  SSABasicBlock* idom_ = nullptr;
+  std::vector<SSABasicBlock*> doms_;
+  std::unordered_set<SSABasicBlock*> df_;
+
   BasicBlockValue* value_ = nullptr;
 
  public:
@@ -93,14 +109,18 @@ class SSABasicBlock {
 
   SSABasicBlock(const std::string& label, SSAFunction* func) : label_(label), func_(func) { func->AddBasicBlock(this); }
   SSABasicBlock(SSAFunction* func) : func_(func) { func->AddBasicBlock(this); }
+  ~SSABasicBlock();
 
   const std::list<SSAInstruction*>& GetInstList() const { return inst_list_; }
+  std::list<SSAInstruction*>& GetInstList() { return inst_list_; }
 
   std::string& GetLabel() { return label_; }
   void SetLabel(const std::string& label) { label_ = label; }
 
   void SetFunction(SSAFunction* func) { func_ = func; }
   SSAFunction* GetFunction() const { return func_; }
+
+  SSABasicBlock* GetNextBB();
 
   std::list<SSAInstruction*>& GetInstructions() { return inst_list_; }
   void AddInstruction(SSAInstruction* inst);
@@ -116,6 +136,15 @@ class SSABasicBlock {
   void RemoveSuccBB(SSABasicBlock* succ) {
     succ_.remove(succ);  // only remove relationship
   }
+
+  void SetIDom(SSABasicBlock* idom) { idom_ = idom; }
+  SSABasicBlock* GetIDom() const { return idom_; }
+
+  void AddDomBB(SSABasicBlock* dom) { doms_.push_back(dom); }
+  std::vector<SSABasicBlock*>& GetDoms() { return doms_; }
+
+  void AddDF(SSABasicBlock* df) { df_.insert(df); }
+  std::unordered_set<SSABasicBlock*>& GetDF() { return df_; }
 
   void EmitCode(std::ostream& out = std::cout);
 };

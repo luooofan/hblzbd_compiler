@@ -6,6 +6,44 @@
 #define INDENT 12
 #define ASSERT_ENABLE
 #include "../include/myassert.h"
+
+void Value::KillUse(Value *val) {
+  for (auto it = use_list_.begin(); it != use_list_.end();) {
+    if (val == (*it)->Get()) {
+      it = use_list_.erase(it);
+    } else {
+      ++it;
+    }
+  }
+}
+void Value::KillUse(FunctionValue *val) { KillUse(val->GetFunction()); }
+void Value::KillUse(SSAFunction *func) {
+  // 删除该值在该函数中的全部使用
+  for (auto it = use_list_.begin(); it != use_list_.end();) {
+    auto inst = dynamic_cast<SSAInstruction *>((*it)->Get());
+    if (nullptr != inst && inst->GetParent()->GetFunction() == func) {
+      it = use_list_.erase(it);
+    } else {
+      ++it;
+    }
+  }
+}
+void Value::ReplaceAllUseWith(Value *val) {
+  auto uses = GetUses();
+  for (auto use : uses) {
+    use->Set(val);
+  }
+  MyAssert(!IsUsed());
+}
+Value::~Value() {
+  auto uses = GetUses();  // necessary. can't use reference
+  for (auto use : uses) {
+    use->Set(nullptr);  // necessary. when destruct a use instance, must ensure that its value_ is a valid pointer.
+  }
+  // 并没有删除使用它的那个user的operand 只是让operand的use中的value变为nullptr了
+  MyAssert(!IsUsed());
+}
+
 // FunctionValue::FunctionValue(FunctionType *type, const std::string &name, SSAFunction *func) : Value(type, name) {
 //   func->BindValue(this);
 // }
@@ -21,6 +59,18 @@ BasicBlockValue::BasicBlockValue(const std::string &name, SSABasicBlock *bb)
   bb->BindValue(this);
 }
 
+User::~User() {
+  // MyAssert(!IsUsed()); // delete module 或者 function时 才允许仍有使用
+}
+Value *User::GetOperand(unsigned i) {
+  MyAssert(i < GetNumOperands());
+  return operands_[i].Get();
+}
+void User::RemoveOperand(unsigned i) {
+  MyAssert(i < GetNumOperands());
+  operands_.erase(operands_.begin() + i);
+}
+
 SSAInstruction::SSAInstruction(Type *type, const std::string &name, SSABasicBlock *parent)
     : User(type, name), parent_(nullptr) {
   parent->AddInstruction(this);
@@ -29,6 +79,59 @@ SSAInstruction::SSAInstruction(Type *type, const std::string &name, SSAInstructi
     : User(type, name), parent_(nullptr) {
   inst->parent_->AddInstruction(this, inst);
 };
+void SSAInstruction::Remove() { GetParent()->RemoveInstruction(this); }
+
+int BinaryOperator::ComputeConstInt(int lhs, int rhs) {
+  switch (op_) {
+    case ADD:
+      return lhs + rhs;
+    case SUB:
+      return lhs - rhs;
+    case MUL:
+      return lhs * rhs;
+    case DIV:
+      return lhs / rhs;
+    case MOD:
+      return lhs % rhs;
+    default:
+      MyAssert(0);
+      break;
+  }
+  return 0;
+}
+
+int UnaryOperator::ComputeConstInt(int lhs) {
+  switch (op_) {
+    case NEG:
+      return -lhs;
+    case NOT:
+      return !lhs;
+    default:
+      MyAssert(0);
+      break;
+  }
+  return 0;
+}
+
+bool BranchInst::ComputeConstInt(int lhs, int rhs) {
+  switch (cond_) {
+    case EQ:
+      return lhs == rhs;
+    case NE:
+      return lhs != rhs;
+    case GT:
+      return lhs > rhs;
+    case GE:
+      return lhs >= rhs;
+    case LT:
+      return lhs < rhs;
+    case LE:
+      return lhs <= rhs;
+    default:
+      MyAssert(0);
+      return false;
+  }
+}
 
 void Value::Print(std::ostream &outfile) { outfile << std::setw(INDENT) << "%" + name_; }
 
@@ -42,19 +145,17 @@ void UndefVariable::Print(std::ostream &outfile) { Value::Print(outfile); }
 
 void Argument::Print(std::ostream &outfile) { Value::Print(outfile); }
 
-void FunctionValue::Print(std::ostream &outfile) { Value::Print(outfile); }
+void FunctionValue::Print(std::ostream &outfile) { outfile << std::setw(INDENT) << GetName(); }
 
 void BasicBlockValue::Print(std::ostream &outfile) { Value::Print(outfile); }
 
-Value *User::GetOperand(unsigned i) {
-  MyAssert(i < GetNumOperands());
-  return operands_[i].Get();
-}
 void User::Print(std::ostream &outfile) {
   for (auto &opn : operands_) {
     auto val = opn.Get();
     outfile << std::setw(INDENT);
-    if (dynamic_cast<GlobalVariable *>(val)) {
+    if (nullptr == val) {
+      outfile << "nullptr";
+    } else if (dynamic_cast<GlobalVariable *>(val)) {
       outfile << "%g:" + val->GetName();
     } else if (auto src_val = dynamic_cast<ConstantInt *>(val)) {
       outfile << "#" + std::to_string(src_val->GetImm());

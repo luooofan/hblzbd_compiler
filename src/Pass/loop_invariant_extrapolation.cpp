@@ -2,8 +2,6 @@
 new_loop是用来把不变运算放在最外层的
 */
 
-#include "../../include/Pass/loop.h"
-
 #include <algorithm>
 #include <iostream>
 #include <iterator>
@@ -13,6 +11,7 @@ new_loop是用来把不变运算放在最外层的
 #include <vector>
 
 #include "../../include/Pass/ir_liveness_analysis.h"
+#include "../../include/Pass/loop.h"
 #include "../../include/general_struct.h"
 #include "../../include/ir.h"
 #include "../../include/ir_struct.h"
@@ -44,17 +43,9 @@ vector<int> cross(vector<int> a, vector<int> b) {
 }
 
 // 二分查找x是否在points里，所以要求points有序
-// 更新：不二分了，可能找错了
+// 更新：不二分了，省得找错了
 template <typename T>
 bool have(T x, vector<T> points) {
-  // int l=0,r=points.size();
-  // while(l<r)
-  // {
-  //     int mid=(l+r)>>1;
-  //     if(points[mid]<x)l=mid+1;
-  //     else r=mid;
-  // }
-  // return points[l]==x;
   for (int i = 0; i < points.size(); i++)
     if (points[i] == x) return true;
   return false;
@@ -67,30 +58,60 @@ bool not_have(int x, vector<int> points) {
   return true;
 }
 
-// 检查是否不变
-bool check(ir::Opn x, vector<int> loop, map<string, vector<pair<int, int> > > def, vector<pair<int, int> > unchanegd) {
-  if (x.type_ == ir::Opn::Type::Imm) return true;  // 为常数则返回
-  sort(loop.begin(), loop.end());
-  auto defs = def[x.name_];
-  for (int i = 0, j = 0; i < loop.size() && j < defs.size();) {
-    if (loop[i] < defs[j].first)
-      i++;
-    else if (loop[i] > defs[j].first)
-      j++;
-    else  // 发现了loop内有def，则看看那句def是否unchanged。如果是则这句也unchanged
-    {
-      auto now = defs[j];
-      int k = 0;
-      while (k < unchanegd.size()) {
-        if (unchanegd[k] == now) break;
-        k++;
-      }
-      if (k == unchanegd.size()) return false;  // 没在unchanged里找到，说明不是unchanged，所以这句不行
-      // 并且loop内可能有多句x的def。得这些def都是unchanged才行
-      i++, j++;
+//检查是否不变
+// bool check(ir::Opn x,vector<int> loop,map<string,vector<pair<int,int> > > def,vector<pair<int,int> > unchanegd)
+// {
+//     if(x.type_==ir::Opn::Type::Imm)return true; // 为常数则返回
+//     sort(loop.begin(),loop.end());
+//     auto defs=def[x.name_];
+//     for(int i=0,j=0;i<loop.size() && j<defs.size();)
+//     {
+//         if(loop[i]<defs[j].first)i++;
+//         else if(loop[i]>defs[j].first)j++;
+//         else // 发现了loop内有def，则看看那句def是否unchanged。如果是则这句也unchanged
+//         {
+//             auto now=defs[j];
+//             int k=0;
+//             while(k<unchanegd.size())
+//             {
+//                 if(unchanegd[k]==now)
+//                     break;
+//                 k++;
+//             }
+//             if(k==unchanegd.size())return false; // 没在unchanged里找到，说明不是unchanged，所以这句不行
+//             // 并且loop内可能有多句x的def。得这些def都是unchanged才行
+//             i++,j++;
+//         }
+//     }
+//     return true; //
+//     非常数的情况下，要么是loop里没有x的def，要么是有但那些def也都是unchanged的，就说明x在loop内也是unchanged
+// }
+
+// 检查x，如果是常数返回true；如果是变量，则遍历看loop内有无x的定值，若有使用则返回false，否则返回true
+bool check(ir::Opn x, vector<int> loop, map<int, IRBasicBlock*> id_bb, vector<pair<int, int> > unchanged) {
+  if (x.type_ == ir::Opn::Type::Imm) return true;
+  set<pair<int, int> > u;
+  for (int i = 0; i < unchanged.size(); i++) u.insert(unchanged[i]);
+  for (int i = 0; i < loop.size(); i++) {
+    auto bb = id_bb[loop[i]];
+    for (int j = 0; j < bb->ir_list_.size(); j++) {
+      auto ir = bb->ir_list_[j];
+      auto res = ir->res_;
+      if (res.name_ == x.name_)  // 如果发现了x的定值
+      {
+        if (x.type_ == ir::Opn::Type::Array)  // 如果是数组类型，一定返回false
+          return false;
+        if (u.find(make_pair(loop[i], j)) ==
+            u.end())  // 如果是变量类型，则看该x的定值是不是不变的，如果不是则也返回false
+        {
+          return false;
+        }
+      } else if (ir->op_ == ir::IR::OpKind::PARAM && ir->opn1_.type_ == ir::Opn::Type::Array &&
+                 ir->opn1_.name_ == x.name_)
+        return false;
     }
   }
-  return true;  // 非常数的情况下，要么是loop里没有x的def，要么是有但那些def也都是unchanged的，就说明x在loop内也是unchanged
+  return true;
 }
 
 // 检查变量x是否出了loop后不在活跃(复杂度巨高，应该用活跃变量分析)
@@ -104,8 +125,6 @@ bool will_not_live(pair<int, int> pos, vector<pair<int, int> > use, vector<int> 
   }
   return true;
 }
-
-// bool will_not_live()
 
 // 检查变量x在loop中是否还有其他定值语句
 bool check2(pair<int, int> pos, vector<int> loop,
@@ -131,41 +150,13 @@ bool check3(int enter, vector<vector<int> > to, vector<int> out, int def, string
 // enter用新建的那个空基本块作为入口，to就是图，out是出口节点，不能出去，因为有check2，所以def只会有1次，
 //所以这里def是int，然后x的use情况
 {
-  // auto def_bb=id_bb[def];
-  // for(int i=0;i<def_bb->ir_list_.size();i++)
-  // {
-  //     if(def_bb->ir_list_[i]->opn1_.name_==name ||def_bb->ir_list_[i]->opn2_.name_==name)
-  //         return false;
-  //     if(def_bb->ir_list_[i]->res_.name_==name)
-  //         break;
-  // }
-  // set<int> u,o;
-  // for(int i=0;i<use.size();i++)u.insert(use[i].first);
-  // for(int i=0;i<out.size();i++)o.insert(out[i]);
-  // queue<int> qqq;
-  // set<int> vis;
-  // qqq.push(enter);
-  // if(u.find(enter)!=u.end())return false; // 添了这句，入口节点是否含有x的使用没检查
-  // while(!qqq.empty())
-  // {
-  //     int x=qqq.front();
-  //     qqq.pop();
-  //     for(int i=0;i<to[x].size();i++)
-  //     {
-  //         int y=to[x][i];
-  //         if(y==def)continue;
-  //         if(u.find(y)!=u.end())return false; // 发现了x的使用，则返回false
-  //         if(o.find(y)==o.end() && vis.find(y)==vis.end()) // 既不是出口节点，也没有vis过才能入队
-  //             qqq.push(y),vis.insert(y);
-  //     }
-  // }
-  // return true;
   queue<int> qqq;
   set<int> vis;
   qqq.push(enter);
   while (!qqq.empty()) {
     int x = qqq.front();
     qqq.pop();
+    if (x == def) continue;  // 条件2保证只有1个def。此处是遇到def则可以了
     if (vis.find(x) != vis.end()) continue;
     auto bb = id_bb[x];
     for (int i = 0; i < bb->ir_list_.size(); i++) {
@@ -183,7 +174,7 @@ bool check3(int enter, vector<vector<int> > to, vector<int> out, int def, string
   return true;
 }
 
-void MXD::Run() {
+void InvariantExtrapolation::Run() {
 #ifdef DEBUG_LOOP_PASS
   cout << "MXD 开始\n";
 #endif
@@ -392,16 +383,16 @@ void MXD::Run() {
               auto op1 = ir_list[j]->opn1_, op2 = ir_list[j]->opn2_, res = ir_list[j]->res_;
               bool flag = true;
               flag &= (op1.scope_id_ != 0), flag &= (op2.scope_id_ != 0), flag &= (res.scope_id_ != 0);
-              flag &= (op1.type_ != ir::Opn::Type::Array), flag &= (res.type_ != ir::Opn::Type::Array);
-              if (res.type_ == ir::Opn::Type::Array) flag &= check(*res.offset_, loop, def, unchanged);
-              if (op1.type_ == ir::Opn::Type::Array)
-                flag &= check(*op1.offset_, loop, def, unchanged);
-              else
-                flag &= check(op1, loop, def, unchanged);
+              flag &= (res.type_ != ir::Opn::Type::Array);
+              if (op1.type_ == ir::Opn::Type::Array) {
+                flag &= check(*op1.offset_, loop, id_bb, unchanged);
+                flag &= check(op1, loop, id_bb, unchanged);
+              } else if (op1.type_ == ir::Opn::Type::Var)
+                flag &= check(op1, loop, id_bb, unchanged);
               if (op2.type_ == ir::Opn::Type::Array)
-                flag &= check(*op2.offset_, loop, def, unchanged);
-              else
-                flag &= check(op2, loop, def, unchanged);
+                flag &= check(*op2.offset_, loop, id_bb, unchanged);
+              else if (op2.type_ == ir::Opn::Type::Var)
+                flag &= check(op2, loop, id_bb, unchanged);
               if (flag) {
                 unchanged.push_back(make_pair(loop[i], j));
                 vis[make_pair(loop[i], j)] = true;
@@ -509,7 +500,7 @@ void MXD::Run() {
 
         // cout<<"遍历unchanged"<<unchanged[i].first<<' '<<unchanged[i].second<<endl;
         // cout<<"临时:";
-        // cout<<res.name_<<' '<<op1.name_<<' '<<op2.name_<<endl;
+        // id_bb[unchanged[i].first]->ir_list_[unchanged[i].second]->PrintIR();
         // cout<<res.scope_id_<<' '<<op1.scope_id_<<' '<<op2.scope_id_<<' ';
         // cout<<have(unchanged[i].first,must_out)<<' '<<
         // will_not_live(unchanged[i],use[res.name_],suc,loop)<<' '<<
@@ -660,12 +651,13 @@ void MXD::Run() {
       to[n - 1].push_back(enter);
 
 #ifdef DEBUG_LOOP_PASS
-      cout << "输出循环不变运算外提后的图:\n";
-      for (int i = 0; i < n; i++) {
-        cout << i << ":";
-        for (int j = 0; j < to[i].size(); j++) cout << to[i][j] << ' ';
-        cout << endl;
-      }
+      // cout<<"输出循环不变运算外提后的图:\n";
+      // for(int i=0;i<n;i++)
+      // {
+      //     cout<<i<<":";
+      //     for(int j=0;j<to[i].size();j++)cout<<to[i][j]<<' ';
+      //     cout<<endl;
+      // }
 
       cout << "输出循环不变运算外提后的基本块和前驱后继:\n";
       for (int i = 0; i < func->bb_list_.size(); i++) {

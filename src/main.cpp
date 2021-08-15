@@ -7,9 +7,12 @@
 #include "../include/Pass/arm_liveness_analysis.h"
 #include "../include/Pass/dead_code_eliminate.h"
 #include "../include/Pass/arm_offset_fixup.h"
+#include "../include/Pass/cond_br_to_insts.h"
 #include "../include/Pass/convert_ssa.h"
+#include "../include/Pass/dead_code_eliminate.h"
 #include "../include/Pass/dominant.h"
 #include "../include/Pass/generate_arm_from_ssa.h"
+#include "../include/Pass/global_value_numbering.h"
 #include "../include/Pass/loop.h"
 #include "../include/Pass/pass_manager.h"
 #include "../include/Pass/simplify_armcode.h"
@@ -17,6 +20,7 @@
 #include "../include/Pass/basic_block_optimize.h"
 #include "../include/Pass/reach_define.h"
 #include "../include/Pass/constant_propagation.h"
+#include "../include/Pass/ssa_simple_optimize.h"
 #include "../include/arm.h"
 #include "../include/arm_struct.h"
 #include "../include/ast.h"
@@ -31,6 +35,10 @@ extern int yylex_destroy();
 extern void yyset_lineno(int _line_number);
 
 // #define DEBUG_PROCESS
+
+bool AST_LOG = false;
+bool IRLIST_LOG = true;
+bool PASS_LOG = false;
 
 #define ASSERT_ENABLE
 #include "../include/myassert.h"
@@ -91,7 +99,7 @@ int main(int argc, char **argv) {
   yylex_destroy();
 
   MyAssert(nullptr != ast_root);
-  if (logfile.is_open()) {
+  if (logfile.is_open() && AST_LOG) {
     logfile << "AST:" << std::endl;
     ast_root->PrintNode(0, logfile);
   }
@@ -107,7 +115,7 @@ int main(int argc, char **argv) {
   // MyAssert(0);
   delete ast_root;
 
-  if (logfile.is_open()) {
+  if (logfile.is_open() && IRLIST_LOG) {
     ir::PrintFuncTable(logfile);
     ir::PrintScopes(logfile);
     logfile << "IRList:" << std::endl;
@@ -128,25 +136,34 @@ int main(int argc, char **argv) {
   PassManager pm(module_ptr_addr);
   // ==================Add Quad-Pass Below==================
   pm.AddPass<ConstantPropagation>(false);
-  pm.AddPass<MXD>(false);
   // pm.AddPass<DeadCodeEliminate>(false);
   // pm.AddPass<BasicBlockOptimize>(false);
   // pm.AddPass<ReachDefine>(false);
+  pm.AddPass<InvariantExtrapolation>(false);
   // ==================Add Quad-Pass Above==================
   pm.AddPass<SimplifyCFG>(false);  // necessary
   pm.AddPass<ComputeDominance>(false);
-  pm.AddPass<ConvertSSA>(false);
+  pm.AddPass<ConvertSSA>(true);
   // ==================Add SSA-Pass Below==================
-
+  pm.AddPass<DeadCodeEliminate>(false);
+  pm.AddPass<SimpleOptimize>(false);
+  pm.AddPass<SimpleOptimize>(false);
+  pm.AddPass<DeadCodeEliminate>(false);
+  pm.AddPass<GlobalValueNumbering>(true);  // actually redundant common expression eliminate
   // ==================Add SSA-Pass Above==================
-  pm.AddPass<GenerateArmFromSSA>(false);
-  pm.AddPass<RegAlloc>(false);
-  pm.AddPass<SPOffsetFixup>(false);
+  pm.AddPass<GenerateArmFromSSA>(true);  // define macro control MUL_TO_SHIFT DIV_TO_SHIFT MOD_TO_AND optimize
+  // ==================Add Arm(vreg)-Pass Below==================
+  pm.AddPass<SimplifyArm>(true);
+  pm.AddPass<CondBrToInsts>(true);
+  // ==================Add Arm(vreg)-Pass Above==================
+  pm.AddPass<RegAlloc>(true);
+  pm.AddPass<SPOffsetFixup>(true);
   // ==================Add Arm-Pass Below==================
-  pm.AddPass<SimplifyArm>(false);  // 不能也不必在regalloc之前调用
+  pm.AddPass<SimplifyArm>(false);
+  pm.AddPass<CondBrToInsts>(true);
   // ==================Add Arm-Pass Above==================
   if (logfile.is_open()) {
-    pm.Run(true, logfile);
+    pm.Run(PASS_LOG, logfile);
   } else {
     pm.Run();
   }
@@ -155,7 +172,6 @@ int main(int argc, char **argv) {
   std::cout << "Passes End." << std::endl;
 #endif
   MyAssert(typeid(*module_ptr) == typeid(ArmModule));
-  dynamic_cast<ArmModule *>(module_ptr)->Check();
 
 #ifdef DEBUG_PROCESS
   std::cout << "Emit Start:" << std::endl;

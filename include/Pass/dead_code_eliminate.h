@@ -1,14 +1,29 @@
 #ifndef __DEAD_CODE_ELIMINATE_H__
 #define __DEAD_CODE_ELIMINATE_H__
+#include <unordered_set>
 
-#include "ir_liveness_analysis.h"
+#include "./pass_manager.h"
+class SSAModule;
+class SSAFunction;
+class SSAInstruction;
+class Value;
+// DeadCodeEliminat: one of SSA-Pass
+class DeadCodeEliminate : public Transform {
+ public:
+  DeadCodeEliminate(Module** m) : Transform(m) {}
+  void Run() override;
+  static void RemoveFromNoSideEffectFuncs(SSAFunction* func, std::unordered_set<SSAFunction*>& no_side_effect_funcs);
+  static void FindNoSideEffectFunc(SSAModule* m, std::unordered_set<SSAFunction*>& no_side_effect_funcs);
 
-class DeadCodeEliminate : public Transform{
-public:
-  DeadCodeEliminate(Module **m) : Transform(m){}
+ private:
+  std::unordered_set<SSAFunction*> no_side_effect_funcs;
 
-  void Run();
-  void test_def_use();
+  bool IsSideEffect(Value* val);
+  bool IsSideEffect(SSAInstruction* inst);
+  void DeleteDeadFunc(SSAModule* m);
+  void DeleteDeadInst(SSAFunction* func);
+  void DeleteDeadStore(SSAFunction* func);
+  // void FindNoSideEffectFunc(SSAModule* m);
 };
 
 #endif

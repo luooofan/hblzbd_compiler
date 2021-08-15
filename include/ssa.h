@@ -10,26 +10,35 @@ class SSABasicBlock;
 class Type;
 class User;
 class Use;
+class FunctionValue;
 
 // [can be used or not]
 class Value {
  private:
   Type* type_;
-  std::list<Use*> use_list_;  // NOTE Use* or Use??
-  std::string name_;          // readable
+  std::list<Use*> use_list_;
+  std::string name_;
+
  public:
   Value(Type* type, const std::string& name = "") : type_(type), name_(name) {}
+
   Type* GetType() const { return type_; }
   const std::string& GetName() const { return name_; }
+  std::list<Use*>& GetUses() { return use_list_; }
+  bool IsUsed() { return !use_list_.empty(); }
+
   // use_list_目前只能被use对象操作
   void AddUse(Use* use) { use_list_.push_back(use); }
   void KillUse(Use* use) { use_list_.remove(use); }
-  // TODO replaceAllUseWith
-  virtual ~Value() {}
+  void KillUse(Value* val);
+  void KillUse(FunctionValue* val);
+  void KillUse(SSAFunction* func);
+  void ReplaceAllUseWith(Value* val);
+  virtual ~Value();
   virtual void Print(std::ostream& outfile = std::clog);
 };
 
-// Use represents a relationship. Only can be instantiated in User instance.
+// Use represents a relationship. Only can be constructed in User instance.
 // Designed to automatically maintain Value use_list_ info.
 class Use {
  private:
@@ -42,6 +51,24 @@ class Use {
   Use(Value* val, User* user) : val_(val), user_(user) {
     if (nullptr != val_) val_->AddUse(this);
   }
+  Use(const Use& u) : val_(u.Get()), user_(u.GetUser()) {
+    if (nullptr != val_) val_->AddUse(this);
+  }
+  Use& operator=(const Use& u) {
+    user_ = u.GetUser();
+    Set(u.Get());
+    return *this;
+  }
+  Use(Use&& u) : val_(u.Get()), user_(u.GetUser()) {
+    u.Set(nullptr);
+    if (nullptr != val_) val_->AddUse(this);
+  }
+  Use& operator=(Use&& u) {
+    user_ = u.GetUser();
+    Set(u.Get());
+    u.Set(nullptr);
+    return *this;
+  }
   ~Use() {
     if (nullptr != val_) val_->KillUse(this);
   }
@@ -50,10 +77,9 @@ class Use {
     val_ = val;
     if (nullptr != val_) val_->AddUse(this);
   }
-  // TODO 把拷贝构造和复制构造实现为调用Set
 };
 
-// We don't need the type system acutally. It's redundent.
+// In fact, we just need a simple type system to distinguish integer type(i32) and array pointer type(i32 pointer).
 class Type {
  public:
   enum TypeID {
@@ -158,7 +184,7 @@ class Argument;
 // [used]
 class FunctionValue : public Value {
  private:
-  std::list<Argument*> arg_list_;  // not use. only record info. valid order.
+  std::list<Argument*> arg_list_;  // only record info. valid order.
   SSAFunction* func_ = nullptr;
 
  public:
@@ -199,24 +225,31 @@ class BasicBlockValue : public Value {
   virtual void Print(std::ostream& outfile = std::clog);
 };
 
+// We also don't need User actually. SSAInstruction is the only user in our case.
 // [can be used or not][operands info]
 class User : public Value {
  public:
   std::vector<Use> operands_;  // All Use instances are constructed in User
-  User(Type* type, const std::string& name) : Value(type, name) {}
+  User(Type* type, const std::string& name) : Value(type, name) { operands_.reserve(4); }
   Value* GetOperand(unsigned i);
+  void RemoveOperand(unsigned i);
+  std::vector<Use>& GetOperands() { return operands_; }
   unsigned GetNumOperands() const { return operands_.size(); }
-  virtual ~User() {}
+  virtual ~User();
   virtual void Print(std::ostream& outfile = std::clog);
 };
 
 // [can be used or not][operands info]
 class SSAInstruction : public User {
- public:
+ private:
   SSABasicBlock* parent_;
+
+ public:
   SSAInstruction(Type* type, const std::string& name, SSABasicBlock* parent);
   SSAInstruction(Type* type, const std::string& name, SSAInstruction* inst);
+  SSABasicBlock* GetParent() { return parent_; }
   void SetParent(SSABasicBlock* parent) { parent_ = parent; }
+  void Remove();
   virtual ~SSAInstruction() {}
   virtual void Print(std::ostream& outfile = std::clog) = 0;
 };
@@ -242,6 +275,7 @@ class BinaryOperator : public SSAInstruction {
     operands_.push_back(Use(lhs, this));
     operands_.push_back(Use(rhs, this));
   };
+  int ComputeConstInt(int lhs, int rhs);
   virtual ~BinaryOperator() {}
   virtual void Print(std::ostream& outfile = std::clog);
 };
@@ -258,6 +292,7 @@ class UnaryOperator : public SSAInstruction {
       : SSAInstruction(type, name, parent), op_(op) {
     operands_.push_back(Use(lhs, this));
   }
+  int ComputeConstInt(int lhs);
   virtual ~UnaryOperator() {}
   virtual void Print(std::ostream& outfile = std::clog);
 };
@@ -279,13 +314,24 @@ class BranchInst : public SSAInstruction {
       : SSAInstruction(new Type(Type::VoidTyID), "", parent), cond_(Cond::AL) {
     operands_.push_back(Use(target, this));
   }
+  BranchInst(BasicBlockValue* target, SSAInstruction* inst)
+      : SSAInstruction(new Type(Type::VoidTyID), "", inst), cond_(Cond::AL) {
+    operands_.push_back(Use(target, this));
+  }
   BranchInst(Cond cond, Value* lhs, Value* rhs, BasicBlockValue* target, SSABasicBlock* parent)
       : SSAInstruction(new Type(Type::VoidTyID), "", parent), cond_(cond) {
     operands_.push_back(Use(lhs, this));
     operands_.push_back(Use(rhs, this));
     operands_.push_back(Use(target, this));
   }
+  BranchInst(Cond cond, Value* lhs, Value* rhs, BasicBlockValue* target, SSAInstruction* inst)
+      : SSAInstruction(new Type(Type::VoidTyID), "", inst), cond_(cond) {
+    operands_.push_back(Use(lhs, this));
+    operands_.push_back(Use(rhs, this));
+    operands_.push_back(Use(target, this));
+  }
   bool HasCond() const { return cond_ != Cond::AL; }
+  bool ComputeConstInt(int lhs, int rhs);
   virtual ~BranchInst() {}
   virtual void Print(std::ostream& outfile = std::clog);
 };
@@ -379,6 +425,9 @@ class StoreInst : public SSAInstruction {
 class MovInst : public SSAInstruction {
  public:
   MovInst(Type* type, const std::string& name, Value* v, SSABasicBlock* parent) : SSAInstruction(type, name, parent) {
+    operands_.push_back(Use(v, this));
+  }
+  MovInst(Type* type, const std::string& name, Value* v, SSAInstruction* inst) : SSAInstruction(type, name, inst) {
     operands_.push_back(Use(v, this));
   }
   virtual ~MovInst() {}
