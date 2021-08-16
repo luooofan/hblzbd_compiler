@@ -1,4 +1,7 @@
 
+#include <string>
+#include <unordered_set>
+
 #include "../include/ast.h"
 #include "../include/ir.h"
 #include "./parser.hpp"  // VOID INT
@@ -24,6 +27,8 @@
 #ifdef GENIR_TIME_CONTROL
 #include <ctime>
 #endif
+
+std::unordered_set<std::string> called_func_set;
 
 namespace ast {
 
@@ -81,7 +86,11 @@ void Root::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {
 #endif
 
   // 对每个compunit语义分析并生成IR
+  called_func_set.insert("main");
   for (const auto &ele : this->compunit_list_) {
+    if (auto func_def = dynamic_cast<FunctionDefine *>(ele)) {
+      if (!called_func_set.count(func_def->name_.name_)) continue;
+    }
     ele->GenerateIR(ctx, gIRList);
   }
 
