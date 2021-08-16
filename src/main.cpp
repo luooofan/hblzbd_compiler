@@ -146,12 +146,12 @@ int main(int argc, char **argv) {
   pm.AddPass<ComputeDominance>(false);
   pm.AddPass<ConvertSSA>(true);
   // ==================Add SSA-Pass Below==================
-  pm.AddPass<DeadCodeEliminate>(false);
-  pm.AddPass<SimpleOptimize>(true);
-  pm.AddPass<DeadCodeEliminate>(false);
-  pm.AddPass<GlobalValueNumbering>(true);  // actually redundant common expression eliminate
-  pm.AddPass<SimpleOptimize>(true);
-  pm.AddPass<DeadCodeEliminate>(false);
+  // pm.AddPass<DeadCodeEliminate>(false);
+  // pm.AddPass<SimpleOptimize>(true);
+  // pm.AddPass<DeadCodeEliminate>(false);
+  // pm.AddPass<GlobalValueNumbering>(true);  // actually redundant common expression eliminate
+  // pm.AddPass<SimpleOptimize>(true);
+  // pm.AddPass<DeadCodeEliminate>(false);
   // ==================Add SSA-Pass Above==================
   pm.AddPass<GenerateArmFromSSA>(true);  // define macro control MUL_TO_SHIFT DIV_TO_SHIFT MOD_TO_AND optimize
   // ==================Add Arm(vreg)-Pass Below==================
