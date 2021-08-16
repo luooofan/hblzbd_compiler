@@ -91,6 +91,6 @@ class IRBasicBlock {
   int IndexInFunc();
 };
 
-IRModule* ConstructModule(const std::string& module_name, std::vector<ir::IR>& gIRList);
+IRModule* ConstructModule(const std::string& module_name, std::vector<ir::IR*>& gIRList);
 
 #endif

@@ -2,25 +2,16 @@
 #include "../include/ir.h"
 
 #define ASSERT_ENABLE
-// assert(res);
-#ifdef ASSERT_ENABLE
-#define MyAssert(res)                                                    \
-  if (!(res)) {                                                          \
-    std::cerr << "Assert: " << __FILE__ << " " << __LINE__ << std::endl; \
-    exit(255);                                                           \
-  }
-#else
-#define MyAssert(res) ;
-#endif
+#include "../include/myassert.h"
 
 namespace ast {
 
 // 若计算成功 返回一个立即数形式的ir::Opn
-void Number::Evaluate(ir::ContextInfo& ctx, std::vector<ir::IR>& gIRList) {
+void Number::Evaluate(ir::ContextInfo& ctx, std::vector<ir::IR*>& gIRList) {
   ctx.opn_ = ir::Opn(ir::Opn::Type::Imm, value_);
 }
 
-void Identifier::Evaluate(ir::ContextInfo& ctx, std::vector<ir::IR>& gIRList) {
+void Identifier::Evaluate(ir::ContextInfo& ctx, std::vector<ir::IR*>& gIRList) {
   ir::SymbolTableItem* s = nullptr;
   int scope_id = ir::FindSymbol(ctx.scope_id_, name_, s);
   if (!s) {
@@ -33,7 +24,7 @@ void Identifier::Evaluate(ir::ContextInfo& ctx, std::vector<ir::IR>& gIRList) {
 
   ctx.opn_ = ir::Opn(ir::Opn::Type::Imm, s->initval_[0]);
 }
-void ArrayIdentifier::Evaluate(ir::ContextInfo& ctx, std::vector<ir::IR>& gIRList) {
+void ArrayIdentifier::Evaluate(ir::ContextInfo& ctx, std::vector<ir::IR*>& gIRList) {
   ir::SymbolTableItem* s = nullptr;
   int scope_id = ir::FindSymbol(ctx.scope_id_, name_.name_, s);
   if (!s) {
@@ -57,10 +48,10 @@ void ArrayIdentifier::Evaluate(ir::ContextInfo& ctx, std::vector<ir::IR>& gIRLis
 
   ctx.opn_ = ir::Opn(ir::Opn::Type::Imm, s->initval_[index / 4]);
 }
-void ConditionExpression::Evaluate(ir::ContextInfo& ctx, std::vector<ir::IR>& gIRList) {
+void ConditionExpression::Evaluate(ir::ContextInfo& ctx, std::vector<ir::IR*>& gIRList) {
   ir::RuntimeError("条件表达式不实现Evaluate函数");
 }
-void BinaryExpression::Evaluate(ir::ContextInfo& ctx, std::vector<ir::IR>& gIRList) {
+void BinaryExpression::Evaluate(ir::ContextInfo& ctx, std::vector<ir::IR*>& gIRList) {
   int l, r, res;
 
   // lhs_.Evaluate(ctx, gIRList);
@@ -99,7 +90,7 @@ void BinaryExpression::Evaluate(ir::ContextInfo& ctx, std::vector<ir::IR>& gIRLi
 
   ctx.opn_ = ir::Opn(ir::Opn::Type::Imm, res);
 }
-void UnaryExpression::Evaluate(ir::ContextInfo& ctx, std::vector<ir::IR>& gIRList) {
+void UnaryExpression::Evaluate(ir::ContextInfo& ctx, std::vector<ir::IR*>& gIRList) {
   int r, res;
 
   rhs_.Evaluate(ctx, gIRList);
@@ -124,12 +115,12 @@ void UnaryExpression::Evaluate(ir::ContextInfo& ctx, std::vector<ir::IR>& gIRLis
   ctx.opn_ = ir::Opn(ir::Opn::Type::Imm, res);
 }
 void FunctionCall::Evaluate(ir::ContextInfo& ctx,
-                            std::vector<ir::IR>& gIRList) {  // 不应该试图对Function调用evaluate函数
+                            std::vector<ir::IR*>& gIRList) {  // 不应该试图对Function调用evaluate函数
   MyAssert(0);
 }
 
 // 填写initval信息
-void ArrayInitVal::Evaluate(ir::ContextInfo& ctx, std::vector<ir::IR>& gIRList) {
+void ArrayInitVal::Evaluate(ir::ContextInfo& ctx, std::vector<ir::IR*>& gIRList) {
   auto& symbol_item = (*ir::gScopes[ctx.scope_id_].symbol_table_.find(ctx.array_name_)).second;
   if (this->is_exp_) {
     this->value_->Evaluate(ctx, gIRList);

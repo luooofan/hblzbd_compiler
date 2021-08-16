@@ -107,10 +107,10 @@ int main(int argc, char **argv) {
 #ifdef DEBUG_PROCESS
   std::cout << "Generate IR Start:" << std::endl;
 #endif
-  std::vector<IR> *ir_list_ptr = new std::vector<IR>();
+  std::vector<IR *> *ir_list_ptr = new std::vector<IR *>();
   {
     ir::ContextInfo ctx;
-    (*ir_list_ptr).reserve(10000);
+    // (*ir_list_ptr).reserve(10000);
     ast_root->GenerateIR(ctx, *ir_list_ptr);
   }
 #ifdef DEBUG_PROCESS
@@ -123,14 +123,15 @@ int main(int argc, char **argv) {
     ir::PrintFuncTable(logfile);
     ir::PrintScopes(logfile);
     logfile << "IRList:" << std::endl;
-    for (auto &ir : *ir_list_ptr) {
-      ir.PrintIR(logfile);
+    for (auto ir : *ir_list_ptr) {
+      ir->PrintIR(logfile);
     }
   }
 
   // it represents IRModule before GenerateArm Pass and ArmModule after GenerateArm Pass.
   // the source space will be released when running GenerateArm Pass.
   Module *module_ptr = static_cast<Module *>(ConstructModule(std::string(src), *ir_list_ptr));
+  delete ir_list_ptr;
   // module_ptr->EmitCode(std::cout);
   Module **const module_ptr_addr = &module_ptr;
 
@@ -177,7 +178,6 @@ int main(int argc, char **argv) {
 #ifdef DEBUG_PROCESS
   std::cout << "Passes End." << std::endl;
 #endif
-  delete ir_list_ptr;
   MyAssert(typeid(*module_ptr) == typeid(ArmModule));
 
 #ifdef DEBUG_PROCESS

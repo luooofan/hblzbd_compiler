@@ -39,8 +39,8 @@ void IRFunction::EmitCode(std::ostream& out) {
 }
 
 IRBasicBlock::~IRBasicBlock() {
-  // for (auto ir : ir_list_)
-  // if (nullptr != ir) delete ir;
+  for (auto ir : ir_list_)
+    if (nullptr != ir) delete ir;
 }
 int IRBasicBlock::IndexInFunc() {
   MyAssert(nullptr != this->func_);

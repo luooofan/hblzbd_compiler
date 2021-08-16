@@ -1,7 +1,7 @@
 #include "../include/ir_struct.h"
 using namespace ir;
 
-IRModule* ConstructModule(const std::string& module_name, std::vector<ir::IR>& gIRList) {
+IRModule* ConstructModule(const std::string& module_name, std::vector<ir::IR*>& gIRList) {
   // Construct BasicBlocks Functions and Module from gIRList
 
   // 基本块的首指令
@@ -30,7 +30,7 @@ IRModule* ConstructModule(const std::string& module_name, std::vector<ir::IR>& g
 
   // fill label2bb label2func. every bb has its first ir. every func has it first bb. module has all funs.
   for (int i = 0; i < gIRList.size(); ++i) {
-    auto& ir = gIRList[i];
+    auto& ir = *gIRList[i];
     if (ir.op_ == IR::OpKind::LABEL) {
       auto& label_name = ir.opn1_.name_;
       IRBasicBlock* bb = new IRBasicBlock();
@@ -54,7 +54,7 @@ IRModule* ConstructModule(const std::string& module_name, std::vector<ir::IR>& g
   IRBasicBlock* curr_bb = nullptr;
   // for every ir
   for (int i = 0; i < gIRList.size(); ++i) {
-    auto& ir = gIRList[i];
+    auto& ir = *gIRList[i];
     if (ir.op_ == IR::OpKind::LABEL) {
       is_leader = true;  // 表示这条一定是首指令
     }
