@@ -155,14 +155,14 @@ int main(int argc, char **argv) {
   // ==================Add SSA-Pass Above==================
   pm.AddPass<GenerateArmFromSSA>(true);  // define macro control MUL_TO_SHIFT DIV_TO_SHIFT MOD_TO_AND optimize
   // ==================Add Arm(vreg)-Pass Below==================
-  pm.AddPass<SimplifyArm>(true);
-  pm.AddPass<CondBrToInsts>(true);
+  // pm.AddPass<SimplifyArm>(true);
+  // pm.AddPass<CondBrToInsts>(true);
   // ==================Add Arm(vreg)-Pass Above==================
   pm.AddPass<RegAlloc>(true);
   pm.AddPass<SPOffsetFixup>(true);
   // ==================Add Arm-Pass Below==================
-  pm.AddPass<SimplifyArm>(false);
-  pm.AddPass<CondBrToInsts>(true);
+  // pm.AddPass<SimplifyArm>(false);
+  // pm.AddPass<CondBrToInsts>(true);
   // ==================Add Arm-Pass Above==================
   if (logfile.is_open()) {
     pm.Run(PASS_LOG, logfile);
