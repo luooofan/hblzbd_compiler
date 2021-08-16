@@ -28,7 +28,6 @@ class IRFunction {
  public:
   std::string name_;
   int arg_num_;
-  int stack_size_;
   // basicblocks: ordered
   std::vector<IRBasicBlock*> bb_list_;
   std::vector<IRFunction*> call_func_list_;
@@ -37,8 +36,7 @@ class IRFunction {
   std::unordered_map<std::string, std::unordered_set<ir::IR*>> def_pre_var_;
 
  public:
-  IRFunction(const std::string& name, int arg_num, int stack_size)
-      : name_(name), arg_num_(arg_num), stack_size_(stack_size) {}
+  IRFunction(const std::string& name, int arg_num) : name_(name), arg_num_(arg_num) {}
   virtual ~IRFunction();
   bool IsLeaf() { return call_func_list_.empty(); }
   void EmitCode(std::ostream& out = std::cout);

@@ -21,9 +21,6 @@
 #define ASSERT_ENABLE
 #include "../include/myassert.h"
 
-// #define NO_OPT
-// useless. it is only work for opt_genarm_regalloc branch. used to generate arm code from quad-ir.
-
 namespace ast {
 
 using OpnType = ir::Opn::Type;
@@ -53,8 +50,8 @@ void Root::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {
   // TODO: string type and putf function
   // ir::gFuncTable.insert({"putf", {VOID}});
 
-  // 创建一张全局符号表 全局作用域id为0 父作用域id为-1 当前dynamic_offset为0
-  ir::gScopes.push_back({0, -1, 0});
+  // 创建一张全局符号表 全局作用域id为0 父作用域id为-1
+  ir::gScopes.push_back({0, -1});
   // auto &extern_glo_symtab = ir::gScopes[0].symbol_table_;
   // extern_glo_symtab.insert({"_sysy_idx", {false, false, 0}});
   // auto general_extern_array = ir::SymbolTableItem(true, false, 0);
@@ -185,7 +182,7 @@ void ArrayIdentifier::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gI
       // 如果是int类型而不是int[] 则需要生成一条=[]ir以区分地址和取值
       std::string res_var = ir::NewTemp();
       int scope_id = ctx.scope_id_;
-      ir::gScopes[scope_id].symbol_table_.insert({res_var, {false, false, -1}});
+      ir::gScopes[scope_id].symbol_table_.insert({res_var, {false, false}});
       ir::Opn temp = ir::Opn(OpnType::Var, res_var, scope_id);
       gIRList.push_back(new ir::IR(IROpKind::ASSIGN_OFFSET, ctx.opn_, temp));
       ctx.opn_ = temp;
@@ -253,9 +250,9 @@ void BinaryExpression::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &g
         MyAssert(0);
         break;
     }
-    std::string res_temp_var = ir::NewTemp();
+    const std::string &res_temp_var = ir::NewTemp();
     // NOTE: 中间变量栈偏移-1 并且不维护scope的dynamic offset
-    ir::gScopes[ctx.scope_id_].symbol_table_.insert({res_temp_var, {false, false, -1}});
+    ir::gScopes[ctx.scope_id_].symbol_table_.insert({res_temp_var, {false, false}});
 
     ir::Opn temp = ir::Opn(OpnType::Var, res_temp_var, ctx.scope_id_);
     ctx.opn_ = temp;
@@ -309,7 +306,7 @@ void UnaryExpression::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gI
     std::string rhs_temp_var = ir::NewTemp();
 
     // NOTE: 中间变量栈偏移-1 并且不维护scope的dynamic offset
-    ir::gScopes[ctx.scope_id_].symbol_table_.insert({rhs_temp_var, {false, false, -1}});
+    ir::gScopes[ctx.scope_id_].symbol_table_.insert({rhs_temp_var, {false, false}});
 
     ir::Opn temp = ir::Opn(OpnType::Var, rhs_temp_var, ctx.scope_id_);
     ctx.opn_ = temp;
@@ -367,7 +364,7 @@ void FunctionCall::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRLi
     // FIX: 全局数组不用
     if (0 == scope_id && opn1.type_ == OpnType::Var) {
       std::string temp = ir::NewTemp();
-      ir::gScopes[ctx.scope_id_].symbol_table_.insert({temp, {false, false, -1}});
+      ir::gScopes[ctx.scope_id_].symbol_table_.insert({temp, {false, false}});
       auto temp_opn = ir::Opn(OpnType::Var, temp, ctx.scope_id_);
       gIRList.push_back(new ir::IR(IROpKind::ASSIGN, opn1, temp_opn));
       opn1 = temp_opn;
@@ -392,7 +389,7 @@ void FunctionCall::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRLi
 
     std::string ret_var = ir::NewTemp();
     // NOTE: 中间变量栈偏移-1 并且不维护scope的dynamic offset
-    ir::gScopes[scope_id].symbol_table_.insert({ret_var, {false, false, -1}});
+    ir::gScopes[scope_id].symbol_table_.insert({ret_var, {false, false}});
 
     ir::Opn temp = ir::Opn(OpnType::Var, ret_var, scope_id);
     ctx.opn_ = temp;
@@ -414,7 +411,7 @@ void VariableDefine::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIR
   // NOTE: 只需在当前作用域查找即可 找到则变量重定义
   const auto &var_iter = symbol_table.find(this->name_.name_);
   if (var_iter == symbol_table.end()) {
-    auto tmp = new ir::SymbolTableItem(false, false, scope.dynamic_offset_);
+    auto tmp = new ir::SymbolTableItem(false, false);
     if (ctx.scope_id_ == 0) {
       tmp->initval_.push_back(0);
     } else {  // GenIR DECLARE
@@ -422,9 +419,6 @@ void VariableDefine::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIR
       //                        ir::Opn{OpnType::Imm, ir::kIntWidth}});
     }
     symbol_table.insert({this->name_.name_, *tmp});
-#ifdef NO_OPT
-    scope.dynamic_offset_ += ir::kIntWidth;
-#endif
     delete tmp;
   } else {
     ir::SemanticError(this->line_no_, this->name_.name_ + ": variable redefined");
@@ -437,12 +431,9 @@ void VariableDefineWithInit::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR
   const auto &var_iter = symbol_table.find(this->name_.name_);
   if (var_iter == symbol_table.end()) {
     if (this->is_const_) {
-      symbol_table.insert({this->name_.name_, ir::SymbolTableItem(false, true, -1)});
+      symbol_table.insert({this->name_.name_, ir::SymbolTableItem(false, true)});
     } else {
-      symbol_table.insert({this->name_.name_, ir::SymbolTableItem(false, false, scope.dynamic_offset_)});
-#ifdef NO_OPT
-      scope.dynamic_offset_ += ir::kIntWidth;
-#endif
+      symbol_table.insert({this->name_.name_, ir::SymbolTableItem(false, false)});
     }
     auto &tmp = symbol_table.find(this->name_.name_)->second;
     // NOTE: 如果是全局量或者常量 需要填写initval 如果是局部变量 生成一条赋值语句
@@ -467,7 +458,7 @@ void ArrayDefine::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRLis
   // NOTE: 只需在当前作用域查找即可 找到则重定义
   const auto &var_iter = symbol_table.find(this->name_.name_.name_);
   if (var_iter == symbol_table.end()) {
-    auto tmp = new ir::SymbolTableItem(true, false, scope.dynamic_offset_);
+    auto tmp = new ir::SymbolTableItem(true, false);
     // 计算shape和width shape的类型必定为常量表达式，所以opn一定是立即数
     for (const auto &shape : name_.shape_list_) {
       shape->Evaluate(ctx, gIRList);
@@ -477,7 +468,6 @@ void ArrayDefine::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRLis
     // NOTE: 数组的width比shape多一项 最后一项存InitWidth 4
     tmp->width_[tmp->width_.size() - 1] = ir::kIntWidth;
     for (int i = tmp->width_.size() - 2; i >= 0; i--) tmp->width_[i] = tmp->width_[i + 1] * tmp->shape_[i];
-    scope.dynamic_offset_ += tmp->width_[0];
     // 全局数组量需要展开数组并填初值0
     if (ctx.scope_id_ == 0) {
       int mul = 1;
@@ -506,7 +496,7 @@ void ArrayDefineWithInit::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *>
     // if (this->is_const_) {
     // symbol_table.insert({name, ir::SymbolTableItem(true, true, -1)});
     // } else {
-    symbol_table.insert({name, ir::SymbolTableItem(true, this->is_const_, scope.dynamic_offset_)});
+    symbol_table.insert({name, ir::SymbolTableItem(true, this->is_const_)});
     // }
     auto &symbol_item = symbol_table.find(name)->second;
     // 填shape
@@ -525,8 +515,6 @@ void ArrayDefineWithInit::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *>
       width *= *reiter;
       temp_width.push(width);
     }
-    // if (!this->is_const_) scope.dynamic_offset_ += temp_width.top();
-    scope.dynamic_offset_ += temp_width.top();
     while (!temp_width.empty()) {
       symbol_item.width_.push_back(temp_width.top());
       temp_width.pop();
@@ -587,7 +575,7 @@ void FunctionDefine::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIR
     ctx.scope_id_ = ir::gScopes.size();
     gIRList.push_back(new ir::IR(IROpKind::LABEL, FUNC_OPN(this->name_.name_)));
     // 父作用域id一定为0 函数初始栈偏移为0
-    ir::gScopes.push_back({ctx.scope_id_, 0, 0});
+    ir::gScopes.push_back({ctx.scope_id_, 0});
     auto tmp = new ir::FuncTableItem(return_type_, ctx.scope_id_);
     ctx.has_aug_scope = true;
     for (int i = 0; i < args_.arg_list_.size(); ++i) {
@@ -598,12 +586,8 @@ void FunctionDefine::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIR
       if (Identifier *ident = dynamic_cast<Identifier *>(&arg->name_)) {
         const auto &var_iter = symbol_table.find(ident->name_);
         if (var_iter == symbol_table.end()) {
-          auto &&symbol_item = ir::SymbolTableItem(false, false, scope.dynamic_offset_);
-          symbol_item.SetIsArg();
+          auto &&symbol_item = ir::SymbolTableItem(false, false);
           symbol_table.insert({ident->name_, symbol_item});
-          // #ifdef NO_OPT
-          scope.dynamic_offset_ += ir::kIntWidth;
-          // #endif
           // ADD DECLARE
           gIRList.push_back(new ir::IR{IROpKind::DECLARE, ir::Opn(OpnType::Var, ident->name_, ctx.scope_id_),
                                        ir::Opn(OpnType::Imm, i)});
@@ -614,12 +598,8 @@ void FunctionDefine::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIR
       } else if (ArrayIdentifier *arrident = dynamic_cast<ArrayIdentifier *>(&arg->name_)) {
         const auto &var_iter = symbol_table.find(arrident->name_.name_);
         if (var_iter == symbol_table.end()) {
-          auto tmp1 = new ir::SymbolTableItem(true, false, scope.dynamic_offset_);
-          tmp1->SetIsArg();
+          auto tmp1 = new ir::SymbolTableItem(true, false);
           // NOTE: 参数中的数组视为一个基址指针
-          // #ifdef NO_OPT
-          scope.dynamic_offset_ += ir::kIntWidth;
-          // #endif
           // ADD DECLARE
           gIRList.push_back(
               new ir::IR{IROpKind::DECLARE,
@@ -660,10 +640,6 @@ void FunctionDefine::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIR
     if (return_type_ == VOID /*&& ctx.has_return == false*/) {
       gIRList.push_back(new ir::IR(IROpKind::RET));
     }
-
-    // 填写函数表项中的栈大小size
-    const auto &iter = ir::gFuncTable.find(name_.name_);
-    (*iter).second.size_ = ir::gScopes[ctx.scope_id_].dynamic_offset_;
 
     // Set current_scope_id
     ctx.scope_id_ = 0;
@@ -817,14 +793,11 @@ void Block::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {
   if (!ctx.has_aug_scope) {
     // new scope
     ctx.scope_id_ = ir::gScopes.size();
-    ir::gScopes.push_back({ctx.scope_id_, parent_scope_id, ir::gScopes[parent_scope_id].dynamic_offset_});
+    ir::gScopes.push_back({ctx.scope_id_, parent_scope_id});
   }
   ctx.has_aug_scope = false;
   for (const auto &stmt : this->statement_list_) {
     stmt->GenerateIR(ctx, gIRList);
-  }
-  if (0 != parent_scope_id) {
-    ir::gScopes[parent_scope_id].dynamic_offset_ = ir::gScopes[ctx.scope_id_].dynamic_offset_;
   }
   // src scope
   ctx.scope_id_ = parent_scope_id;
@@ -994,7 +967,7 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *>
         auto &scope = ir::gScopes[scope_id];
 
         std::string lhs_temp_var = ir::NewTemp();
-        scope.symbol_table_.insert({lhs_temp_var, {false, false, -1}});
+        scope.symbol_table_.insert({lhs_temp_var, {false, false}});
         ir::Opn lhs_opn = {OpnType::Var, lhs_temp_var, scope_id};
 
         // genir(assign,0,-,lhstmpvar)
@@ -1010,7 +983,7 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *>
         gIRList.push_back(new ir::IR(IROpKind::LABEL, LABEL_OPN(rhs_label)));
 
         std::string rhs_temp_var = ir::NewTemp();
-        scope.symbol_table_.insert({rhs_temp_var, {false, false, -1}});
+        scope.symbol_table_.insert({rhs_temp_var, {false, false}});
         ir::Opn rhs_opn = {OpnType::Var, rhs_temp_var, scope_id};
 
         // genir(assign,0,-,rhstmpvar)
@@ -1161,7 +1134,7 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *>
         std::string lhs_temp_var = ir::NewTemp();
         int scope_id = ctx.scope_id_;
         auto &scope = ir::gScopes[scope_id];
-        scope.symbol_table_.insert({lhs_temp_var, {false, false, -1}});
+        scope.symbol_table_.insert({lhs_temp_var, {false, false}});
         ir::Opn lhs_opn = {OpnType::Var, lhs_temp_var, scope_id};
 
         // genir(assign,0,-,lhstmpvar)
@@ -1291,7 +1264,7 @@ void ConditionExpression::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *>
         std::string rhs_temp_var = ir::NewTemp();
         int scope_id = ctx.scope_id_;
         auto &scope = ir::gScopes[scope_id];
-        scope.symbol_table_.insert({rhs_temp_var, {false, false, -1}});
+        scope.symbol_table_.insert({rhs_temp_var, {false, false}});
         ir::Opn rhs_opn = {OpnType::Var, rhs_temp_var, scope_id};
 
         // genir(assign,0,-,rhstmpvar)

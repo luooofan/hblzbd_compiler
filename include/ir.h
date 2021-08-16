@@ -8,37 +8,28 @@
 #include <vector>
 
 namespace ir {
-// TODO: 部分结构应该改为指针或引用
+
 class SymbolTableItem {
  public:
   bool is_array_;
   bool is_const_;
-  int offset_;              // 函数栈中偏移(中间变量偏移为-1) offset必须维护好
-  int stack_offset_ = 0;    // 实际在栈中的偏移 用于generate arm
   std::vector<int> shape_;  // int为空 否则表示数组的各个维度
   std::vector<int> width_;  // int为空 否则表示数组的各个维度的宽度
   std::vector<int> initval_;  // 用于记录全局变量的初始值 int为一个值 // 数组则转换为一维数组存储
-  SymbolTableItem(bool is_array, bool is_const, int offset)
-      : is_array_(is_array), is_const_(is_const), offset_(offset) {}
-  SymbolTableItem() {}
-  bool IsArg() { return is_arg_; }
-  bool IsTemp() { return -1 == offset_; }
-  void SetIsArg() { is_arg_ = true; }
-  bool IsHighArg() { return is_arg_ && offset_ > 4 * 3; }  // HighArg指参数位置>4
+  SymbolTableItem(bool is_array, bool is_const) : is_array_(is_array), is_const_(is_const) {
+    shape_.reserve(5), width_.reserve(5), initval_.reserve(5);
+  }
+  SymbolTableItem() { shape_.reserve(5), width_.reserve(5), initval_.reserve(5); }
   void Print(std::ostream &outfile = std::clog);
-
- private:
-  bool is_arg_ = false;
 };
 
 class FuncTableItem {
  public:
-  int size_;      // 函数栈大小(不考虑中间变量)
   int ret_type_;  // VOID INT
   int scope_id_;
   std::vector<std::vector<int>> shape_list_;
   // TODO: 如何处理库函数的size
-  FuncTableItem(int ret_type, int scope_id) : ret_type_(ret_type), size_(0), scope_id_(scope_id) {}
+  FuncTableItem(int ret_type, int scope_id) : ret_type_(ret_type), scope_id_(scope_id) {}
   FuncTableItem() {}
   void Print(std::ostream &outfile = std::clog);
 };
@@ -49,13 +40,10 @@ class Scope {
   std::unordered_map<std::string, SymbolTableItem> symbol_table_;
   int scope_id_;         // 作用域id
   int parent_scope_id_;  // 父作用域id
-  int dynamic_offset_;   // 当前作用域符号表中最后一个有效项在函数栈中的偏移
   // 往符号表中插入中间变量时不改变该值
-  // bool is_func_;
   bool IsFunc() { return parent_scope_id_ == 0 ? true : false; }
   // Scope() {}
-  Scope(int scope_id, int parent_scope_id, int dynamic_offset)
-      : scope_id_(scope_id), parent_scope_id_(parent_scope_id), dynamic_offset_(dynamic_offset) {}
+  Scope(int scope_id, int parent_scope_id) : scope_id_(scope_id), parent_scope_id_(parent_scope_id) {}
   void Print(std::ostream &outfile = std::clog);
   bool IsSubScope(int scope_id);
 };
@@ -93,6 +81,10 @@ class Opn {
   Opn(Type type, std::string name, int scope_id, Opn *offset)
       : type_(type), name_(name), scope_id_(scope_id), offset_(offset) {}
   Opn() : type_(Type::Null), name_("-") {}
+  Opn(const Opn &opn);
+  Opn &operator=(const Opn &opn);
+  Opn(Opn &&opn);
+  Opn &operator=(Opn &&opn);
   std::string GetCompName();
   explicit operator std::string();
 };
@@ -163,7 +155,7 @@ class ContextInfo {
   // Used for ArrayIdentifier []=
   bool is_assigned_ = false;
 
-  ContextInfo() : scope_id_(0) {}
+  ContextInfo() : scope_id_(0) { shape_.reserve(5); }
 };
 
 extern Scopes gScopes;

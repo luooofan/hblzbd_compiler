@@ -23,7 +23,7 @@ IRFunction::~IRFunction() {
     if (nullptr != bb) delete bb;
 }
 void IRFunction::EmitCode(std::ostream& out) {
-  out << "@ Function: " << this->name_ << " size:" << this->stack_size_ << std::endl;
+  out << "@ Function: " << this->name_ << std::endl;
   out << "@ call_func: ";
   for (auto func : this->call_func_list_) {
     out << func->name_ << " ";

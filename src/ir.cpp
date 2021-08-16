@@ -38,9 +38,7 @@ void PrintFuncTable(std::ostream &outfile) {
 }
 
 void SymbolTableItem::Print(std::ostream &outfile) {
-  outfile << std::setw(10) << (this->is_array_ ? "√" : "×") << std::setw(10) << (this->is_const_ ? "√" : "×")
-          << std::setw(10) << this->offset_ << std::setw(10) << (this->is_arg_ ? "√" : "×") << std::setw(10)
-          << this->stack_offset_;
+  outfile << std::setw(10) << (this->is_array_ ? "√" : "×") << std::setw(10) << (this->is_const_ ? "√" : "×");
   if (this->is_array_) {
     outfile << std::setw(10) << "shape: ";
     for (const auto &shape : this->shape_) {
@@ -53,17 +51,14 @@ void SymbolTableItem::Print(std::ostream &outfile) {
 }
 
 void FuncTableItem::Print(std::ostream &outfile) {
-  outfile << std::setw(10) << TYPE_STRING(this->ret_type_) << std::setw(10) << this->size_ << std::setw(10)
-          << this->scope_id_ << std::endl;
+  outfile << std::setw(10) << TYPE_STRING(this->ret_type_) << std::setw(10) << this->scope_id_ << std::endl;
 }
 
 void Scope::Print(std::ostream &outfile) {
   outfile << "Scope:" << std::endl
-          << "  scope_id: " << this->scope_id_ << "  parent_scope_id: " << this->parent_scope_id_
-          << "  dyn_offset: " << this->dynamic_offset_ << std::endl;
+          << "  scope_id: " << this->scope_id_ << "  parent_scope_id: " << this->parent_scope_id_ << std::endl;
   if (!this->symbol_table_.empty()) {
-    outfile << std::setw(10) << "name" << std::setw(10) << "is_array" << std::setw(10) << "is_const" << std::setw(10)
-            << "offset" << std::setw(10) << "is_arg" << std::setw(10) << "stack_offset" << std::endl;
+    outfile << std::setw(10) << "name" << std::setw(10) << "is_array" << std::setw(10) << "is_const" << std::endl;
   }
   for (auto &symbol : this->symbol_table_) {
     outfile << std::setw(10) << symbol.first;
@@ -101,14 +96,45 @@ int FindSymbol(int scope_id, std::string name, SymbolTableItem *&res_symbol_item
   return -1;
 };
 
+static const std::string kTempPrefix = "temp-";
+static const std::string kLabelPrefix = ".label";
 std::string NewTemp() {
   static int i = 0;
-  return "temp-" + std::to_string(i++);
+  return kTempPrefix + std::to_string(i++);
 }
 
 std::string NewLabel() {
   static int i = 0;
-  return ".label" + std::to_string(i++);
+  return kLabelPrefix + std::to_string(i++);
+}
+
+Opn::Opn(const Opn &opn) : type_(opn.type_), imm_num_(opn.imm_num_), scope_id_(opn.scope_id_), ssa_id_(opn.ssa_id_) {
+  name_ = opn.name_;
+  if (nullptr != opn.offset_) offset_ = new Opn(*opn.offset_);
+}
+Opn &Opn::operator=(const Opn &opn) {
+  type_ = opn.type_, imm_num_ = opn.imm_num_, scope_id_ = opn.scope_id_, ssa_id_ = opn.ssa_id_;
+  name_ = opn.name_;
+  if (nullptr != offset_) {
+    delete offset_;
+    offset_ = nullptr;
+  }
+  if (nullptr != opn.offset_) offset_ = new Opn(*opn.offset_);
+  return *this;
+}
+Opn::Opn(Opn &&opn)
+    : type_(opn.type_), imm_num_(opn.imm_num_), scope_id_(opn.scope_id_), offset_(opn.offset_), ssa_id_(opn.ssa_id_) {
+  name_ = std::move(opn.name_);
+}
+Opn &Opn::operator=(Opn &&opn) {
+  type_ = opn.type_, imm_num_ = opn.imm_num_, scope_id_ = opn.scope_id_, ssa_id_ = opn.ssa_id_;
+  if (nullptr != offset_) {
+    delete offset_;
+    offset_ = nullptr;
+  }
+  offset_ = opn.offset_;
+  name_ = std::move(opn.name_);
+  return *this;
 }
 
 IR::OpKind GetOpKind(int op, bool reverse) {

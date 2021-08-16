@@ -16,15 +16,15 @@ IRModule* ConstructModule(const std::string& module_name, std::vector<ir::IR*>& 
 
   // add library function to label2func
   // not add them to module
-  label2func.insert({"getint", new IRFunction("getint", 0, 0)});
-  label2func.insert({"getch", new IRFunction("getch", 0, 0)});
-  label2func.insert({"getarray", new IRFunction("getarray", 0, 0)});
-  label2func.insert({"putint", new IRFunction("putint", 1, 0)});
-  label2func.insert({"putch", new IRFunction("putch", 1, 0)});
-  label2func.insert({"putarray", new IRFunction("putarray", 1, 0)});
-  label2func.insert({"_sysy_starttime", new IRFunction("_sysy_starttime", 1, 0)});
-  label2func.insert({"_sysy_stoptime", new IRFunction("_sysy_stoptime", 1, 0)});
-  label2func.insert({"memset", new IRFunction("memset", 3, 0)});
+  label2func.insert({"getint", new IRFunction("getint", 0)});
+  label2func.insert({"getch", new IRFunction("getch", 0)});
+  label2func.insert({"getarray", new IRFunction("getarray", 0)});
+  label2func.insert({"putint", new IRFunction("putint", 1)});
+  label2func.insert({"putch", new IRFunction("putch", 1)});
+  label2func.insert({"putarray", new IRFunction("putarray", 1)});
+  label2func.insert({"_sysy_starttime", new IRFunction("_sysy_starttime", 1)});
+  label2func.insert({"_sysy_stoptime", new IRFunction("_sysy_stoptime", 1)});
+  label2func.insert({"memset", new IRFunction("memset", 3)});
 
   IRModule* module = new IRModule(module_name, gScopes[0]);
 
@@ -38,7 +38,7 @@ IRModule* ConstructModule(const std::string& module_name, std::vector<ir::IR*>& 
       label2bb.insert({label_name, bb});
       if (ir.opn1_.type_ == Opn::Type::Func) {  // is a function begin
         auto& func_item = (*ir::gFuncTable.find(label_name)).second;
-        IRFunction* func = new IRFunction(label_name, func_item.shape_list_.size(), func_item.size_);
+        IRFunction* func = new IRFunction(label_name, func_item.shape_list_.size());
         func->bb_list_.push_back(bb);
         bb->func_ = func;
         label2func.insert({label_name, func});
