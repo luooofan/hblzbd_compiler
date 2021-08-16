@@ -90,15 +90,15 @@ void ArmFunction::EmitCode(std::ostream& out) {
   out << ".global " << this->name_ << std::endl;
   out << "\t.type " << this->name_ << ", %function" << std::endl;
   out << this->name_ << ":" << std::endl;
-  // out << "@ call_func: ";
-  // for (auto func : this->call_func_list_) {
-  //   out << func->name_ << " ";
-  // }
-  // out << std::endl;
-  // out << "@ arg_num: " << this->arg_num_ << " ";        // << std::endl;
-  // out << "@ stack_size: " << this->stack_size_ << " ";  // << std::endl;
-  // out << "@ virtual_reg_max: " << this->virtual_reg_max << " ";
-  // out << std::endl;
+  out << "@ call_func: ";
+  for (auto func : this->call_func_list_) {
+    out << func->name_ << " ";
+  }
+  out << std::endl;
+  out << "@ arg_num: " << this->arg_num_ << " ";        // << std::endl;
+  out << "@ stack_size: " << this->stack_size_ << " ";  // << std::endl;
+  out << "@ virtual_reg_max: " << this->virtual_reg_max << " ";
+  out << std::endl;
 
   out << "@ Function Begin:" << std::endl;
   for (auto bb : bb_list_) {
@@ -111,42 +111,42 @@ void ArmBasicBlock::EmitCode(std::ostream& out) {
   if (this->HasLabel()) {
     out << this->label_ << ":" << std::endl;
   }
-  // out << "  @ ID: " << this->IndexInFunc() << std::endl;
-  // out << "  @ BasicBlock Begin:" << std::endl;
-  // out << "  @ pred: ";
-  // for (auto pred : this->pred_) {
-  //   out << GET_BB_IDENT(pred) << " ";
-  // }
-  // // out << std::endl;
-  // out << "  @ succ: ";
-  // for (auto succ : this->succ_) {
-  //   out << GET_BB_IDENT(succ) << " ";
-  // }
-  // // out << std::endl;
-  // out << "  @ use: ";
-  // for (auto use : this->use_) {
-  //   out << "r" << use << " ";
-  // }
-  // // out << std::endl;
-  // out << "  @ def: ";
-  // for (auto def : this->def_) {
-  //   out << "r" << def << " ";
-  // }
-  // // out << std::endl;
-  // out << "  @ livein: ";
-  // for (auto livein : this->livein_) {
-  //   out << "r" << livein << " ";
-  // }
-  // // out << std::endl;
-  // out << "  @ liveout: ";
-  // for (auto liveout : this->liveout_) {
-  //   out << "r" << liveout << " ";
-  // }
+  out << "  @ ID: " << this->IndexInFunc() << std::endl;
+  out << "  @ BasicBlock Begin:" << std::endl;
+  out << "  @ pred: ";
+  for (auto pred : this->pred_) {
+    out << GET_BB_IDENT(pred) << " ";
+  }
   // out << std::endl;
+  out << "  @ succ: ";
+  for (auto succ : this->succ_) {
+    out << GET_BB_IDENT(succ) << " ";
+  }
+  // out << std::endl;
+  out << "  @ use: ";
+  for (auto use : this->use_) {
+    out << "r" << use << " ";
+  }
+  // out << std::endl;
+  out << "  @ def: ";
+  for (auto def : this->def_) {
+    out << "r" << def << " ";
+  }
+  // out << std::endl;
+  out << "  @ livein: ";
+  for (auto livein : this->livein_) {
+    out << "r" << livein << " ";
+  }
+  // out << std::endl;
+  out << "  @ liveout: ";
+  for (auto liveout : this->liveout_) {
+    out << "r" << liveout << " ";
+  }
+  out << std::endl;
   for (auto inst : this->inst_list_) {
     inst->EmitCode(out);
   }
-  // out << "  @ BasicBlock End." << std::endl;
+  out << "  @ BasicBlock End." << std::endl;
 }
 int ArmBasicBlock::IndexInFunc() {
   MyAssert(nullptr != this->func_);
