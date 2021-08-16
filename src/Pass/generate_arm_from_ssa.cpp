@@ -203,6 +203,7 @@ bool GenerateArmFromSSA::ConvertDiv2Shift(ArmBasicBlock* armbb, Reg* rd, Value* 
   // mov t2 t1 asr k
   // add t2 t2 t1 lsr 31
   else {
+    return false;
     auto [k, m] = cal(imm);
     std::cout << "除常数优化" << imm << " " << k << " " << m << std::endl;
     if (imm == 30) {
