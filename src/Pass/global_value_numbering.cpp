@@ -14,7 +14,7 @@
 #include "../../include/myassert.h"
 
 // #define DEBUG_GVN_PROCESS
-#define DEBUG_GVN_EFFECT
+// #define DEBUG_GVN_EFFECT
 static int kCount = 0;
 
 void GlobalValueNumbering::Run() {
