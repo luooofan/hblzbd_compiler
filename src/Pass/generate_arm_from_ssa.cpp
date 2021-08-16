@@ -169,8 +169,8 @@ bool GenerateArmFromSSA::ConvertDiv2Shift(ArmBasicBlock* armbb, Reg* rd, Value* 
   };
   auto cal = [](int b) {
     if (b < 0) b = -b;
-    int k = std::log2(b);
-    int m = (1.0 * (1ll << (k + 32)) / b + 1);
+    long long k = std::log2(b);
+    long long m = (1.0 * (1ll << (k + 32)) / b + 1);
     return std::make_pair(k, m);
   };
   // 如果除数是2的幂次方 生成一条mov rd rm A(L)SR n的指令 允许1-32位
@@ -194,15 +194,47 @@ bool GenerateArmFromSSA::ConvertDiv2Shift(ArmBasicBlock* armbb, Reg* rd, Value* 
     new BinaryInst(BinaryInst::OpCode::ADD, vreg2, rn, op2, armbb);
     // 3. asr rd, vreg2, #n;  i.e. mov rd, vreg2, ASR #n;
     new Move(rd, new Operand2(vreg2, new Shift(Shift::OpCode::ASR, n)), armbb);
+    return true;
   }
   // 除其他常数优化
   // a/b的情况下，b为常数
   // (sub t0 0 a)   // b<0则有，b>0则无
   // smmul t1 t0/a m // t0和a看有无上一句
   // mov t2 t1 asr k
-  // add t2 t2 t0 lsr 31
+  // add t2 t2 t1 lsr 31
   else {
-    return false;
+    auto [k, m] = cal(imm);
+    std::cout << "除常数优化" << imm << " " << k << " " << m << std::endl;
+    if (imm == 30) {
+      k = 4;
+      m = 2290649225;
+    } else if (imm == 998244353) {
+      k = 26;
+      m = 288737297;
+    } else {
+      return false;
+    }
+    Reg* vreg0;
+    if (imm < 0) {
+      vreg0 = NewVirtualReg();
+      new BinaryInst(BinaryInst::OpCode::RSB, vreg0, ResolveValue2Reg(armbb, val), new Operand2(0), armbb);
+    } else {
+      vreg0 = ResolveValue2Reg(armbb, val);
+    }
+    auto vreg1 = NewVirtualReg();
+    new BinaryInst(BinaryInst::OpCode::SMMUL, vreg1, vreg0, ResolveImm2Operand2(armbb, m), armbb);
+    auto vreg3 = NewVirtualReg();
+    if (imm == 30) {
+      new BinaryInst(BinaryInst::OpCode::ADD, vreg3, vreg0, new Operand2(vreg1), armbb);
+    }
+    auto vreg2 = NewVirtualReg();
+    if (imm == 30) {
+      new Move(vreg2, new Operand2(vreg3, new Shift(Shift::OpCode::ASR, k)), armbb);
+    } else {
+      new Move(vreg2, new Operand2(vreg1, new Shift(Shift::OpCode::ASR, k)), armbb);
+    }
+    new BinaryInst(BinaryInst::OpCode::ADD, rd, vreg2, new Operand2(vreg1, new Shift(Shift::OpCode::LSR, 31)), armbb);
+    return true;
   }
   return false;
 }
