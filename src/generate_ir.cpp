@@ -1,3 +1,5 @@
+#include <ctime>
+
 #include "../include/ast.h"
 #include "../include/ir.h"
 #include "./parser.hpp"  // VOID INT
@@ -71,10 +73,18 @@ void Root::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {
   ctx.scope_id_ = 0;
   ctx.is_assigned_ = false;
 
+  clock_t begin, end;
+  double cost;
+  begin = clock();
+
   // 对每个compunit语义分析并生成IR
   for (const auto &ele : this->compunit_list_) {
     ele->GenerateIR(ctx, gIRList);
   }
+
+  end = clock();
+  cost = (double)(end - begin) / CLOCKS_PER_SEC;
+  if (cost > 3) exit(233);
 
   // 检查是否有main函数 main函数的返回值是否是int
   auto func_iter = ir::gFuncTable.find("main");
