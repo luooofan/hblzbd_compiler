@@ -15,7 +15,7 @@ class ArmModule : public Module {
  public:
   // functions: ordered
   std::vector<ArmFunction*> func_list_;
-  ir::Scope global_scope_;  // FIXME: terrible design
+  ir::Scope& global_scope_;  // FIXME: terrible design
 
  public:
   ArmModule(const std::string& name, ir::Scope& global_scope) : Module(name), global_scope_(global_scope) {}

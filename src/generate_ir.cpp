@@ -1,4 +1,3 @@
-#include <ctime>
 
 #include "../include/ast.h"
 #include "../include/ir.h"
@@ -20,6 +19,11 @@
 
 #define ASSERT_ENABLE
 #include "../include/myassert.h"
+
+#define GENIR_TIME_CONTROL
+#ifdef GENIR_TIME_CONTROL
+#include <ctime>
+#endif
 
 namespace ast {
 
@@ -70,18 +74,23 @@ void Root::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {
   ctx.scope_id_ = 0;
   ctx.is_assigned_ = false;
 
+#ifdef GENIR_TIME_CONTROL
   clock_t begin, end;
   double cost;
   begin = clock();
+#endif
 
   // 对每个compunit语义分析并生成IR
   for (const auto &ele : this->compunit_list_) {
     ele->GenerateIR(ctx, gIRList);
   }
 
+#ifdef GENIR_TIME_CONTROL
   end = clock();
   cost = (double)(end - begin) / CLOCKS_PER_SEC;
+  std::cout << "GenIrRoot cost: " << cost << "s" << std::endl;
   if (cost > 3) exit(233);
+#endif
 
   // 检查是否有main函数 main函数的返回值是否是int
   auto func_iter = ir::gFuncTable.find("main");
@@ -472,7 +481,8 @@ void ArrayDefine::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRLis
     if (ctx.scope_id_ == 0) {
       int mul = 1;
       for (int i = 0; i < tmp->shape_.size(); i++) mul *= tmp->shape_[i];
-      tmp->initval_.resize(mul, 0);
+      // NOTE HERE: 不填表示都是0 都填0会造成内存大量浪费
+      // tmp->initval_.resize(mul, 0);
     } else {  // GenIR ALLOCA
       gIRList.push_back(new ir::IR{
           IROpKind::ALLOCA, ir::Opn{OpnType::Array, this->name_.name_.name_, ctx.scope_id_, new ir::Opn(IMM_0_OPN)},

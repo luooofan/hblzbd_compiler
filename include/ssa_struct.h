@@ -23,7 +23,7 @@ class SSAModule : public Module {
   std::list<SSAFunction*> builtin_func_list_;
 
  public:
-  ir::Scope global_scope_;  // FIXME: terrible design
+  ir::Scope& global_scope_;  // FIXME: terrible design
   // a symbol table
   std::string name_;
   SSAModule(ir::Scope& global_scope, std::string name = "") : Module(name), name_(name), global_scope_(global_scope){};
