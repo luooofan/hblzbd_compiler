@@ -14,7 +14,7 @@
 
 #define MUL_TO_SHIFT
 #define DIV_TO_SHIFT
-#define MOD_TO_AND
+// #define MOD_TO_AND
 
 using namespace arm;
 using BiOp = BinaryInst::OpCode;
