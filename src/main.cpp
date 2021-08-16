@@ -140,7 +140,7 @@ int main(int argc, char **argv) {
   // pm.AddPass<ReachDefine>(false);
   pm.AddPass<ConstantPropagation>(true);
   pm.AddPass<LoopUnroll>(true);
-  // pm.AddPass<InvariantExtrapolation>(true);
+  pm.AddPass<InvariantExtrapolation>(true);
   // ==================Add Quad-Pass Above==================
   pm.AddPass<SimplifyCFG>(true);  // necessary
   pm.AddPass<ComputeDominance>(false);
