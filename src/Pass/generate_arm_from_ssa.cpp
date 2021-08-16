@@ -168,12 +168,12 @@ bool GenerateArmFromSSA::ConvertDiv2Shift(ArmBasicBlock* armbb, Reg* rd, Value* 
   };
   // 如果除数是2的幂次方 生成一条mov rd rm A(L)SR n的指令 允许1-32位
   // FIXME: 这样做并不适用于被除数是负数的情况
-  if (0 == (imm & (imm - 1))) {
-    std::cout << "Warning Div" << std::endl;
-    auto op2 = new Operand2(ResolveValue2Reg(armbb, val), new Shift(Shift::OpCode::ASR, eval_n(imm)));
-    new Move(rd, op2, armbb);
-    return true;
-  }
+  // if (0 == (imm & (imm - 1))) {
+  //   std::cout << "Warning Div" << std::endl;
+  //   auto op2 = new Operand2(ResolveValue2Reg(armbb, val), new Shift(Shift::OpCode::ASR, eval_n(imm)));
+  //   new Move(rd, op2, armbb);
+  //   return true;
+  // }
   // 考虑负数情况
   if (0 == (imm & (imm - 1))) {
     // 1. asr vreg, rn, #31;  i.e. mov vreg, rn, ASR #31;
