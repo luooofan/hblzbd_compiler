@@ -5,6 +5,7 @@ using namespace arm;
 
 // #define DEBUG_SPILL
 // #define DEBUG_REGALLOC_PROCESS
+static int kCount = 0;
 
 #define ASSERT_ENABLE
 #include "../../include/myassert.h"
@@ -47,6 +48,7 @@ void RegAlloc::Run() {
 void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
   int i = 0;
   for (auto func : m->func_list_) {
+    kCount = 0;
 #ifdef DEBUG_REGALLOC_PROCESS
     std::cout << "第" << i++ << "个函数: " << func->name_ << std::endl;
 #endif
@@ -54,6 +56,7 @@ void RegAlloc::AllocateRegister(ArmModule *m, std::ostream &outfile) {
     bool done = false;
     std::unordered_map<RegId, int> spill_times;
     while (!done) {
+      if (kCount++ > 5) exit(233);
       used_callee_saved_regs.clear();
       // K color
       const int K = 14;  // r0-r11 r12 lr(r14)
