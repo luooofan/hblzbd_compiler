@@ -20,7 +20,7 @@
 #define ASSERT_ENABLE
 #include "../include/myassert.h"
 
-#define GENIR_TIME_CONTROL
+// #define GENIR_TIME_CONTROL
 #ifdef GENIR_TIME_CONTROL
 #include <ctime>
 #endif
