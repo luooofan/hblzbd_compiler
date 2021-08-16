@@ -5,6 +5,10 @@
 #define ASSERT_ENABLE
 #include "../include/myassert.h"
 
+IRModule::~IRModule() {
+  for (auto func : func_list_)
+    if (nullptr != func) delete func;
+}
 void IRModule::EmitCode(std::ostream& out) {
   out << "@ module: " << this->name_ << std::endl;
   // this->global_scope_.Print(out);
@@ -14,6 +18,10 @@ void IRModule::EmitCode(std::ostream& out) {
   }
 }
 
+IRFunction::~IRFunction() {
+  for (auto bb : bb_list_)
+    if (nullptr != bb) delete bb;
+}
 void IRFunction::EmitCode(std::ostream& out) {
   out << "@ Function: " << this->name_ << " size:" << this->stack_size_ << std::endl;
   out << "@ call_func: ";
@@ -30,6 +38,10 @@ void IRFunction::EmitCode(std::ostream& out) {
   out << "@ Function End." << std::endl;
 }
 
+IRBasicBlock::~IRBasicBlock() {
+  // for (auto ir : ir_list_)
+  // if (nullptr != ir) delete ir;
+}
 int IRBasicBlock::IndexInFunc() {
   MyAssert(nullptr != this->func_);
   auto& bbs = this->func_->bb_list_;

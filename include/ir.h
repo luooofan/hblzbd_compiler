@@ -121,9 +121,9 @@ class IR {
     JGE,     // >=
     VOID,    // useless
     ASSIGN_OFFSET,  // =[] NOTE: 这个操作符不可省略 不可合并到assign中 因为数组地址和数组取值是不一样的
-    PHI,      //
-    ALLOCA,   //
-    DECLARE,  // 函数参数声明
+    PHI,            //
+    ALLOCA,         //
+    DECLARE,        // 函数参数声明
     OFFSET_ASSIGN,  // []=     NOTE: 这个操作只会用于生成DAG的时候，在最终由DAG重构得到的四元式中不会出现该操作
   };
   OpKind op_;
@@ -168,7 +168,7 @@ class ContextInfo {
 
 extern Scopes gScopes;
 extern FuncTable gFuncTable;
-extern std::vector<IR> gIRList;
+// extern std::vector<IR> gIRList;
 extern const int kIntWidth;
 
 std::string NewTemp();

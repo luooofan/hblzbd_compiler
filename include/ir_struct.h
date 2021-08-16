@@ -20,7 +20,7 @@ class IRModule : public Module {
  public:
   IRModule(const std::string& name, ir::Scope& global_scope) : Module(name), global_scope_(global_scope) {}
   IRModule(ir::Scope& global_scope) : global_scope_(global_scope) {}
-  virtual ~IRModule() {}
+  virtual ~IRModule();
   void EmitCode(std::ostream& out = std::cout);
 };
 
@@ -39,7 +39,7 @@ class IRFunction {
  public:
   IRFunction(const std::string& name, int arg_num, int stack_size)
       : name_(name), arg_num_(arg_num), stack_size_(stack_size) {}
-  virtual ~IRFunction() {}
+  virtual ~IRFunction();
   bool IsLeaf() { return call_func_list_.empty(); }
   void EmitCode(std::ostream& out = std::cout);
 };
@@ -85,12 +85,12 @@ class IRBasicBlock {
 
   IRBasicBlock() : func_(nullptr) {}
   IRBasicBlock(IRFunction* func) : func_(func) {}
-  virtual ~IRBasicBlock() {}
+  virtual ~IRBasicBlock();
   void EmitCode(std::ostream& out = std::cout);
   void EmitBackupCode(std::ostream& out = std::cout);
   int IndexInFunc();
 };
 
-IRModule* ConstructModule(const std::string& module_name);
+IRModule* ConstructModule(const std::string& module_name, std::vector<ir::IR>& gIRList);
 
 #endif

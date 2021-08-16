@@ -16,9 +16,11 @@
 namespace ast {
 
 // 若计算成功 返回一个立即数形式的ir::Opn
-void Number::Evaluate(ir::ContextInfo& ctx) { ctx.opn_ = ir::Opn(ir::Opn::Type::Imm, value_); }
+void Number::Evaluate(ir::ContextInfo& ctx, std::vector<ir::IR>& gIRList) {
+  ctx.opn_ = ir::Opn(ir::Opn::Type::Imm, value_);
+}
 
-void Identifier::Evaluate(ir::ContextInfo& ctx) {
+void Identifier::Evaluate(ir::ContextInfo& ctx, std::vector<ir::IR>& gIRList) {
   ir::SymbolTableItem* s = nullptr;
   int scope_id = ir::FindSymbol(ctx.scope_id_, name_, s);
   if (!s) {
@@ -31,7 +33,7 @@ void Identifier::Evaluate(ir::ContextInfo& ctx) {
 
   ctx.opn_ = ir::Opn(ir::Opn::Type::Imm, s->initval_[0]);
 }
-void ArrayIdentifier::Evaluate(ir::ContextInfo& ctx) {
+void ArrayIdentifier::Evaluate(ir::ContextInfo& ctx, std::vector<ir::IR>& gIRList) {
   ir::SymbolTableItem* s = nullptr;
   int scope_id = ir::FindSymbol(ctx.scope_id_, name_.name_, s);
   if (!s) {
@@ -44,7 +46,7 @@ void ArrayIdentifier::Evaluate(ir::ContextInfo& ctx) {
   int index, t;
 
   for (int i = 0; i < shape_list_.size(); ++i) {
-    shape_list_[i]->Evaluate(ctx);
+    shape_list_[i]->Evaluate(ctx, gIRList);
     t = ctx.opn_.imm_num_;
     if (i == shape_list_.size() - 1) {
       index += t * 4;
@@ -55,14 +57,16 @@ void ArrayIdentifier::Evaluate(ir::ContextInfo& ctx) {
 
   ctx.opn_ = ir::Opn(ir::Opn::Type::Imm, s->initval_[index / 4]);
 }
-void ConditionExpression::Evaluate(ir::ContextInfo& ctx) { ir::RuntimeError("条件表达式不实现Evaluate函数"); }
-void BinaryExpression::Evaluate(ir::ContextInfo& ctx) {
+void ConditionExpression::Evaluate(ir::ContextInfo& ctx, std::vector<ir::IR>& gIRList) {
+  ir::RuntimeError("条件表达式不实现Evaluate函数");
+}
+void BinaryExpression::Evaluate(ir::ContextInfo& ctx, std::vector<ir::IR>& gIRList) {
   int l, r, res;
 
-  // lhs_.Evaluate(ctx);
-  lhs_->Evaluate(ctx);
+  // lhs_.Evaluate(ctx, gIRList);
+  lhs_->Evaluate(ctx, gIRList);
   l = ctx.opn_.imm_num_;
-  rhs_.Evaluate(ctx);
+  rhs_.Evaluate(ctx, gIRList);
   r = ctx.opn_.imm_num_;
 
   switch (op_) {
@@ -95,10 +99,10 @@ void BinaryExpression::Evaluate(ir::ContextInfo& ctx) {
 
   ctx.opn_ = ir::Opn(ir::Opn::Type::Imm, res);
 }
-void UnaryExpression::Evaluate(ir::ContextInfo& ctx) {
+void UnaryExpression::Evaluate(ir::ContextInfo& ctx, std::vector<ir::IR>& gIRList) {
   int r, res;
 
-  rhs_.Evaluate(ctx);
+  rhs_.Evaluate(ctx, gIRList);
   r = ctx.opn_.imm_num_;
 
   switch (op_) {
@@ -119,15 +123,16 @@ void UnaryExpression::Evaluate(ir::ContextInfo& ctx) {
 
   ctx.opn_ = ir::Opn(ir::Opn::Type::Imm, res);
 }
-void FunctionCall::Evaluate(ir::ContextInfo& ctx) {  // 不应该试图对Function调用evaluate函数
+void FunctionCall::Evaluate(ir::ContextInfo& ctx,
+                            std::vector<ir::IR>& gIRList) {  // 不应该试图对Function调用evaluate函数
   MyAssert(0);
 }
 
 // 填写initval信息
-void ArrayInitVal::Evaluate(ir::ContextInfo& ctx) {
+void ArrayInitVal::Evaluate(ir::ContextInfo& ctx, std::vector<ir::IR>& gIRList) {
   auto& symbol_item = (*ir::gScopes[ctx.scope_id_].symbol_table_.find(ctx.array_name_)).second;
   if (this->is_exp_) {
-    this->value_->Evaluate(ctx);
+    this->value_->Evaluate(ctx, gIRList);
     if (ctx.opn_.type_ != ir::Opn::Type::Imm) {  // 语义错误 非常量表达式
       ir::SemanticError(this->line_no_, ctx.opn_.name_ + "非常量表达式");
     }
@@ -156,11 +161,11 @@ void ArrayInitVal::Evaluate(ir::ContextInfo& ctx) {
       int final_offset = offset + dim_total_num[temp_level - 1];
       if (!this->initval_list_.empty()) {
         ++brace_num;
-        this->initval_list_[0]->Evaluate(ctx);
+        this->initval_list_[0]->Evaluate(ctx, gIRList);
 
         for (int i = 1; i < this->initval_list_.size(); ++i) {
           brace_num = 1;
-          this->initval_list_[i]->Evaluate(ctx);
+          this->initval_list_[i]->Evaluate(ctx, gIRList);
         }
       }
       // 补0补到finaloffset

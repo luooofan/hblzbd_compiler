@@ -17,7 +17,7 @@ namespace ir {
 
 Scopes gScopes;
 FuncTable gFuncTable;
-std::vector<IR> gIRList;
+// std::vector<IR> gIRList;
 
 const int kIntWidth = 4;
 
