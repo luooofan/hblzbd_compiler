@@ -10,6 +10,7 @@
 #include "../include/Pass/constant_propagation.h"
 #include "../include/Pass/convert_ssa.h"
 #include "../include/Pass/dead_code_eliminate.h"
+#include "../include/Pass/dead_function_eliminate.h"
 #include "../include/Pass/dominant.h"
 #include "../include/Pass/generate_arm_from_ssa.h"
 #include "../include/Pass/global_value_numbering.h"
@@ -20,7 +21,6 @@
 #include "../include/Pass/simplify_armcode.h"
 #include "../include/Pass/simplify_cfg.h"
 #include "../include/Pass/ssa_simple_optimize.h"
-#include "../include/Pass/dead_function_eliminate.h"
 #include "../include/arm.h"
 #include "../include/arm_struct.h"
 #include "../include/ast.h"
@@ -136,11 +136,11 @@ int main(int argc, char **argv) {
   PassManager pm(module_ptr_addr);
 
   // ==================Add Quad-Pass Below==================
-  pm.AddPass<DeadFunctionEliminate>(true);
-  // pm.AddPass<ReachDefine>(false);
-  pm.AddPass<ConstantPropagation>(true);
-  pm.AddPass<LoopUnroll>(true);
-  pm.AddPass<InvariantExtrapolation>(true);
+  // pm.AddPass<DeadFunctionEliminate>(true);
+  // // pm.AddPass<ReachDefine>(false);
+  // pm.AddPass<ConstantPropagation>(true);
+  // pm.AddPass<LoopUnroll>(true);
+  // pm.AddPass<InvariantExtrapolation>(true);
   // ==================Add Quad-Pass Above==================
   pm.AddPass<SimplifyCFG>(true);  // necessary
   pm.AddPass<ComputeDominance>(false);
