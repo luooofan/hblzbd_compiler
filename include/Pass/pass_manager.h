@@ -3,7 +3,10 @@
 
 #include <string>
 
+#define DEBUG_PASSES_PROCESS
+
 #include "../general_struct.h"
+
 class Pass {
  protected:
   Module** const m_;
@@ -53,8 +56,8 @@ class PassManager {
 
   void Run(bool emit = false, std::ostream& out = std::cout) {
     for (auto pass : this->passes_) {
-#ifdef DEBUG_PROCESS
-      out << ">>>>>>>>>>>> Start pass " << pass->GetName() << " <<<<<<<<<<<<" << std::endl;
+#ifdef DEBUG_PASSES_PROCESS
+      std::cout << ">>>>>>>>>>>> Start pass " << pass->GetName() << " <<<<<<<<<<<<" << std::endl;
 #endif
       pass->Run();
       if (emit || pass->IsEmit()) {

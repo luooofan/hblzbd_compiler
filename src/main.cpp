@@ -34,7 +34,7 @@ extern int yyparse();
 extern int yylex_destroy();
 extern void yyset_lineno(int _line_number);
 
-// #define DEBUG_PROCESS
+#define DEBUG_PROCESS
 
 bool AST_LOG = false;
 bool IRLIST_LOG = true;
