@@ -136,7 +136,6 @@ Opn &Opn::operator=(Opn &&opn) {
   name_ = std::move(opn.name_);
   return *this;
 }
-
 IR::OpKind GetOpKind(int op, bool reverse) {
   if (reverse) {
     switch (op) {
@@ -175,7 +174,6 @@ IR::OpKind GetOpKind(int op, bool reverse) {
   }
   return IR::OpKind::VOID;
 }
-
 std::string Opn::GetCompName() {  // 对于全局变量直接返回原name_ 对于局部变量返回复合name
   if (type_ == Type::Imm || type_ == Type::Null) MyAssert(0);
   if (type_ == Type::Label || type_ == Type::Func || scope_id_ == 0) return name_;
@@ -199,6 +197,16 @@ Opn::operator std::string() {
       return name_;
     }
   }
+}
+
+IR::IR(IR &&ir) : op_(ir.op_) {
+  opn1_ = std::move(ir.opn1_), opn2_ = std::move(ir.opn2_), res_ = std::move(ir.res_);
+  phi_args_ = std::move(ir.phi_args_);
+}
+IR &IR::operator=(IR &&ir) {
+  opn1_ = std::move(ir.opn1_), opn2_ = std::move(ir.opn2_), res_ = std::move(ir.res_);
+  phi_args_ = std::move(ir.phi_args_);
+  return *this;
 }
 
 void IR::PrintIR(std::ostream &outfile) {

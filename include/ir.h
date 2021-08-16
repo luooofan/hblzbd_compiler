@@ -126,7 +126,11 @@ class IR {
   IR(OpKind op, Opn opn1, Opn res) : op_(op), opn1_(opn1), res_(res) {}
   IR(OpKind op, Opn opn1) : op_(op), opn1_(opn1) {}
   IR(OpKind op) : op_(op) {}
-  IR() {}
+  IR() = default;
+  IR(const IR &ir) = default;
+  IR &operator=(const IR &ir) = default;
+  IR(IR &&ir);
+  IR &operator=(IR &&ir);
   void PrintIR(std::ostream &outfile = std::clog);
 };
 
