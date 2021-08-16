@@ -206,12 +206,12 @@ bool GenerateArmFromSSA::ConvertMod2And(ArmBasicBlock* armbb, Reg* rd, Value* va
   };
   // 如果是2的幂次方 生成一条and rd rm n-1的指令
   // FIXME: 这样做并不适用于被除数是负数的情况
-  if (0 == (imm & (imm - 1))) {
-    std::cout << "Warning Mod" << std::endl;
-    auto rm = ResolveValue2Reg(armbb, val);
-    new BinaryInst(BinaryInst::OpCode::AND, rd, rm, ResolveImm2Operand2(armbb, imm - 1), armbb);
-    return true;
-  }
+  // if (0 == (imm & (imm - 1))) {
+  //   std::cout << "Warning Mod" << std::endl;
+  //   auto rm = ResolveValue2Reg(armbb, val);
+  //   new BinaryInst(BinaryInst::OpCode::AND, rd, rm, ResolveImm2Operand2(armbb, imm - 1), armbb);
+  //   return true;
+  // }
   if (0 == (imm & (imm - 1))) {
     // 1. asr vreg, rn, #31;  i.e. mov vreg, rn, ASR #31;
     auto vreg = NewVirtualReg();
