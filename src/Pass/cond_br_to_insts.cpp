@@ -51,13 +51,13 @@ void CondBrToInsts::Run4Func(ArmFunction* func) {
           bool can_delete = true;
           for (auto next_it = next_bb->inst_list_.begin(); next_it != next_bb->inst_list_.end(); ++next_it) {
             auto inst = *next_it;
-            if (inst->cond_ != Cond::AL && inst->cond_ != src_inst->cond_) {
+            if (inst->cond_ != Cond::AL /* && inst->cond_ != src_inst->cond_*/) {
               can_delete = false;
               break;
             }
-            if (next_it + 1 == next_bb->inst_list_.end()) break;
+            // if (next_it + 1 == next_bb->inst_list_.end()) break;
             if (auto src_inst = dynamic_cast<Branch*>(inst)) {
-              if (src_inst->has_l_) {
+              if (src_inst->has_l_ || src_inst->has_x_) {
                 can_delete = false;
                 break;
               }
