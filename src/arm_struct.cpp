@@ -7,6 +7,8 @@
 #define ASSERT_ENABLE
 #include "../include/myassert.h"
 
+// #define GENARM_WITH_COMMENT
+
 #define GET_BB_LABEL_STR(bb_ptr) (bb_ptr->HasLabel() ? bb_ptr->label_ : ("UnamedBB"))
 #define GET_BB_IDENT(bb_ptr) (GET_BB_LABEL_STR(bb_ptr) + ":" + std::to_string(bb_ptr->IndexInFunc()))
 
@@ -90,6 +92,7 @@ void ArmFunction::EmitCode(std::ostream& out) {
   out << ".global " << this->name_ << std::endl;
   out << "\t.type " << this->name_ << ", %function" << std::endl;
   out << this->name_ << ":" << std::endl;
+#ifdef GENARM_WITH_COMMENT
   out << "@ call_func: ";
   for (auto func : this->call_func_list_) {
     out << func->name_ << " ";
@@ -99,7 +102,7 @@ void ArmFunction::EmitCode(std::ostream& out) {
   out << "@ stack_size: " << this->stack_size_ << " ";  // << std::endl;
   out << "@ virtual_reg_max: " << this->virtual_reg_max << " ";
   out << std::endl;
-
+#endif
   out << "@ Function Begin:" << std::endl;
   for (auto bb : bb_list_) {
     bb->EmitCode(out);
@@ -111,6 +114,7 @@ void ArmBasicBlock::EmitCode(std::ostream& out) {
   if (this->HasLabel()) {
     out << this->label_ << ":" << std::endl;
   }
+#ifdef GENARM_WITH_COMMENT
   out << "  @ ID: " << this->IndexInFunc() << std::endl;
   out << "  @ BasicBlock Begin:" << std::endl;
   out << "  @ pred: ";
@@ -143,10 +147,13 @@ void ArmBasicBlock::EmitCode(std::ostream& out) {
     out << "r" << liveout << " ";
   }
   out << std::endl;
+#endif
   for (auto inst : this->inst_list_) {
     inst->EmitCode(out);
   }
+#ifdef GENARM_WITH_COMMENT
   out << "  @ BasicBlock End." << std::endl;
+#endif
 }
 int ArmBasicBlock::IndexInFunc() {
   MyAssert(nullptr != this->func_);

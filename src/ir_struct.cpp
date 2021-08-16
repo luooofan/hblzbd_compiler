@@ -5,6 +5,8 @@
 #define ASSERT_ENABLE
 #include "../include/myassert.h"
 
+// #define GENIR_WITH_COMMENT
+
 IRModule::~IRModule() {
   for (auto func : func_list_)
     if (nullptr != func) delete func;
@@ -24,11 +26,13 @@ IRFunction::~IRFunction() {
 }
 void IRFunction::EmitCode(std::ostream& out) {
   out << "@ Function: " << this->name_ << std::endl;
+#ifdef GENIR_WITH_COMMENT
   out << "@ call_func: ";
   for (auto func : this->call_func_list_) {
     out << func->name_ << " ";
   }
   out << std::endl;
+#endif
   out << "@ Function Begin:" << std::endl;
   out << std::endl;
   for (auto bb : this->bb_list_) {
@@ -58,6 +62,7 @@ bool IRBasicBlock::IsByDom(IRBasicBlock* bb) {
   return false;
 }
 void IRBasicBlock::EmitCode(std::ostream& out) {
+#ifdef GENIR_WITH_COMMENT
   out << "@ BasicBlock: id:" << this->IndexInFunc() << std::endl;
   out << "@ pred bbs: ";
   for (auto pred : this->pred_) {
@@ -98,12 +103,14 @@ void IRBasicBlock::EmitCode(std::ostream& out) {
     out << liveout << " ";
   }
   out << std::endl;
+#endif
   for (auto ir : this->ir_list_) {
     ir->PrintIR(out);
   }
 }
 
 void IRBasicBlock::EmitBackupCode(std::ostream& out) {
+#ifdef GENIR_WITH_COMMENT
   out << "@ BasicBlock: id:" << this->IndexInFunc() << std::endl;
   out << "@ pred bbs: ";
   for (auto pred : this->pred_) {
@@ -144,6 +151,7 @@ void IRBasicBlock::EmitBackupCode(std::ostream& out) {
     out << liveout << " ";
   }
   out << std::endl;
+#endif
   for (auto ir : this->ir_list_backup_) {
     ir->PrintIR(out);
   }
