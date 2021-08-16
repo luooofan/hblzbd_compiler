@@ -20,7 +20,7 @@
 #define ASSERT_ENABLE
 #include "../include/myassert.h"
 
-// #define GENIR_TIME_CONTROL
+#define GENIR_TIME_CONTROL
 #ifdef GENIR_TIME_CONTROL
 #include <ctime>
 #endif
@@ -574,6 +574,11 @@ void ArrayDefineWithInit::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *>
 }
 
 void FunctionDefine::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {
+#ifdef GENIR_TIME_CONTROL
+  clock_t begin, end;
+  double cost;
+  begin = clock();
+#endif
   // NOTE: 函数无法嵌套定义
   if (ctx.scope_id_ != 0) {
     ir::SemanticError(this->line_no_, "function nest define.");
@@ -656,6 +661,12 @@ void FunctionDefine::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIR
   } else {
     ir::SemanticError(this->line_no_, this->name_.name_ + ": function redefined");
   }
+#ifdef GENIR_TIME_CONTROL
+  end = clock();
+  cost = (double)(end - begin) / CLOCKS_PER_SEC;
+  std::cout << "GenIrFunction cost: " << cost << "s" << std::endl;
+  if (cost > 3) exit(233);
+#endif
 }
 
 void AssignStatement::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {
