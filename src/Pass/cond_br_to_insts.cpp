@@ -49,15 +49,16 @@ void CondBrToInsts::Run4Func(ArmFunction* func) {
             src_inst->label_ == next_next_bb->label_ && next_bb->pred_.size() == 1 && next_bb->pred_.front() == bb &&
             next_bb->inst_list_.size() <= kMaxInstNumInBB) {
           bool can_delete = true;
+          auto cond = GetOppositeCond(src_inst->cond_);
           for (auto next_it = next_bb->inst_list_.begin(); next_it != next_bb->inst_list_.end(); ++next_it) {
             auto inst = *next_it;
-            if (inst->cond_ != Cond::AL /* && inst->cond_ != src_inst->cond_*/) {
+            if (inst->cond_ != Cond::AL && inst->cond_ != cond) {
               can_delete = false;
               break;
             }
-            // if (next_it + 1 == next_bb->inst_list_.end()) break;
+            if (next_it + 1 == next_bb->inst_list_.end()) break;
             if (auto src_inst = dynamic_cast<Branch*>(inst)) {
-              if (src_inst->has_l_ || src_inst->has_x_) {
+              if (src_inst->has_l_) {
                 can_delete = false;
                 break;
               }
@@ -66,11 +67,10 @@ void CondBrToInsts::Run4Func(ArmFunction* func) {
 #ifdef DEBUG_CONDBRTOINSTS_PROCESS
           std::cout << "Check If to Cond BB:" << std::endl;
           next_bb->EmitCode(std::cout);
-          std::cout << "  Result: " << can_delete << " " << CondToString(GetOppositeCond(src_inst->cond_)) << std::endl;
+          std::cout << "  Result: " << can_delete << " " << CondToString(cond) << std::endl;
 #endif
           if (can_delete) {
             ++kCount;
-            auto cond = GetOppositeCond(src_inst->cond_);
             for (auto inst : next_bb->inst_list_) {
               inst->cond_ = cond;
             }

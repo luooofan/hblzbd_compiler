@@ -2,6 +2,7 @@
 #include "../../include/Pass/generate_arm_from_ssa.h"
 
 #include <algorithm>
+#include <cmath>
 #include <functional>
 
 #include "../../include/arm.h"
@@ -166,6 +167,12 @@ bool GenerateArmFromSSA::ConvertDiv2Shift(ArmBasicBlock* armbb, Reg* rd, Value* 
     }
     return n;
   };
+  auto cal = [](int b) {
+    if (b < 0) b = -b;
+    int k = std::log2(b);
+    int m = (1.0 * (1ll << (k + 32)) / b + 1);
+    return std::make_pair(k, m);
+  };
   // 如果除数是2的幂次方 生成一条mov rd rm A(L)SR n的指令 允许1-32位
   // FIXME: 这样做并不适用于被除数是负数的情况
   // if (0 == (imm & (imm - 1))) {
@@ -187,6 +194,15 @@ bool GenerateArmFromSSA::ConvertDiv2Shift(ArmBasicBlock* armbb, Reg* rd, Value* 
     new BinaryInst(BinaryInst::OpCode::ADD, vreg2, rn, op2, armbb);
     // 3. asr rd, vreg2, #n;  i.e. mov rd, vreg2, ASR #n;
     new Move(rd, new Operand2(vreg2, new Shift(Shift::OpCode::ASR, n)), armbb);
+  }
+  // 除其他常数优化
+  // a/b的情况下，b为常数
+  // (sub t0 0 a)   // b<0则有，b>0则无
+  // smmul t1 t0/a m // t0和a看有无上一句
+  // mov t2 t1 asr k
+  // add t2 t2 t0 lsr 31
+  else {
+    return false;
   }
   return false;
 }

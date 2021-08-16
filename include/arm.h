@@ -139,10 +139,11 @@ class Instruction {
 class BinaryInst : public Instruction {
  public:
   enum class OpCode {
-    ADD,  // 减法
-    SUB,  // 减法
-    RSB,  // 反向减法 working for imm - Rn
-    MUL,  // Operand2 can only be Rs.
+    ADD,    // 减法
+    SUB,    // 减法
+    RSB,    // 反向减法 working for imm - Rn
+    MUL,    // Operand2 can only be Rs.
+    SMMUL,  // Used for 除常数优化
 
     // Logical
     AND,  // 与

@@ -128,6 +128,9 @@ void BinaryInst::EmitCode(std::ostream& outfile) {
     case OpCode::MUL:
       opcode = "mul";
       break;
+    case OpCode::SMMUL:
+      opcode = "smmul";
+      break;
     case OpCode::AND:
       opcode = "and";
       break;
