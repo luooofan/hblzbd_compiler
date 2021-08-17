@@ -84,7 +84,7 @@ extern int yydebug;
 extern int yylex();
 extern int yylex_destroy();
 extern int yyget_lineno();
-extern std::unordered_map<std::string, std::unordered_set<std::string>> called_func_map;
+extern std::unordered_map<std::string, std::unordered_set<ast::FunctionCall*>> called_func_map;
 
 void yyerror(const char *s) {
      std::printf("Error(line: %d): %s\n", yyget_lineno(), s); 
@@ -512,10 +512,10 @@ static const yytype_uint16 yyrline[] =
      253,   256,   261,   269,   275,   278,   283,   287,   293,   294,
      300,   301,   302,   303,   304,   307,   310,   313,   316,   321,
      326,   330,   336,   343,   346,   352,   355,   358,   361,   366,
-     369,   372,   377,   378,   381,   386,   389,   394,   398,   404,
-     405,   410,   411,   416,   417,   422,   423,   428,   429,   434,
-     439,   444,   449,   454,   455,   458,   459,   460,   461,   464,
-     465,   468,   469,   470,   473,   474,   475
+     369,   372,   377,   378,   381,   386,   390,   396,   400,   406,
+     407,   412,   413,   418,   419,   424,   425,   430,   431,   436,
+     441,   446,   451,   456,   457,   460,   461,   462,   463,   466,
+     467,   470,   471,   472,   475,   476,   477
 };
 #endif
 
@@ -1904,112 +1904,114 @@ yyreduce:
 #line 386 "src/parser.y" /* yacc.c:1652  */
     {
     (yyval.funccall)=new ast::FunctionCall(yyget_lineno(), *(yyvsp[-2].ident),*(new ast::FunctionActualParameterList(yyget_lineno())));
+    called_func_map[(yyvsp[-2].ident)->name_].insert((yyval.funccall));
 }
-#line 1909 "src/parser.cpp" /* yacc.c:1652  */
+#line 1910 "src/parser.cpp" /* yacc.c:1652  */
     break;
 
   case 76:
-#line 389 "src/parser.y" /* yacc.c:1652  */
+#line 390 "src/parser.y" /* yacc.c:1652  */
     {
         (yyval.funccall)=new ast::FunctionCall(yyget_lineno(), *(yyvsp[-3].ident),*(yyvsp[-1].funcaparams));
+        called_func_map[(yyvsp[-3].ident)->name_].insert((yyval.funccall));
     }
-#line 1917 "src/parser.cpp" /* yacc.c:1652  */
+#line 1919 "src/parser.cpp" /* yacc.c:1652  */
     break;
 
   case 77:
-#line 394 "src/parser.y" /* yacc.c:1652  */
+#line 396 "src/parser.y" /* yacc.c:1652  */
     {
     (yyval.funcaparams)=new ast::FunctionActualParameterList(yyget_lineno());
     (yyval.funcaparams)->arg_list_.push_back((yyvsp[0].expr));
 }
-#line 1926 "src/parser.cpp" /* yacc.c:1652  */
+#line 1928 "src/parser.cpp" /* yacc.c:1652  */
     break;
 
   case 78:
-#line 398 "src/parser.y" /* yacc.c:1652  */
+#line 400 "src/parser.y" /* yacc.c:1652  */
     {
         (yyval.funcaparams)=(yyvsp[-2].funcaparams);
         (yyval.funcaparams)->arg_list_.push_back((yyvsp[0].expr));
     }
-#line 1935 "src/parser.cpp" /* yacc.c:1652  */
+#line 1937 "src/parser.cpp" /* yacc.c:1652  */
     break;
 
   case 80:
-#line 405 "src/parser.y" /* yacc.c:1652  */
+#line 407 "src/parser.y" /* yacc.c:1652  */
     {
         (yyval.expr)=static_cast<ast::Expression*>(new ast::BinaryExpression(yyget_lineno(), (yyvsp[-1].token), std::shared_ptr<ast::Expression>((yyvsp[-2].expr)), *(yyvsp[0].expr)));
     }
-#line 1943 "src/parser.cpp" /* yacc.c:1652  */
+#line 1945 "src/parser.cpp" /* yacc.c:1652  */
     break;
 
   case 82:
-#line 411 "src/parser.y" /* yacc.c:1652  */
+#line 413 "src/parser.y" /* yacc.c:1652  */
     {
         (yyval.expr)=static_cast<ast::Expression*>(new ast::BinaryExpression(yyget_lineno(), (yyvsp[-1].token), std::shared_ptr<ast::Expression>((yyvsp[-2].expr)), *(yyvsp[0].expr)));
     }
-#line 1951 "src/parser.cpp" /* yacc.c:1652  */
+#line 1953 "src/parser.cpp" /* yacc.c:1652  */
     break;
 
   case 84:
-#line 417 "src/parser.y" /* yacc.c:1652  */
+#line 419 "src/parser.y" /* yacc.c:1652  */
     {
         (yyval.expr)=static_cast<ast::Expression*>(new ast::ConditionExpression(yyget_lineno(), (yyvsp[-1].token),*(yyvsp[-2].expr),*(yyvsp[0].expr)));
     }
-#line 1959 "src/parser.cpp" /* yacc.c:1652  */
+#line 1961 "src/parser.cpp" /* yacc.c:1652  */
     break;
 
   case 86:
-#line 423 "src/parser.y" /* yacc.c:1652  */
+#line 425 "src/parser.y" /* yacc.c:1652  */
     {
         (yyval.expr)=static_cast<ast::Expression*>(new ast::ConditionExpression(yyget_lineno(), (yyvsp[-1].token),*(yyvsp[-2].expr),*(yyvsp[0].expr)));
     }
-#line 1967 "src/parser.cpp" /* yacc.c:1652  */
+#line 1969 "src/parser.cpp" /* yacc.c:1652  */
     break;
 
   case 88:
-#line 429 "src/parser.y" /* yacc.c:1652  */
+#line 431 "src/parser.y" /* yacc.c:1652  */
     {
         (yyval.expr)=static_cast<ast::Expression*>(new ast::ConditionExpression(yyget_lineno(), (yyvsp[-1].token),*(yyvsp[-2].expr),*(yyvsp[0].expr)));
     }
-#line 1975 "src/parser.cpp" /* yacc.c:1652  */
+#line 1977 "src/parser.cpp" /* yacc.c:1652  */
     break;
 
   case 89:
-#line 434 "src/parser.y" /* yacc.c:1652  */
+#line 436 "src/parser.y" /* yacc.c:1652  */
     {
     if(auto ptr=dynamic_cast<ast::ConditionExpression*>((yyvsp[0].expr))){ (yyval.expr) = (yyvsp[0].expr); }
     else{// NOTE: ($1 || 0)
         (yyval.expr) = static_cast<ast::Expression*>(new ast::ConditionExpression(yyget_lineno(), OR, *(yyvsp[0].expr), *(new ast::Number(yyget_lineno(), 0)))); }
 }
-#line 1985 "src/parser.cpp" /* yacc.c:1652  */
+#line 1987 "src/parser.cpp" /* yacc.c:1652  */
     break;
 
   case 90:
-#line 439 "src/parser.y" /* yacc.c:1652  */
+#line 441 "src/parser.y" /* yacc.c:1652  */
     {
         (yyval.expr)=static_cast<ast::Expression*>(new ast::ConditionExpression(yyget_lineno(), (yyvsp[-1].token),*(yyvsp[-2].expr),*(yyvsp[0].expr)));
     }
-#line 1993 "src/parser.cpp" /* yacc.c:1652  */
+#line 1995 "src/parser.cpp" /* yacc.c:1652  */
     break;
 
   case 91:
-#line 444 "src/parser.y" /* yacc.c:1652  */
+#line 446 "src/parser.y" /* yacc.c:1652  */
     {
     (yyval.ident)=new ast::Identifier(yyget_lineno(), *(yyvsp[0].string));
 }
-#line 2001 "src/parser.cpp" /* yacc.c:1652  */
+#line 2003 "src/parser.cpp" /* yacc.c:1652  */
     break;
 
   case 92:
-#line 449 "src/parser.y" /* yacc.c:1652  */
+#line 451 "src/parser.y" /* yacc.c:1652  */
     {
     (yyval.number)=new ast::Number(yyget_lineno(), (yyvsp[0].token));
 }
-#line 2009 "src/parser.cpp" /* yacc.c:1652  */
+#line 2011 "src/parser.cpp" /* yacc.c:1652  */
     break;
 
 
-#line 2013 "src/parser.cpp" /* yacc.c:1652  */
+#line 2015 "src/parser.cpp" /* yacc.c:1652  */
       default: break;
     }
   /* User semantic actions sometimes alter yychar, and that requires
@@ -2240,4 +2242,4 @@ yyreturn:
 #endif
   return yyresult;
 }
-#line 478 "src/parser.y" /* yacc.c:1918  */
+#line 480 "src/parser.y" /* yacc.c:1918  */
