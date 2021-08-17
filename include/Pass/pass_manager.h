@@ -7,6 +7,8 @@
 
 #include "../general_struct.h"
 
+extern clock_t START_TIME, END_TIME;
+
 class Pass {
  protected:
   Module** const m_;
@@ -55,11 +57,16 @@ class PassManager {
   }
 
   void Run(bool emit = false, std::ostream& out = std::cout) {
+    int i = 1;
     for (auto pass : this->passes_) {
 #ifdef DEBUG_PASSES_PROCESS
       std::cout << ">>>>>>>>>>>> Start pass " << pass->GetName() << " <<<<<<<<<<<<" << std::endl;
 #endif
       pass->Run();
+
+      END_TIME = clock();
+      if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 120) exit(20 + i++);
+
       if (emit || pass->IsEmit()) {
         out << ">>>>>>>>>>>> After pass " << pass->GetName() << " <<<<<<<<<<<<" << std::endl;
         (*m_)->EmitCode(out);

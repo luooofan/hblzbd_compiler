@@ -16,6 +16,7 @@ extern int yylex();
 extern int yylex_destroy();
 extern int yyget_lineno();
 extern std::unordered_map<std::string, std::unordered_set<ast::FunctionCall*>> called_func_map;
+extern clock_t START_TIME, END_TIME;
 
 void yyerror(const char *s) {
      std::printf("Error(line: %d): %s\n", yyget_lineno(), s); 

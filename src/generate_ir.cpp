@@ -23,6 +23,8 @@
 #define ASSERT_ENABLE
 #include "../include/myassert.h"
 
+extern clock_t START_TIME, END_TIME;
+
 // #define GENIR_TIME_CONTROL
 #ifdef GENIR_TIME_CONTROL
 #include <ctime>
@@ -37,6 +39,8 @@ using OpnType = ir::Opn::Type;
 using IROpKind = ir::IR::OpKind;
 
 void Root::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {
+  END_TIME = clock();
+  if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 120) exit(50);
   // 把系统库中的函数添加到函数表中
   // NOTE: 库函数size为0
   ir::gFuncTable.insert({"getint", {INT, -1}});
@@ -110,11 +114,14 @@ void Root::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {
   //   }
   // }
   // 对每个compunit语义分析并生成IR
+  int i = 1;
   for (const auto &ele : this->compunit_list_) {
     if (auto func_def = dynamic_cast<FunctionDefine *>(ele)) {
       if (dead_func_set.count(func_def->name_.name_)) continue;
     }
     ele->GenerateIR(ctx, gIRList);
+    END_TIME = clock();
+    if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 120) exit(60 + i++);
   }
 
 #ifdef GENIR_TIME_CONTROL

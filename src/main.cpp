@@ -1,6 +1,7 @@
 #include <unistd.h>
 
 #include <cstring>
+#include <ctime>
 #include <fstream>
 
 #include "../include/Pass/allocate_register.h"
@@ -14,6 +15,7 @@
 #include "../include/Pass/dominant.h"
 #include "../include/Pass/generate_arm_from_ssa.h"
 #include "../include/Pass/global_value_numbering.h"
+#include "../include/Pass/instruction_combining.h"
 #include "../include/Pass/loop.h"
 #include "../include/Pass/loop_unroll.h"
 #include "../include/Pass/pass_manager.h"
@@ -21,7 +23,6 @@
 #include "../include/Pass/simplify_armcode.h"
 #include "../include/Pass/simplify_cfg.h"
 #include "../include/Pass/ssa_simple_optimize.h"
-#include "../include/Pass/instruction_combining.h"
 #include "../include/arm.h"
 #include "../include/arm_struct.h"
 #include "../include/ast.h"
@@ -41,10 +42,13 @@ bool AST_LOG = false;
 bool IRLIST_LOG = true;
 bool PASS_LOG = false;
 
+clock_t START_TIME, END_TIME;
+
 #define ASSERT_ENABLE
 #include "../include/myassert.h"
 
 int main(int argc, char **argv) {
+  START_TIME = clock();
   // MyAssert(0);
   bool opt = false, print_usage = false;
   char *src = nullptr, *output = nullptr, *log_file = nullptr;
@@ -99,6 +103,9 @@ int main(int argc, char **argv) {
 #endif
   yylex_destroy();
 
+  END_TIME = clock();
+  if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 120) exit(10);
+
   MyAssert(nullptr != ast_root);
   if (logfile.is_open() && AST_LOG) {
     logfile << "AST:" << std::endl;
@@ -119,6 +126,9 @@ int main(int argc, char **argv) {
 #endif
   // MyAssert(0);
   delete ast_root;
+
+  END_TIME = clock();
+  if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 120) exit(11);
 
   if (logfile.is_open() && IRLIST_LOG) {
     ir::PrintFuncTable(logfile);
@@ -177,7 +187,11 @@ int main(int argc, char **argv) {
   } else {
     pm.Run();
   }
-  // exit(0);
+
+  END_TIME = clock();
+  if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 120) exit(12);
+
+    // exit(0);
 #ifdef DEBUG_PROCESS
   std::cout << "Passes End." << std::endl;
 #endif
