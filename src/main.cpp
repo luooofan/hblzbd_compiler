@@ -104,7 +104,7 @@ int main(int argc, char **argv) {
   yylex_destroy();
 
   END_TIME = clock();
-  if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 120) exit(10);
+  if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 60) exit(10);
 
   MyAssert(nullptr != ast_root);
   if (logfile.is_open() && AST_LOG) {
@@ -128,7 +128,7 @@ int main(int argc, char **argv) {
   delete ast_root;
 
   END_TIME = clock();
-  if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 120) exit(11);
+  if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 60) exit(11);
 
   if (logfile.is_open() && IRLIST_LOG) {
     ir::PrintFuncTable(logfile);
@@ -189,7 +189,7 @@ int main(int argc, char **argv) {
   }
 
   END_TIME = clock();
-  if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 120) exit(12);
+  if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 60) exit(12);
 
     // exit(0);
 #ifdef DEBUG_PROCESS

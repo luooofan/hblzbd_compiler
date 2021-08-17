@@ -40,7 +40,7 @@ using IROpKind = ir::IR::OpKind;
 
 void Root::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {
   END_TIME = clock();
-  if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 120) exit(50);
+  if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 60) exit(50);
   // 把系统库中的函数添加到函数表中
   // NOTE: 库函数size为0
   ir::gFuncTable.insert({"getint", {INT, -1}});
@@ -121,7 +121,7 @@ void Root::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {
     }
     ele->GenerateIR(ctx, gIRList);
     END_TIME = clock();
-    if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 120) exit(60 + i++);
+    if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 60) exit(60 + i++);
   }
 
 #ifdef GENIR_TIME_CONTROL
@@ -141,6 +141,8 @@ void Root::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {
 }
 
 void Number::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {
+  END_TIME = clock();
+  if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 60) exit(100);
   // 生成一个imm opn 维护shape
   ctx.opn_ = ir::Opn(OpnType::Imm, value_);
   ctx.shape_.clear();
@@ -148,6 +150,8 @@ void Number::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {
 
 // NOTE: 对于函数名的检查在FunctionCall完成 不调用此函数
 void Identifier::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {
+  END_TIME = clock();
+  if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 60) exit(101);
   bool is_assigned = ctx.is_assigned_;
   ctx.is_assigned_ = false;
   ir::SymbolTableItem *s = nullptr;
@@ -171,6 +175,8 @@ void Identifier::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList
 // 但如果是函数调用中使用数组则可以传递指针shape_list_维度小于符号表中的维度即可
 // 该检查交由caller来实现
 void ArrayIdentifier::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {
+  END_TIME = clock();
+  if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 60) exit(102);
   bool is_assigned = ctx.is_assigned_;
   ctx.is_assigned_ = false;
   ir::SymbolTableItem *s = nullptr;
@@ -240,6 +246,8 @@ void ArrayIdentifier::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gI
 
 // TODO: var+0 0+var var-0 var*0 0*var var/0 var%0 var/1 var%1
 void BinaryExpression::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {
+  END_TIME = clock();
+  if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 60) exit(103);
   ir::Opn opn1, opn2;
   IROpKind op;
 
@@ -323,6 +331,8 @@ void BinaryExpression::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &g
 
 // TODO: 根据语义分析 单目运算取非操作 只会出现在条件表达式中
 void UnaryExpression::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {
+  END_TIME = clock();
+  if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 60) exit(104);
   rhs_.GenerateIR(ctx, gIRList);
   ir::Opn opn1 = ctx.opn_;
   CHECK_OPN_INT("rhs exp");
@@ -376,6 +386,8 @@ void UnaryExpression::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gI
 }
 
 void FunctionCall::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {
+  END_TIME = clock();
+  if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 60) exit(105);
   ir::Opn opn1, opn2;
   auto func_item_iter = ir::gFuncTable.find(name_.name_);
   if (func_item_iter == ir::gFuncTable.end()) {
@@ -467,6 +479,8 @@ void FunctionCall::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRLi
 }
 
 void VariableDefine::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {
+  END_TIME = clock();
+  if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 60) exit(106);
   auto &scope = ir::gScopes[ctx.scope_id_];
   auto &symbol_table = scope.symbol_table_;
   // NOTE: 只需在当前作用域查找即可 找到则变量重定义
@@ -487,6 +501,8 @@ void VariableDefine::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIR
 }
 
 void VariableDefineWithInit::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {
+  END_TIME = clock();
+  if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 60) exit(107);
   auto &scope = ir::gScopes[ctx.scope_id_];
   auto &symbol_table = scope.symbol_table_;
   const auto &var_iter = symbol_table.find(this->name_.name_);
@@ -514,6 +530,8 @@ void VariableDefineWithInit::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR
 }
 
 void ArrayDefine::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {
+  END_TIME = clock();
+  if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 60) exit(108);
   auto &scope = ir::gScopes[ctx.scope_id_];
   auto &symbol_table = scope.symbol_table_;
   // NOTE: 只需在当前作用域查找即可 找到则重定义
@@ -548,6 +566,8 @@ void ArrayDefine::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRLis
 }
 
 void ArrayDefineWithInit::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {
+  END_TIME = clock();
+  if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 60) exit(109);
   auto &name = this->name_.name_.name_;
   auto &scope = ir::gScopes[ctx.scope_id_];
   auto &symbol_table = scope.symbol_table_;
@@ -626,6 +646,8 @@ void ArrayDefineWithInit::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *>
 }
 
 void FunctionDefine::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {
+  END_TIME = clock();
+  if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 60) exit(110);
 #ifdef GENIR_TIME_CONTROL
   clock_t begin, end;
   double cost;
@@ -722,6 +744,8 @@ void FunctionDefine::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIR
 }
 
 void AssignStatement::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {
+  END_TIME = clock();
+  if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 60) exit(111);
   // 给函数调用赋值过不了语法分析
   this->rhs_.GenerateIR(ctx, gIRList);
   CHECK_OPN_INT("rhs exp");
@@ -747,6 +771,8 @@ void AssignStatement::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gI
 }
 
 void IfElseStatement::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {
+  END_TIME = clock();
+  if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 60) exit(112);
   std::string label_next = ir::NewLabel();
   if (nullptr == this->elsestmt_) {
     // if then
@@ -775,6 +801,8 @@ void IfElseStatement::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gI
 }
 
 void WhileStatement::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {
+  END_TIME = clock();
+  if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 60) exit(113);
   std::string label_next = ir::NewLabel();
   std::string label_begin = ir::NewLabel();
   // genir(label,begin,-,-)
@@ -800,6 +828,8 @@ void WhileStatement::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIR
 }
 
 void BreakStatement::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {
+  END_TIME = clock();
+  if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 60) exit(114);
   // 检查是否在while循环中
   if (ctx.break_label_.empty()) {
     ir::SemanticError(this->line_no_, "'break' not in while loop");
@@ -810,6 +840,8 @@ void BreakStatement::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIR
 }
 
 void ContinueStatement::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {
+  END_TIME = clock();
+  if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 60) exit(115);
   // 检查是否在while循环中
   if (ctx.continue_label_.empty()) {
     ir::SemanticError(this->line_no_, "'continue' not in while loop");
@@ -820,6 +852,8 @@ void ContinueStatement::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &
 }
 
 void ReturnStatement::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {
+  END_TIME = clock();
+  if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 60) exit(116);
   // [return]语句必然出现在函数定义中
   auto &func_name = ctx.current_func_name_;
   const auto &func_iter = ir::gFuncTable.find(func_name);
@@ -855,13 +889,20 @@ void ReturnStatement::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gI
   }
 }
 
-void VoidStatement::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {}
+void VoidStatement::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {
+  END_TIME = clock();
+  if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 60) exit(117);
+}
 
 void EvalStatement::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {
+  END_TIME = clock();
+  if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 60) exit(118);
   this->value_.GenerateIR(ctx, gIRList);
 }
 
 void Block::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {
+  END_TIME = clock();
+  if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 60) exit(119);
   int parent_scope_id = ctx.scope_id_;
   if (!ctx.has_aug_scope) {
     // new scope
@@ -877,12 +918,16 @@ void Block::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {
 }
 
 void DeclareStatement::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {
+  END_TIME = clock();
+  if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 60) exit(120);
   for (const auto &def : this->define_list_) {
     def->GenerateIR(ctx, gIRList);
   }
 }
 
 void ArrayInitVal::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {
+  END_TIME = clock();
+  if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 60) exit(121);
   if (this->is_exp_) {
     this->value_->GenerateIR(ctx, gIRList);
     CHECK_OPN_INT("exp")
@@ -931,11 +976,20 @@ void ArrayInitVal::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRLi
   }
 }
 
-void FunctionFormalParameter::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {}
+void FunctionFormalParameter::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {
+  END_TIME = clock();
+  if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 60) exit(121);
+}
 
-void FunctionFormalParameterList::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {}
+void FunctionFormalParameterList::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {
+  END_TIME = clock();
+  if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 60) exit(122);
+}
 
-void FunctionActualParameterList::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {}
+void FunctionActualParameterList::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {
+  END_TIME = clock();
+  if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 60) exit(123);
+}
 
 // NOTE:
 // 只有if和while中会用到Cond
@@ -947,6 +1001,8 @@ void FunctionActualParameterList::GenerateIR(ir::ContextInfo &ctx, std::vector<i
 //  4.对操作数是立即数的情况做了简化处理
 // 导致代码量过多
 void ConditionExpression::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {
+  END_TIME = clock();
+  if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 60) exit(124);
   // this->PrintNode(0, std::clog);
   bool lhs_is_cond = nullptr != dynamic_cast<ConditionExpression *>(&this->lhs_);
   bool rhs_is_cond = nullptr != dynamic_cast<ConditionExpression *>(&this->rhs_);

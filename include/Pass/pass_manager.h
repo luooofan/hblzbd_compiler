@@ -65,7 +65,7 @@ class PassManager {
       pass->Run();
 
       END_TIME = clock();
-      if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 120) exit(20 + i++);
+      if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 60) exit(20 + i++);
 
       if (emit || pass->IsEmit()) {
         out << ">>>>>>>>>>>> After pass " << pass->GetName() << " <<<<<<<<<<<<" << std::endl;
