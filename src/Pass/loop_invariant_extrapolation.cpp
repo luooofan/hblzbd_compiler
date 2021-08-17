@@ -58,35 +58,6 @@ bool not_have(int x, vector<int> points) {
   return true;
 }
 
-//检查是否不变
-// bool check(ir::Opn x,vector<int> loop,map<string,vector<pair<int,int> > > def,vector<pair<int,int> > unchanegd)
-// {
-//     if(x.type_==ir::Opn::Type::Imm)return true; // 为常数则返回
-//     sort(loop.begin(),loop.end());
-//     auto defs=def[x.name_];
-//     for(int i=0,j=0;i<loop.size() && j<defs.size();)
-//     {
-//         if(loop[i]<defs[j].first)i++;
-//         else if(loop[i]>defs[j].first)j++;
-//         else // 发现了loop内有def，则看看那句def是否unchanged。如果是则这句也unchanged
-//         {
-//             auto now=defs[j];
-//             int k=0;
-//             while(k<unchanegd.size())
-//             {
-//                 if(unchanegd[k]==now)
-//                     break;
-//                 k++;
-//             }
-//             if(k==unchanegd.size())return false; // 没在unchanged里找到，说明不是unchanged，所以这句不行
-//             // 并且loop内可能有多句x的def。得这些def都是unchanged才行
-//             i++,j++;
-//         }
-//     }
-//     return true; //
-//     非常数的情况下，要么是loop里没有x的def，要么是有但那些def也都是unchanged的，就说明x在loop内也是unchanged
-// }
-
 // 检查x，如果是常数返回true；如果是变量，则遍历看loop内有无x的定值，若有使用则返回false，否则返回true
 bool check(ir::Opn x, vector<int> loop, map<int, IRBasicBlock*> id_bb, vector<pair<int, int> > unchanged) {
   if (x.type_ == ir::Opn::Type::Imm) return true;
@@ -174,10 +145,58 @@ bool check3(int enter, vector<vector<int> > to, vector<int> out, int def, string
   return true;
 }
 
+vector<IRBasicBlock*> walk(IRBasicBlock* enter,set<int> in_loop,map<int, IRBasicBlock*> id_bb,vector<int> loop,map<IRBasicBlock*, int> bb_id)
+{
+  set<IRBasicBlock*> new_in_loop;
+  for(auto it:in_loop)new_in_loop.insert(id_bb[it]);
+  vector<IRBasicBlock*> new_loop;
+  for(auto bid:loop) new_loop.push_back(id_bb[bid]);
+  vector<IRBasicBlock*> res;
+  if(enter->ir_list_.size()!=2)return res;
+  res.push_back(enter);
+  while(true)
+  {
+    auto bb=res[res.size()-1];
+    // 下面条件就是要求:后继必须是2个，并且1个指向loop内，1个指向loop外(只要求2个的话，有可能是ifelse)
+    if(bb->succ_.size()==2 && ((new_in_loop.find(bb->succ_[0])==new_in_loop.end())+ (new_in_loop.find(bb->succ_[1])==new_in_loop.end()))==1)
+    {
+      auto nxt= new_in_loop.find(bb->succ_[0])==new_in_loop.end()?bb->succ_[1]:bb->succ_[0];
+      if(nxt->ir_list_.size()!=1)break;
+      res.push_back(nxt);
+    }
+    else break;
+  }
+  vector<IRBasicBlock*> res1;
+  for(auto bb0:res)
+  {
+    auto op1=(*(bb0->ir_list_.rbegin()))->opn1_,op2=(*(bb0->ir_list_.rbegin()))->opn2_;
+    if(op1.scope_id_==0 || op2.scope_id_==0)continue;
+    vector<ir::Opn> ops;
+    ops.push_back(op1),ops.push_back(op2);
+    if(op1.type_==ir::Opn::Type::Array)ops.push_back(*op1.offset_);
+    if(op2.type_==ir::Opn::Type::Array)ops.push_back(*op2.offset_);
+    bool flag=true;
+    for(auto bb:new_loop)
+    {
+      for(auto ir:bb->ir_list_)
+      {
+        for(auto op:ops)
+        {
+          if(ir->res_.name_==op.name_)
+          {
+            flag=false;
+            break;
+          }
+        }
+      }
+    }
+    if(flag)res1.push_back(bb0);
+  }
+  return res1;
+}
+
 void InvariantExtrapolation::Run() {
-#ifdef DEBUG_LOOP_PASS
-  cout << "MXD 开始\n";
-#endif
+  // cout << "MXD 开始\n";
 
   int cntcnt = 0;
 
@@ -200,7 +219,8 @@ void InvariantExtrapolation::Run() {
 #undef DEBUG_LOOP_PASS
 
   for (auto& func : irmodule->func_list_) {
-    auto bb_list = func->bb_list_;
+
+    auto& bb_list = func->bb_list_;
 
     int n = 0;                      // 点数（基本块数），先设为0待会当cnt用
     vector<vector<int> > from, to;  // 有向图，from是入边，to是出边
@@ -242,14 +262,11 @@ void InvariantExtrapolation::Run() {
       }
     }
 
-#ifdef DEBUG_LOOP_PASS
-    cout << "输出处理后的IR:\n";
-    for (int i = 0; i < bb_list.size(); i++) {
-      cout << "b" << i << ":\n";
-      for (int j = 0; j < bb_list[i]->ir_list_.size(); j++) bb_list[i]->ir_list_[j]->PrintIR();
-    }
-#endif
-#undef DEBUG_LOOP_PASS
+    // cout << "输出处理后的IR:\n";
+    // for (int i = 0; i < bb_list.size(); i++) {
+    //   cout << "b" << i << ":\n";
+    //   for (int j = 0; j < bb_list[i]->ir_list_.size(); j++) bb_list[i]->ir_list_[j]->PrintIR();
+    // }
 
     from.resize(n), to.resize(n);
     for (auto bb : bb_list)  // 构造图
@@ -282,25 +299,28 @@ void InvariantExtrapolation::Run() {
     for (int i = 1; i < n; i++)
       for (int j = 0; j < n; j++) dom[i].push_back(j);
     bool flag = true;
-    int cnt = 0;
-    while (flag && (++cnt) <= 3) {
+    while (flag) {
       flag = false;
       for (int i = 0; i < n; i++) {
         int cnt = dom[i].size();
+        if(from[i].size()==0)
+        {
+          dom[i].clear();
+          if(i)dom[i].push_back(i);
+          continue;
+        }
         for (int j = 0; j < from[i].size(); j++) dom[i] = cross(dom[i], dom[from[i][j]]);
         if (i) dom[i].push_back(i);  // 这里是因为，如果是0的话，dom集本来为{0}，不特判的话会变成{0,0}
         if (cnt != dom[i].size()) flag = true;
       }
     }
 
-#ifdef DEBUG_LOOP_PASS
-    cout << "输出每个基本块的必经节点集:\n";
-    for (int i = 0; i < n; i++) {
-      cout << i << ':';
-      for (int j = 0; j < dom[i].size(); j++) cout << dom[i][j] << ' ';
-      cout << endl;
-    }
-#endif
+    // cout << "输出每个基本块的必经节点集:\n";
+    // for (int i = 0; i < n; i++) {
+    //   cout << i << ':';
+    //   for (int j = 0; j < dom[i].size(); j++) cout << dom[i][j] << ' ';
+    //   cout << endl;
+    // }
 
     vector<pair<int, int> > back;
     for (int i = 0; i < n; i++) {
@@ -309,11 +329,8 @@ void InvariantExtrapolation::Run() {
       }
     }
 
-#ifdef DEBUG_LOOP_PASS
-    cout << "输出所有回边:\n";
-    for (int i = 0; i < back.size(); i++) cout << back[i].first << ' ' << back[i].second << '\n';
-#endif
-#undef DEBUG_LOOP_PASS
+    // cout << "输出所有回边:\n";
+    // for (int i = 0; i < back.size(); i++) cout << back[i].first << ' ' << back[i].second << '\n';
 
     vector<bool> vis(n, false);
     for (auto bk : back) {
@@ -426,22 +443,11 @@ void InvariantExtrapolation::Run() {
         }
       }
 
-#ifdef DEBUG_LOOP_PASS
-      cout << "输出出口节点:\n";
-      for (int i = 0; i < out.size(); i++) cout << out[i] << ' ';
-      cout << endl;
-#endif
-
       int enter;  // 入口id
       if (loop.size() == 1)
         enter = loop[0];
       else
         enter = loop[1];
-
-#ifdef DEBUG_LOOP_PASS
-      cout << "输出入口节点:\n";
-      cout << enter << endl;
-#endif
 
       set<int> in_loop;
       for (int i = 0; i < loop.size(); i++) in_loop.insert(loop[i]);
@@ -464,23 +470,11 @@ void InvariantExtrapolation::Run() {
         }
       }
 
-#ifdef DEBUG_LOOP_PASS
-      cout << "输出后续节点:\n";
-      for (int i = 0; i < suc.size(); i++) cout << suc[i] << ' ';
-      cout << endl;
-#endif
-
       vector<int> must_out;                                               // 求出口节点的必经节点集
       for (int i = 0; i < loop.size(); i++) must_out.push_back(loop[i]);  // 待会求交集，这里初始化为loop里所有点
       sort(must_out.begin(), must_out.end());  // 排序是因为求交集按2个都有序求的
 
       for (int i = 0; i < out.size(); i++) must_out = cross(must_out, dom[out[i]]);
-
-#ifdef DEBUG_LOOP_PASS
-      cout << "输出出口节点的必经节点集:\n";
-      for (int i = 0; i < must_out.size(); i++) cout << must_out[i] << ' ';
-      cout << endl;
-#endif
 
       IRBasicBlock* unchanged_bb = new IRBasicBlock();
 
@@ -556,6 +550,46 @@ void InvariantExtrapolation::Run() {
             }
           }
         }
+      }
+
+      // 前面属于是不变运算提完了，这里可以外提一下不变判断
+      // 不变判断的代码形如:
+      // a=4;
+      // while(cond && a==4){}
+      // 提完不变运算的话，四元式应该形如:
+      // b0:
+      // label .label0 - -
+      // jxx xx
+      // b1:
+      // jxx xx
+      // 除入口基本块是2条语句，其余都只有1条。一旦遇到不止1条的就结束了(同时可以解决带函数调用)
+      if(id_bb[enter]->ir_list_.size()==2)
+      {
+        // cout<<"here"<<endl;
+        vector<IRBasicBlock*> path=walk(id_bb[enter],in_loop,id_bb,loop,bb_id);
+        if(path.size())
+        {
+          cout<<"输出连续的条件:";
+          for(auto bb:path)cout<<bb_id[bb]<<" ";
+          cout<<endl;
+        }
+        for(auto bb:path)
+        {
+          unchanged_bb->ir_list_.push_back(*bb->ir_list_.rbegin());
+          bb->ir_list_.pop_back();
+        }
+        // if(path.size())
+        // {
+        //   cout << "外提后:\n";
+        //   for (int i = 0; i < loop.size(); i++) {
+        //     auto bb = id_bb[loop[i]];
+        //     cout << "b" << loop[i] << "\n";
+        //     for (int j = 0; j < bb->ir_list_.size(); j++) bb->ir_list_[j]->PrintIR();
+        //   }
+
+        //   cout << "新基本块:\n";
+        //   for (int i = 0; i < unchanged_bb->ir_list_.size(); i++) unchanged_bb->ir_list_[i]->PrintIR();
+        // }
       }
 
 #ifdef DEBUG_LOOP_PASS
@@ -651,14 +685,6 @@ void InvariantExtrapolation::Run() {
       to[n - 1].push_back(enter);
 
 #ifdef DEBUG_LOOP_PASS
-      // cout<<"输出循环不变运算外提后的图:\n";
-      // for(int i=0;i<n;i++)
-      // {
-      //     cout<<i<<":";
-      //     for(int j=0;j<to[i].size();j++)cout<<to[i][j]<<' ';
-      //     cout<<endl;
-      // }
-
       cout << "输出循环不变运算外提后的基本块和前驱后继:\n";
       for (int i = 0; i < func->bb_list_.size(); i++) {
         cout << "b" << bb_id[func->bb_list_[i]] << ": 前驱:";
@@ -670,6 +696,20 @@ void InvariantExtrapolation::Run() {
       }
 #endif
     }
+
+    // 在这里再提一下不变判断，在不变运算外提后，形如:
+    // b0:
+    // label .label0 - -
+    // jxx xx xx xx
+    // b1:
+    // jxx xx xx xx
+    // b2:
+    // jxx xx xx xx
+    // 这种都是不变判断可以外提，也就是入口块只能剩2条，入口块后继应该会是2个，1个去外面，1个就是下一个
+    // 下一个只能有1条指令，且是jxx。就这么往后找，直到遇到1个基本块不止1条指令，则结束
+
+
+
 
     // 把变量名后面的_#scope_id去掉
     for (int i = 0; i < func->bb_list_.size(); i++) {
@@ -752,8 +792,9 @@ void InvariantExtrapolation::Run() {
       for (auto ir : bb->ir_list_) ir->PrintIR();
     }
   }
-  cout << "MXD 结束\n";
+
 #endif
 #undef DEBUG_LOOP_PASS
-  // cout << "外提了指令：" << cntcnt << "条" << endl;
+  // cout << "MXD 结束\n";
+
 }
