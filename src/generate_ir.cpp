@@ -1,5 +1,5 @@
-
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 
 #include "../include/ast.h"
@@ -23,12 +23,13 @@
 #define ASSERT_ENABLE
 #include "../include/myassert.h"
 
-#define GENIR_TIME_CONTROL
+// #define GENIR_TIME_CONTROL
 #ifdef GENIR_TIME_CONTROL
 #include <ctime>
 #endif
 
-std::unordered_set<std::string> called_func_set;
+std::unordered_set<std::string> dead_func_set;
+std::unordered_map<std::string, std::unordered_set<std::string>> called_func_map;
 
 namespace ast {
 
@@ -85,11 +86,33 @@ void Root::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {
   begin = clock();
 #endif
 
+  // for (auto &[func, set] : called_func_map) {
+  //   std::cout << func << set.size() << std::endl;
+  //   for (auto caller : set) {
+  //     std::cout << caller << " ";
+  //   }
+  //   std::cout << std::endl;
+  // }
+  // std::unordered_set<std::string> worklist;
+  // for (auto &[func, _] : called_func_map) {
+  //   worklist.insert(func);
+  // }
+  // worklist.erase("main");
+  // while (!worklist.empty()) {
+  //   auto func_name = *worklist.begin();
+  //   worklist.erase(func_name);
+  //   if (called_func_map[func_name].empty()) {
+  //     dead_func_set.insert(func_name);
+  //     for (auto &[func_name2, func_set] : called_func_map) {
+  //       func_set.erase(func_name);
+  //       worklist.insert(func_name2);
+  //     }
+  //   }
+  // }
   // 对每个compunit语义分析并生成IR
-  called_func_set.insert("main");
   for (const auto &ele : this->compunit_list_) {
     if (auto func_def = dynamic_cast<FunctionDefine *>(ele)) {
-      if (!called_func_set.count(func_def->name_.name_)) continue;
+      if (dead_func_set.count(func_def->name_.name_)) continue;
     }
     ele->GenerateIR(ctx, gIRList);
   }
@@ -212,6 +235,19 @@ void ArrayIdentifier::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gI
 void BinaryExpression::GenerateIR(ir::ContextInfo &ctx, std::vector<ir::IR *> &gIRList) {
   ir::Opn opn1, opn2;
   IROpKind op;
+
+  auto number = dynamic_cast<Number *>(lhs_.get());
+  auto number2 = dynamic_cast<Number *>(&rhs_);
+  if ((nullptr != number && number->value_ == 0) || (nullptr != number2 && number2->value_ == 0)) {
+    switch (op_) {
+      case MUL:
+      case DIV:  // 实际上0不能作为div和mod的rhs
+      case MOD:
+        ctx.opn_ = ir::Opn(OpnType::Imm, 0);
+        ctx.shape_.clear();
+        return;
+    }
+  }
 
   lhs_->GenerateIR(ctx, gIRList);
   opn1 = ctx.opn_;

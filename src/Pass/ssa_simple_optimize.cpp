@@ -84,14 +84,25 @@ void SimpleOptimize::Run() {
     }
     // 如果是二元运算语句 并且两个操作数都是常数 则转化为一条mov语句
     else if (auto src_inst = dynamic_cast<BinaryOperator*>(inst)) {
+      // TODO: 如果有一个数是常数并且为0 并且操作符是mul div mod那么直接转为一条mov语句即可
       auto const_lhs = dynamic_cast<ConstantInt*>(src_inst->GetOperand(0));
-      if (nullptr == const_lhs) continue;
       auto const_rhs = dynamic_cast<ConstantInt*>(src_inst->GetOperand(1));
-      if (nullptr == const_rhs) continue;
-      ++kCount;
-      int res = src_inst->ComputeConstInt(const_lhs->GetImm(), const_rhs->GetImm());
-      auto mov_inst = new MovInst(src_inst->GetType(), src_inst->GetName(), new ConstantInt(res), src_inst);
-      replace(src_inst, mov_inst);
+      if (nullptr == const_lhs && nullptr == const_rhs) continue;
+      MovInst* mov_inst = nullptr;
+      if (nullptr != const_lhs && 0 == const_lhs->GetImm() &&
+          (src_inst->op_ == BinaryOperator::DIV || src_inst->op_ == BinaryOperator::MOD ||
+           src_inst->op_ == BinaryOperator::MUL)) {
+        new MovInst(src_inst->GetType(), src_inst->GetName(), new ConstantInt(0), src_inst);
+      } else if (nullptr != const_rhs && 0 == const_rhs->GetImm() && src_inst->op_ == BinaryOperator::MUL) {
+        new MovInst(src_inst->GetType(), src_inst->GetName(), new ConstantInt(0), src_inst);
+      } else if (nullptr != const_lhs && nullptr != const_rhs) {
+        int res = src_inst->ComputeConstInt(const_lhs->GetImm(), const_rhs->GetImm());
+        new MovInst(src_inst->GetType(), src_inst->GetName(), new ConstantInt(res), src_inst);
+      }
+      if (nullptr != mov_inst) {
+        ++kCount;
+        replace(src_inst, mov_inst);
+      }
     }
     // 如果是一元运算语句 并且操作数是常数 则转化为一条mov语句
     else if (auto src_inst = dynamic_cast<UnaryOperator*>(inst)) {
