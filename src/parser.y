@@ -15,8 +15,7 @@ extern int yydebug;
 extern int yylex();
 extern int yylex_destroy();
 extern int yyget_lineno();
-extern std::unordered_map<std::string, std::unordered_set<std::string>> called_func_map;
-std::string curr_func;
+extern std::unordered_map<std::string, std::unordered_set<ast::FunctionCall*>> called_func_map;
 
 void yyerror(const char *s) {
      std::printf("Error(line: %d): %s\n", yyget_lineno(), s); 
@@ -226,23 +225,15 @@ DefArray: ArrayIdent {
 
 // ===============函数相关=================
 FuncDef: VOID Ident LPAREN FuncFParamList RPAREN Block {
-    curr_func=$2->name_;
-    called_func_map[curr_func]={};
     $$=new ast::FunctionDefine(yyget_lineno(), $1,*$2,*$4,*$6);
 }
     | VOID Ident LPAREN RPAREN Block {
-        curr_func=$2->name_;
-        called_func_map[curr_func]={};
         $$=new ast::FunctionDefine(yyget_lineno(), $1, *$2, *(new ast::FunctionFormalParameterList(yyget_lineno())), *$5);
     }
     | BType Ident LPAREN FuncFParamList RPAREN Block {
-        curr_func=$2->name_;
-        called_func_map[curr_func]={};
         $$=new ast::FunctionDefine(yyget_lineno(), $1,*$2,*$4,*$6);
     }
     | BType Ident LPAREN RPAREN Block {
-        curr_func=$2->name_;
-        called_func_map[curr_func]={};
         $$=new ast::FunctionDefine(yyget_lineno(), $1, *$2, *(new ast::FunctionFormalParameterList(yyget_lineno())), *$5);
     }
 
@@ -393,13 +384,12 @@ UnaryExp: PrimaryExp
     ;
 
 FuncCall: Ident LPAREN RPAREN {
-    // std::cout<<$1->name_<<" "<<curr_func<<std::endl;
-    called_func_map[$1->name_].insert(curr_func);
     $$=new ast::FunctionCall(yyget_lineno(), *$1,*(new ast::FunctionActualParameterList(yyget_lineno())));
+    called_func_map[$1->name_].insert($$);
 }
     | Ident LPAREN FuncRParamList RPAREN {
-        called_func_map[$1->name_].insert(curr_func);
         $$=new ast::FunctionCall(yyget_lineno(), *$1,*$3);
+        called_func_map[$1->name_].insert($$);
     }
     ;
 

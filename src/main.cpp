@@ -146,7 +146,7 @@ int main(int argc, char **argv) {
   pm.AddPass<DeadFunctionEliminate>(true);
   // pm.AddPass<ReachDefine>(false);
   pm.AddPass<ConstantPropagation>(true);
-  pm.AddPass<Instruction_Combining>(false);
+  pm.AddPass<Instruction_Combining>(true);
   pm.AddPass<LoopUnroll>(true);
   pm.AddPass<InvariantExtrapolation>(true);
   // ==================Add Quad-Pass Above==================

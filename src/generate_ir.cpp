@@ -29,7 +29,7 @@
 #endif
 
 std::unordered_set<std::string> dead_func_set;
-std::unordered_map<std::string, std::unordered_set<std::string>> called_func_map;
+std::unordered_map<std::string, std::unordered_set<ast::FunctionCall *>> called_func_map;
 
 namespace ast {
 
