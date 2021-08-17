@@ -21,6 +21,7 @@
 #include "../include/Pass/simplify_armcode.h"
 #include "../include/Pass/simplify_cfg.h"
 #include "../include/Pass/ssa_simple_optimize.h"
+#include "../include/Pass/instruction_combining.h"
 #include "../include/arm.h"
 #include "../include/arm_struct.h"
 #include "../include/ast.h"
@@ -144,6 +145,7 @@ int main(int argc, char **argv) {
   pm.AddPass<DeadFunctionEliminate>(true);
   // pm.AddPass<ReachDefine>(false);
   pm.AddPass<ConstantPropagation>(true);
+  pm.AddPass<Instruction_Combining>(false);
   pm.AddPass<LoopUnroll>(true);
   pm.AddPass<InvariantExtrapolation>(true);
   // ==================Add Quad-Pass Above==================
