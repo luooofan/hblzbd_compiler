@@ -91,7 +91,7 @@ extern int yydebug;
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
-#line 28 "src/parser.y"
+#line 30 "src/parser.y" /* yacc.c:1921  */
 
     int token;
     std::string* string;
@@ -115,7 +115,8 @@ union YYSTYPE
     ast::FunctionFormalParameterList* funcfparams;
     ast::FunctionActualParameterList* funcaparams;
 
-#line 119 "src/parser.hpp"
+#line 120 "src/parser.hpp" /* yacc.c:1921  */
+};
 
 };
 typedef union YYSTYPE YYSTYPE;

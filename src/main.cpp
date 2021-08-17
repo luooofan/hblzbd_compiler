@@ -142,6 +142,7 @@ int main(int argc, char **argv) {
   PassManager pm(module_ptr_addr);
 
   // ==================Add Quad-Pass Below==================
+  pm.AddPass<SimplifyCFG>(true);
   pm.AddPass<DeadFunctionEliminate>(true);
   // pm.AddPass<ReachDefine>(false);
   pm.AddPass<ConstantPropagation>(true);
