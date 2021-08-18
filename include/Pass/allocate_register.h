@@ -29,9 +29,7 @@ class RegAlloc : public Transform {
   // 一个reg相关的mov指令
   using MovList = std::unordered_map<RegId, MovSet>;
   // using Reg2MovList = ...
-  WorkList ValidAdjacentSet(RegId reg, AdjList &adj_list,
-                            std::vector<RegId> &select_stack,
-                            WorkList &coalesced_nodes);
+  WorkList ValidAdjacentSet(RegId reg, AdjList &adj_list, std::vector<RegId> &select_stack, WorkList &coalesced_nodes);
   void AllocateRegister(ArmModule *m, std::ostream &outfile = std::clog);
   void Run();
 };

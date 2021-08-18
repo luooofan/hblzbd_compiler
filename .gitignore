@@ -17,3 +17,4 @@ temp*
 build/
 output/
 *gitlab*
+generate_DAG.png

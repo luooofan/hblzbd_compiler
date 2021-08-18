@@ -3,6 +3,9 @@
 #include "../include/ast.h"
 #include <cstdio>
 #include <cstdlib>
+#include <unordered_map>
+#include <unordered_set>
+#include <string>
 
 #define YYERROR_VERBOSE true
 #define YYDEBUG 1
@@ -12,6 +15,8 @@ extern int yydebug;
 extern int yylex();
 extern int yylex_destroy();
 extern int yyget_lineno();
+extern std::unordered_map<std::string, std::unordered_set<ast::FunctionCall*>> called_func_map;
+
 
 void yyerror(const char *s) {
      std::printf("Error(line: %d): %s\n", yyget_lineno(), s); 
@@ -381,9 +386,11 @@ UnaryExp: PrimaryExp
 
 FuncCall: Ident LPAREN RPAREN {
     $$=new ast::FunctionCall(yyget_lineno(), *$1,*(new ast::FunctionActualParameterList(yyget_lineno())));
+    called_func_map[$1->name_].insert($$);
 }
     | Ident LPAREN FuncRParamList RPAREN {
         $$=new ast::FunctionCall(yyget_lineno(), *$1,*$3);
+        called_func_map[$1->name_].insert($$);
     }
     ;
 

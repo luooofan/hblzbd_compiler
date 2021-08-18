@@ -1,7 +1,7 @@
 #include "../include/ir_struct.h"
 using namespace ir;
 
-IRModule* ConstructModule(const std::string& module_name) {
+IRModule* ConstructModule(const std::string& module_name, std::vector<ir::IR*>& gIRList) {
   // Construct BasicBlocks Functions and Module from gIRList
 
   // 基本块的首指令
@@ -16,21 +16,21 @@ IRModule* ConstructModule(const std::string& module_name) {
 
   // add library function to label2func
   // not add them to module
-  label2func.insert({"getint", new IRFunction("getint", 0, 0)});
-  label2func.insert({"getch", new IRFunction("getch", 0, 0)});
-  label2func.insert({"getarray", new IRFunction("getarray", 0, 0)});
-  label2func.insert({"putint", new IRFunction("putint", 1, 0)});
-  label2func.insert({"putch", new IRFunction("putch", 1, 0)});
-  label2func.insert({"putarray", new IRFunction("putarray", 1, 0)});
-  label2func.insert({"_sysy_starttime", new IRFunction("_sysy_starttime", 1, 0)});
-  label2func.insert({"_sysy_stoptime", new IRFunction("_sysy_stoptime", 1, 0)});
-  label2func.insert({"memset", new IRFunction("memset", 3, 0)});
+  label2func.insert({"getint", new IRFunction("getint", 0)});
+  label2func.insert({"getch", new IRFunction("getch", 0)});
+  label2func.insert({"getarray", new IRFunction("getarray", 0)});
+  label2func.insert({"putint", new IRFunction("putint", 1)});
+  label2func.insert({"putch", new IRFunction("putch", 1)});
+  label2func.insert({"putarray", new IRFunction("putarray", 1)});
+  label2func.insert({"_sysy_starttime", new IRFunction("_sysy_starttime", 1)});
+  label2func.insert({"_sysy_stoptime", new IRFunction("_sysy_stoptime", 1)});
+  label2func.insert({"memset", new IRFunction("memset", 3)});
 
   IRModule* module = new IRModule(module_name, gScopes[0]);
 
   // fill label2bb label2func. every bb has its first ir. every func has it first bb. module has all funs.
   for (int i = 0; i < gIRList.size(); ++i) {
-    auto& ir = gIRList[i];
+    auto& ir = *gIRList[i];
     if (ir.op_ == IR::OpKind::LABEL) {
       auto& label_name = ir.opn1_.name_;
       IRBasicBlock* bb = new IRBasicBlock();
@@ -38,7 +38,7 @@ IRModule* ConstructModule(const std::string& module_name) {
       label2bb.insert({label_name, bb});
       if (ir.opn1_.type_ == Opn::Type::Func) {  // is a function begin
         auto& func_item = (*ir::gFuncTable.find(label_name)).second;
-        IRFunction* func = new IRFunction(label_name, func_item.shape_list_.size(), func_item.size_);
+        IRFunction* func = new IRFunction(label_name, func_item.shape_list_.size());
         func->bb_list_.push_back(bb);
         bb->func_ = func;
         label2func.insert({label_name, func});
@@ -54,7 +54,7 @@ IRModule* ConstructModule(const std::string& module_name) {
   IRBasicBlock* curr_bb = nullptr;
   // for every ir
   for (int i = 0; i < gIRList.size(); ++i) {
-    auto& ir = gIRList[i];
+    auto& ir = *gIRList[i];
     if (ir.op_ == IR::OpKind::LABEL) {
       is_leader = true;  // 表示这条一定是首指令
     }
