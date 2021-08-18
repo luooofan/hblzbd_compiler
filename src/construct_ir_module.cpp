@@ -2,8 +2,6 @@
 using namespace ir;
 
 IRModule* ConstructModule(const std::string& module_name, std::vector<ir::IR*>& gIRList) {
-  END_TIME = clock();
-  if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 60) exit(233);
   // Construct BasicBlocks Functions and Module from gIRList
 
   // 基本块的首指令
@@ -29,8 +27,7 @@ IRModule* ConstructModule(const std::string& module_name, std::vector<ir::IR*>& 
   label2func.insert({"memset", new IRFunction("memset", 3)});
 
   IRModule* module = new IRModule(module_name, gScopes[0]);
-  END_TIME = clock();
-  if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 60) exit(235);
+
   // fill label2bb label2func. every bb has its first ir. every func has it first bb. module has all funs.
   for (int i = 0; i < gIRList.size(); ++i) {
     auto& ir = *gIRList[i];
@@ -122,8 +119,6 @@ IRModule* ConstructModule(const std::string& module_name, std::vector<ir::IR*>& 
         break;
     }
   }
-  END_TIME = clock();
-  if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 60) exit(234);
 
   return module;
 }

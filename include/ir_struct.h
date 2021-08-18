@@ -4,12 +4,10 @@
 #include <string>
 #include <unordered_set>
 
-#include "./DAG.h"
 #include "./general_struct.h"
 #include "./ir.h"
 class IRBasicBlock;
 class IRFunction;
-class DAG_node;
 
 class IRModule : public Module {
  public:
@@ -48,8 +46,6 @@ class IRBasicBlock {
   std::vector<ir::IR*> ir_list_;
   // only used for emitting
   IRFunction* func_;
-  // used for debug DAG array
-  std::vector<ir::IR*> ir_list_backup_;
 
   std::vector<IRBasicBlock*> pred_;
   std::vector<IRBasicBlock*> succ_;
@@ -66,9 +62,6 @@ class IRBasicBlock {
   std::unordered_set<ir::IR*> reach_out_;
   std::vector<std::unordered_map<ir::Opn*, std::unordered_set<ir::IR*>>> use_def_chains_;
 
-  // use for DAG
-  std::vector<DAG_node*> node_list_;
-  std::vector<DAG_node*> root_node_;
   //记录下这个基本块的Label，在基本块中就不处理label语句了
   //形式：Label_#label or Label_#Func
   std::string bb_label_;

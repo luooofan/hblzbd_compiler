@@ -145,52 +145,46 @@ bool check3(int enter, vector<vector<int> > to, vector<int> out, int def, string
   return true;
 }
 
-vector<IRBasicBlock*> walk(IRBasicBlock* enter,set<int> in_loop,map<int, IRBasicBlock*> id_bb,vector<int> loop,map<IRBasicBlock*, int> bb_id)
-{
+vector<IRBasicBlock*> walk(IRBasicBlock* enter, set<int> in_loop, map<int, IRBasicBlock*> id_bb, vector<int> loop,
+                           map<IRBasicBlock*, int> bb_id) {
   set<IRBasicBlock*> new_in_loop;
-  for(auto it:in_loop)new_in_loop.insert(id_bb[it]);
+  for (auto it : in_loop) new_in_loop.insert(id_bb[it]);
   vector<IRBasicBlock*> new_loop;
-  for(auto bid:loop) new_loop.push_back(id_bb[bid]);
+  for (auto bid : loop) new_loop.push_back(id_bb[bid]);
   vector<IRBasicBlock*> res;
-  if(enter->ir_list_.size()!=2)return res;
+  if (enter->ir_list_.size() != 2) return res;
   res.push_back(enter);
-  while(true)
-  {
-    auto bb=res[res.size()-1];
+  while (true) {
+    auto bb = res[res.size() - 1];
     // 下面条件就是要求:后继必须是2个，并且1个指向loop内，1个指向loop外(只要求2个的话，有可能是ifelse)
-    if(bb->succ_.size()==2 && ((new_in_loop.find(bb->succ_[0])==new_in_loop.end())+ (new_in_loop.find(bb->succ_[1])==new_in_loop.end()))==1)
-    {
-      auto nxt= new_in_loop.find(bb->succ_[0])==new_in_loop.end()?bb->succ_[1]:bb->succ_[0];
-      if(nxt->ir_list_.size()!=1)break;
+    if (bb->succ_.size() == 2 && ((new_in_loop.find(bb->succ_[0]) == new_in_loop.end()) +
+                                  (new_in_loop.find(bb->succ_[1]) == new_in_loop.end())) == 1) {
+      auto nxt = new_in_loop.find(bb->succ_[0]) == new_in_loop.end() ? bb->succ_[1] : bb->succ_[0];
+      if (nxt->ir_list_.size() != 1) break;
       res.push_back(nxt);
-    }
-    else break;
+    } else
+      break;
   }
   vector<IRBasicBlock*> res1;
-  for(auto bb0:res)
-  {
-    auto op1=(*(bb0->ir_list_.rbegin()))->opn1_,op2=(*(bb0->ir_list_.rbegin()))->opn2_;
-    if(op1.scope_id_==0 || op2.scope_id_==0)continue;
+  for (auto bb0 : res) {
+    auto op1 = (*(bb0->ir_list_.rbegin()))->opn1_, op2 = (*(bb0->ir_list_.rbegin()))->opn2_;
+    if (op1.scope_id_ == 0 || op2.scope_id_ == 0) continue;
     vector<ir::Opn> ops;
-    ops.push_back(op1),ops.push_back(op2);
-    if(op1.type_==ir::Opn::Type::Array)ops.push_back(*op1.offset_);
-    if(op2.type_==ir::Opn::Type::Array)ops.push_back(*op2.offset_);
-    bool flag=true;
-    for(auto bb:new_loop)
-    {
-      for(auto ir:bb->ir_list_)
-      {
-        for(auto op:ops)
-        {
-          if(ir->res_.name_==op.name_)
-          {
-            flag=false;
+    ops.push_back(op1), ops.push_back(op2);
+    if (op1.type_ == ir::Opn::Type::Array) ops.push_back(*op1.offset_);
+    if (op2.type_ == ir::Opn::Type::Array) ops.push_back(*op2.offset_);
+    bool flag = true;
+    for (auto bb : new_loop) {
+      for (auto ir : bb->ir_list_) {
+        for (auto op : ops) {
+          if (ir->res_.name_ == op.name_) {
+            flag = false;
             break;
           }
         }
       }
     }
-    if(flag)res1.push_back(bb0);
+    if (flag) res1.push_back(bb0);
   }
   return res1;
 }
@@ -219,7 +213,6 @@ void InvariantExtrapolation::Run() {
 #undef DEBUG_LOOP_PASS
 
   for (auto& func : irmodule->func_list_) {
-
     auto& bb_list = func->bb_list_;
 
     int n = 0;                      // 点数（基本块数），先设为0待会当cnt用
@@ -303,10 +296,9 @@ void InvariantExtrapolation::Run() {
       flag = false;
       for (int i = 0; i < n; i++) {
         int cnt = dom[i].size();
-        if(from[i].size()==0)
-        {
+        if (from[i].size() == 0) {
           dom[i].clear();
-          if(i)dom[i].push_back(i);
+          if (i) dom[i].push_back(i);
           continue;
         }
         for (int j = 0; j < from[i].size(); j++) dom[i] = cross(dom[i], dom[from[i][j]]);
@@ -563,18 +555,15 @@ void InvariantExtrapolation::Run() {
       // b1:
       // jxx xx
       // 除入口基本块是2条语句，其余都只有1条。一旦遇到不止1条的就结束了(同时可以解决带函数调用)
-      if(id_bb[enter]->ir_list_.size()==2)
-      {
+      if (id_bb[enter]->ir_list_.size() == 2) {
         // cout<<"here"<<endl;
-        vector<IRBasicBlock*> path=walk(id_bb[enter],in_loop,id_bb,loop,bb_id);
-        if(path.size())
-        {
-          cout<<"输出连续的条件:";
-          for(auto bb:path)cout<<bb_id[bb]<<" ";
-          cout<<endl;
+        vector<IRBasicBlock*> path = walk(id_bb[enter], in_loop, id_bb, loop, bb_id);
+        if (path.size()) {
+          cout << "输出连续的条件:";
+          for (auto bb : path) cout << bb_id[bb] << " ";
+          cout << endl;
         }
-        for(auto bb:path)
-        {
+        for (auto bb : path) {
           unchanged_bb->ir_list_.push_back(*bb->ir_list_.rbegin());
           bb->ir_list_.pop_back();
         }
@@ -708,9 +697,6 @@ void InvariantExtrapolation::Run() {
     // 这种都是不变判断可以外提，也就是入口块只能剩2条，入口块后继应该会是2个，1个去外面，1个就是下一个
     // 下一个只能有1条指令，且是jxx。就这么往后找，直到遇到1个基本块不止1条指令，则结束
 
-
-
-
     // 把变量名后面的_#scope_id去掉
     for (int i = 0; i < func->bb_list_.size(); i++) {
       for (int j = 0; j < func->bb_list_[i]->ir_list_.size(); j++) {
@@ -796,5 +782,4 @@ void InvariantExtrapolation::Run() {
 #endif
 #undef DEBUG_LOOP_PASS
   // cout << "MXD 结束\n";
-
 }

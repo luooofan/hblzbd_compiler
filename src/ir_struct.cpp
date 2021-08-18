@@ -152,9 +152,6 @@ void IRBasicBlock::EmitBackupCode(std::ostream& out) {
   }
   out << std::endl;
 #endif
-  for (auto ir : this->ir_list_backup_) {
-    ir->PrintIR(out);
-  }
 }
 
 #undef ASSERT_ENABLE  // disable assert. this should be placed at the end of every file.

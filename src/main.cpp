@@ -42,13 +42,11 @@ bool AST_LOG = false;
 bool IRLIST_LOG = true;
 bool PASS_LOG = false;
 
-clock_t START_TIME, END_TIME;
 
 #define ASSERT_ENABLE
 #include "../include/myassert.h"
 
 int main(int argc, char **argv) {
-  START_TIME = clock();
   // MyAssert(0);
   bool opt = false, print_usage = false;
   char *src = nullptr, *output = nullptr, *log_file = nullptr;
@@ -103,9 +101,6 @@ int main(int argc, char **argv) {
 #endif
   yylex_destroy();
 
-  END_TIME = clock();
-  if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 60) exit(10);
-
   MyAssert(nullptr != ast_root);
   if (logfile.is_open() && AST_LOG) {
     logfile << "AST:" << std::endl;
@@ -118,7 +113,6 @@ int main(int argc, char **argv) {
   std::vector<IR *> *ir_list_ptr = new std::vector<IR *>();
   {
     ir::ContextInfo ctx;
-    // (*ir_list_ptr).reserve(10000);
     ast_root->GenerateIR(ctx, *ir_list_ptr);
   }
 #ifdef DEBUG_PROCESS
@@ -126,9 +120,6 @@ int main(int argc, char **argv) {
 #endif
   // MyAssert(0);
   delete ast_root;
-
-  END_TIME = clock();
-  if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 60) exit(11);
 
   if (logfile.is_open() && IRLIST_LOG) {
     ir::PrintFuncTable(logfile);
@@ -188,10 +179,7 @@ int main(int argc, char **argv) {
     pm.Run();
   }
 
-  END_TIME = clock();
-  if ((END_TIME - START_TIME) / CLOCKS_PER_SEC > 60) exit(12);
-
-    // exit(0);
+  // exit(0);
 #ifdef DEBUG_PROCESS
   std::cout << "Passes End." << std::endl;
 #endif

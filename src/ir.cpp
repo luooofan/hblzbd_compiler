@@ -268,9 +268,6 @@ void IR::PrintIR(std::ostream &outfile) {
     case IR::OpKind::CALL:
       PRINT_IR("call");
       break;
-    case IR::OpKind::OFFSET_ASSIGN:
-      PRINT_IR("[]=");
-      break;
     case IR::OpKind::ASSIGN_OFFSET:
       PRINT_IR("=[]");
       break;
