@@ -1,5 +1,7 @@
 # hblzbd_compiler
 
+![compiler architecture](./images/compiler_architecture.png)
+
 ## Build
 
 ```shell
